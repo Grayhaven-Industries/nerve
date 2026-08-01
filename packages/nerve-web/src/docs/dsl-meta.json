@@ -574,6 +574,12 @@
           "type": "number",
           "optional": true,
           "doc": "Ambient temperature the bundle runs in (°C); member wires need a\ntemperature rating at or above it."
+        },
+        {
+          "name": "waypoints",
+          "type": "ReadonlyArray<Point3>",
+          "optional": true,
+          "doc": "Routed centerline through space, in harness units. Present means\nlengths and curvature are computed rather than asserted."
         }
       ]
     },

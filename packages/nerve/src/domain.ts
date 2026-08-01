@@ -6,6 +6,7 @@
  * which is what renderers, validators, and exporters consume.
  */
 import type { KnownGauge } from "./gauge.js"
+import type { Point3 } from "./geometry.js"
 
 export type Units = "mm" | "in"
 
@@ -258,6 +259,9 @@ export interface BranchProps {
   /** Ambient temperature the bundle runs in (°C); member wires need a
    * temperature rating at or above it. */
   readonly ambientTemperatureC?: number
+  /** Routed centerline through space, in harness units. Present means
+   * lengths and curvature are computed rather than asserted. */
+  readonly waypoints?: ReadonlyArray<Point3>
 }
 
 export interface BranchDef {
@@ -270,6 +274,17 @@ export interface BranchDef {
   readonly breakoutDistance?: number
   readonly minBendRadius?: number
   readonly ambientTemperatureC?: number
+  /**
+   * Routed centerline through space, in harness units.
+   *
+   * Every length in Nerve is otherwise a number a person typed. Lengths do
+   * not originate in a text editor — they come from routing a bundle around
+   * brackets with real bend radii, and the cut list is where a wrong one gets
+   * expensive. When waypoints are present the compiler computes `routedLength`
+   * and `routedMinBendRadius` from them, so moving a connector updates the
+   * geometry instead of requiring every number to be retyped.
+   */
+  readonly waypoints?: ReadonlyArray<Point3>
 }
 
 export interface ProtectionProps {

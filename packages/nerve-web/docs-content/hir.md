@@ -104,6 +104,9 @@ Array of:
 | `breakoutDistance` | `number` | no |  |
 | `minBendRadius` | `number` | no |  |
 | `ambientTemperatureC` | `number` | no |  |
+| `waypoints` | `Array<{ x, y, z }>` | no |  |
+| `routedLength` | `number` | no |  |
+| `routedMinBendRadius` | `number` | no |  |
 
 ## splices
 

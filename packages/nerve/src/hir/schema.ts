@@ -185,6 +185,14 @@ export const HirCable = Schema.Struct({
   wires: Schema.Array(Schema.String)
 })
 
+/** A routed waypoint in harness units. Mirrors `Point3` in geometry.ts,
+ * which is the dependency-free kernel the compiler measures with. */
+export const HirPoint3 = Schema.Struct({
+  x: Schema.Number,
+  y: Schema.Number,
+  z: Schema.Number
+})
+
 export const HirBranch = Schema.Struct({
   id: Schema.String,
   path: Schema.Array(Schema.String),
@@ -195,7 +203,16 @@ export const HirBranch = Schema.Struct({
   minBendRadius: Schema.optional(Schema.Number),
   /** Ambient the bundle runs in (°C); wires in it need a temperature rating
    * at or above this (HK-ELEC-009). */
-  ambientTemperatureC: Schema.optional(Schema.Number)
+  ambientTemperatureC: Schema.optional(Schema.Number),
+  /** Authored routed centerline, harness units. */
+  waypoints: Schema.optional(Schema.Array(HirPoint3)),
+  /** Computed from `waypoints` by the compiler: total centerline length.
+   * Absent when the branch is not routed — an unrouted branch has no
+   * computed length, which is different from a length of zero. */
+  routedLength: Schema.optional(Schema.Number),
+  /** Computed from `waypoints`: the tightest bend over the routed path.
+   * Absent for a straight run, whose radius is infinite rather than zero. */
+  routedMinBendRadius: Schema.optional(Schema.Number)
 })
 
 /** An overcurrent protection device (fuse/breaker) and the wires it guards.
@@ -272,6 +289,7 @@ export type HirConnector = Schema.Schema.Type<typeof HirConnector>
 export type HirWire = Schema.Schema.Type<typeof HirWire>
 export type HirWirePart = Schema.Schema.Type<typeof HirWirePart>
 export type HirWireEndAllowance = Schema.Schema.Type<typeof HirWireEndAllowance>
+export type HirPoint3 = Schema.Schema.Type<typeof HirPoint3>
 export type HirBranch = Schema.Schema.Type<typeof HirBranch>
 export type HirLabel = Schema.Schema.Type<typeof HirLabel>
 export type HirBomItem = Schema.Schema.Type<typeof HirBomItem>

@@ -47,6 +47,10 @@ export const Codes = {
   DuplicateBranchId: "HK-BRANCH-001",
   BranchUndefinedEndpoint: "HK-BRANCH-002",
   InvalidBranchGeometry: "HK-BRANCH-003",
+  /** A branch's authored `nominalLength` contradicts the length measured from
+   * its own `waypoints`. Distinct from HK-BRANCH-003 (a value that is not a
+   * valid number) because the fix is different: one number has to give. */
+  BranchLengthMismatch: "HK-BRANCH-004",
   DuplicateLabelId: "HK-LABEL-001",
   LabelUndefinedTarget: "HK-LABEL-002",
   InvalidLabelQuantity: "HK-LABEL-003",

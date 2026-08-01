@@ -611,6 +611,35 @@
             },
             "ambientTemperatureC": {
               "type": "number"
+            },
+            "waypoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "routedLength": {
+              "type": "number"
+            },
+            "routedMinBendRadius": {
+              "type": "number"
             }
           },
           "additionalProperties": false
