@@ -6,7 +6,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version && bun install",
     "test": "vitest run",
-    "typecheck": "for p in packages/* examples/*; do (cd $p && bunx tsc -p . --noEmit) || exit 1; done",
+    "typecheck": "for p in packages/* examples/*; do (cd $p && node ../../node_modules/typescript-7/bin/tsc -p . --noEmit) || exit 1; done",
+    "typecheck:ts5": "for p in packages/* examples/*; do (cd $p && bunx tsc -p . --noEmit) || exit 1; done",
     "build": "bun run --filter './packages/*' build"
   },
   "devDependencies": {
@@ -20,6 +21,7 @@
     "pngjs": "^7.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.8.3",
+    "typescript-7": "npm:typescript@^7.0.2",
     "vitest": "^4.1.10"
   },
   "workspaces": [

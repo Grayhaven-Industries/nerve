@@ -10,8 +10,8 @@
     "@grayhaven/nerve": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
-    "@grayhaven/nerve-rules": "workspace:*"
+    "@grayhaven/nerve-rules": "workspace:*",
+    "typescript": "^5.8.3"
   },
   "license": "Apache-2.0",
   "scripts": {

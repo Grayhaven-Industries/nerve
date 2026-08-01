@@ -20,7 +20,7 @@ Everything above embedded in one file: https://nerve.grayhavenindustries.com/llm
 ## Packages (npm)
 
 - [@grayhaven/nerve](https://www.npmjs.com/package/@grayhaven/nerve): DSL, HIR schema, compileDesign, diff, rule API
-- [@grayhaven/nerve-rules](https://www.npmjs.com/package/@grayhaven/nerve-rules): 43 built-in validation rules (HK-* codes)
+- [@grayhaven/nerve-rules](https://www.npmjs.com/package/@grayhaven/nerve-rules): 49 built-in validation rules (HK-* codes)
 - [@grayhaven/nerve-compiler](https://www.npmjs.com/package/@grayhaven/nerve-compiler): .harness.ts loading, fail-closed gate
 - [@grayhaven/nerve-exporters](https://www.npmjs.com/package/@grayhaven/nerve-exporters): SVG/PDF/CSV/test-plan/packet generation
 - [@grayhaven/nerve-wireviz](https://www.npmjs.com/package/@grayhaven/nerve-wireviz): WireViz YAML import/export
