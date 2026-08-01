@@ -299,8 +299,8 @@ describe("determinism", () => {
     {
       name: "robot-platform",
       design: robotPlatform,
-      digest: "71b26adc303458f02d20b2e44a9c0cc2d7257db0cb873a0a5dc1c8809c684eca",
-      bytes: 35865
+      digest: "be5fdc5a430920aa266e606a22a3726b12ecf134fbe44475f5585664ab528205",
+      bytes: 36139
     },
     {
       name: "sensor-splice",

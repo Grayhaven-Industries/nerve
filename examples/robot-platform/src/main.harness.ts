@@ -281,8 +281,23 @@ export default harness("robot-platform-harness", {
     wire("W_BUMP_R_RTN", bumpR.pin(2), mcu.pin(14), { gauge: "26AWG", color: "black", length: 520, signal: "GND_SIG" , branch: "tail" })
   ],
   branches: [
-    branch("spine", { path: [battery, estop, pdbIn], sleeve: "braided-pet-12", nominalLength: 350 }),
-    branch("ctrl", { parent: "spine", breakoutDistance: 300, path: [mcu, imu], sleeve: "braided-pet-10", nominalLength: 400 }),
+    // These two are routed; the rest still assert a nominal length.
+    //
+    // A routed branch stops asserting its length and starts having one: the
+    // compiler measures the centerline, HK-BRANCH-004 reports the two
+    // disagreeing, and HK-MFG-005 judges the curvature the bundle is actually
+    // asked to take rather than a number typed beside it. Coordinates are in
+    // harness units (mm) from the battery bay, x aft, y starboard, z up.
+    branch("spine", {
+      path: [battery, estop, pdbIn], sleeve: "braided-pet-12", nominalLength: 350,
+      // 150 aft along the bay floor, then 200 up the bulkhead to the PDB.
+      waypoints: [{ x: 0, y: 0, z: 0 }, { x: 150, y: 0, z: 0 }, { x: 150, y: 0, z: 200 }]
+    }),
+    branch("ctrl", {
+      parent: "spine", breakoutDistance: 300, path: [mcu, imu], sleeve: "braided-pet-10", nominalLength: 400,
+      // 200 outboard, then 200 forward to the controller tray.
+      waypoints: [{ x: 150, y: 0, z: 200 }, { x: 150, y: 200, z: 200 }, { x: 350, y: 200, z: 200 }]
+    }),
     branch("sens", { parent: "ctrl", breakoutDistance: 150, path: [gps, lidar], sleeve: "braided-pet-6", nominalLength: 300 }),
     branch("drive_l", { parent: "spine", breakoutDistance: 200, path: [pdbOut, drives[0]!.driver, drives[1]!.driver], sleeve: "braided-pet-10", nominalLength: 450 }),
     branch("drive_r", { parent: "spine", breakoutDistance: 200, path: [drives[2]!.driver, drives[3]!.driver], sleeve: "braided-pet-10", nominalLength: 450 }),

@@ -153,17 +153,38 @@ describe("branch geometry", () => {
     expect(JSON.stringify(first.hir)).toBe(JSON.stringify(second.hir))
   })
 
-  it("leaves an unrouted example untouched", () => {
-    // No example declares waypoints, so geometry must be entirely inert here:
-    // same bytes as before the feature existed, and no new diagnostics.
+  it("leaves an unrouted branch entirely untouched", () => {
+    // robot-platform routes spine and ctrl; the other four assert a nominal
+    // length and nothing else. Geometry must stay inert on those — an
+    // unrouted branch has no computed length, which is categorically
+    // different from a length of zero.
     const { hir, diagnostics } = compileDesign(robotPlatform)
+    const unrouted = hir.branches.filter((b) => b.waypoints === undefined)
 
-    for (const b of hir.branches) {
-      expect(b).not.toHaveProperty("waypoints")
+    expect(unrouted.map((b) => b.id)).toEqual(["drive_l", "drive_r", "sens", "tail"])
+    for (const b of unrouted) {
       expect(b).not.toHaveProperty("routedLength")
       expect(b).not.toHaveProperty("routedMinBendRadius")
     }
     expect(diagnostics).toEqual([])
-    expect(JSON.stringify(hir)).toBe(JSON.stringify(compileDesign(robotPlatform).hir))
+  })
+
+  // The routed pair exists so the geometry path is exercised by a harness and
+  // not only by fixtures. Both agree with their declared nominal length, so
+  // HK-BRANCH-004 stays silent — the check is live, not merely present.
+  it("measures robot-platform's routed branches", () => {
+    const { hir, diagnostics } = compileDesign(robotPlatform)
+    const routed = hir.branches.filter((b) => b.waypoints !== undefined)
+
+    expect(routed.map((b) => b.id)).toEqual(["ctrl", "spine"])
+    expect(routed.map((b) => [b.id, b.nominalLength, b.routedLength])).toEqual([
+      ["ctrl", 400, 400],
+      ["spine", 350, 350]
+    ])
+    // Circumradius of a right triangle is its hypotenuse over two: the ctrl
+    // route turns 200 into 200, the spine route 150 into 200.
+    expect(routed.find((b) => b.id === "ctrl")!.routedMinBendRadius).toBeCloseTo(141.42, 2)
+    expect(routed.find((b) => b.id === "spine")!.routedMinBendRadius).toBe(125)
+    expect(diagnostics).toEqual([])
   })
 })
