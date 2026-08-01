@@ -81,14 +81,23 @@ export const CAN_STUB_LENGTH_M_BY_KBPS: Readonly<Record<number, number>> = {
 const TABULATED_KBPS = [125, 500, 1000] as const
 
 /**
- * Budget for a declared bit rate: the tabulated rate at or above it, so an
- * untabulated rate resolves to the STRICTER neighbour (250 kbit/s gets the
+ * Length budgets for a declared bit rate: the tabulated rate at or above it, so
+ * an untabulated rate resolves to the STRICTER neighbour (250 kbit/s gets the
  * 500 kbit/s budget). Rates above 1 Mbit/s get the 1 Mbit/s row, which is the
  * floor of the table rather than an extrapolation.
+ *
+ * Both budgets come from the same resolved rate so a finding and a margin can
+ * never disagree about which row of the table applies.
  */
-const stubBudget = (kbps: number): { readonly rate: number; readonly stubM: number } => {
+const lengthBudget = (
+  kbps: number
+): { readonly rate: number; readonly stubM: number; readonly totalM: number } => {
   const rate = TABULATED_KBPS.find((r) => kbps <= r) ?? 1000
-  return { rate, stubM: CAN_STUB_LENGTH_M_BY_KBPS[rate]! }
+  return {
+    rate,
+    stubM: CAN_STUB_LENGTH_M_BY_KBPS[rate]!,
+    totalM: CAN_BUS_LENGTH_M_BY_KBPS[rate]!
+  }
 }
 
 // --- Bus extraction ---------------------------------------------------------
@@ -253,6 +262,23 @@ const round = (value: number, places = 3): number => Number(value.toFixed(places
  * Also warns when a fitted value is nowhere near 120Ω, which is a
  * data-entry check, not a resistor-tolerance check (see
  * CAN_TERMINATION_BAND_OHMS).
+ *
+ * NO MARGIN, deliberately, on either quantity here.
+ *
+ * Terminator count is discrete: two terminations versus three is not 1.5× of
+ * anything, and there is no design between them to move toward.
+ *
+ * Termination resistance is continuous but its budget is TWO-SIDED and not
+ * even symmetric (100-130Ω around a 120Ω nominal), while `utilization` is
+ * `measured / limit` — one-sided by construction, better when smaller. Under
+ * that normalization a 60Ω entry, which is the classic "somebody recorded the
+ * parallel pair" defect this rule exists to catch, scores 0.46 and looks like
+ * the healthiest terminator on the harness, while a correct 120Ω scores 0.92
+ * and looks nearly failing. An optimizer minimising utilization would drive
+ * resistance toward zero. Re-normalising to a deviation (|R - 120| / 10) would
+ * fix the direction but invent a quantity no standard states and hide the
+ * asymmetry of the band. A wrong slope is worse than no slope, so this rule
+ * measures nothing.
  */
 export const canTerminationCountWrong: Rule = rule(
   "canTerminationCountWrong",
@@ -365,6 +391,15 @@ export const canTerminationNotAtBusEnd: Rule = rule(
  * The H and L halves are separate components of the graph, so a physical tee
  * is reported once per half. That is intentional: they are separate refs and
  * a harness can genuinely branch one and not the other.
+ *
+ * NO MARGIN on node degree. Degree is an integer with no budget: the standard
+ * states no maximum, which is precisely this rule's own argument for warning
+ * rather than erroring at every degree. Any denominator would therefore be
+ * invented, and the resulting slope would tell an optimizer that collapsing a
+ * five-way splice pack into two three-way ones is a 40% improvement when the
+ * copper, the stubs and the reflections are unchanged. The quantity that
+ * actually separates a legitimate splice pack from a harmful star is stub
+ * length, and HK-ELEC-021 measures it.
  */
 export const canBusNotLinear: Rule = rule(
   "canBusNotLinear",
@@ -481,6 +516,69 @@ const stubsOf = (bus: CanBus): ReadonlyArray<Stub> => {
 }
 
 /**
+ * End-to-end length of the longest run on the bus, in meters, or undefined when
+ * it cannot be known honestly.
+ *
+ * NOT the sum of the wire lengths. CAN_H and CAN_L are separate components of
+ * this graph that run down the same physical trunk, so adding both halves
+ * reports a bus at twice its physical length. CAN_BUS_LENGTH_M_BY_KBPS is a
+ * propagation-delay limit on the distance between the two most distant nodes,
+ * which is the weighted diameter of the bus graph — taken per component, with
+ * the longest component winning. For a plain two-node trunk that is exactly the
+ * trunk wire; for a tee it is trunk plus the longest drop, which is what the
+ * signal actually traverses.
+ *
+ * Undefined when any bus wire declares no length (guessing would fabricate the
+ * measurement, and HK-MFG-001 already reports the missing length) or when the
+ * bus contains a cycle, where the path between two nodes is not unique and a
+ * diameter would be fiction. HK-ELEC-020 owns the ring finding.
+ */
+const longestRunM = (bus: CanBus, units: Hir["harness"]["units"]): number | undefined => {
+  if (bus.edges.some((e) => e.length === undefined)) return undefined
+
+  /** Farthest node from `start` within its component, and every node reached. */
+  const farthest = (
+    start: string
+  ): { readonly node: string; readonly dist: number; readonly reached: ReadonlySet<string> } => {
+    const dist = new Map<string, number>([[start, 0]])
+    const queue = [start]
+    let best = { node: start, dist: 0 }
+    for (let head = 0; head < queue.length; head += 1) {
+      const node = queue[head]!
+      const d = dist.get(node)!
+      for (const e of bus.adjacency.get(node) ?? []) {
+        const next = e.a === node ? e.b : e.a
+        if (dist.has(next)) continue
+        const nd = d + e.length!
+        dist.set(next, nd)
+        queue.push(next)
+        // Tie broken on node key so the walk does not depend on Map order.
+        if (nd > best.dist || (nd === best.dist && next < best.node)) {
+          best = { node: next, dist: nd }
+        }
+      }
+    }
+    return { ...best, reached: new Set(dist.keys()) }
+  }
+
+  const seen = new Set<string>()
+  let longest = 0
+  for (const start of [...bus.nodes.keys()].sort(cmp)) {
+    if (seen.has(start)) continue
+    const first = farthest(start)
+    for (const n of first.reached) seen.add(n)
+    // A cycle makes "the" distance between two nodes ambiguous: bail rather
+    // than report whichever way the BFS happened to go round it.
+    const edges = new Set(
+      [...first.reached].flatMap((n) => (bus.adjacency.get(n) ?? []).map((e) => e.wireId))
+    )
+    if (edges.size !== first.reached.size - 1) return undefined
+    longest = Math.max(longest, farthest(first.node).dist)
+  }
+  return toMeters(longest, units)
+}
+
+/**
  * A drop off the trunk must stay short: under 0.3 m at 1 Mbit/s. A long stub
  * is an unterminated transmission line hanging off a terminated one, and it
  * rings for as long as it takes the reflection to die down. That is the
@@ -495,16 +593,45 @@ const stubsOf = (bus: CanBus): ReadonlyArray<Stub> => {
  *
  * MISSING WIRE LENGTHS: a drop containing a wire with no length is skipped
  * rather than guessed. HK-MFG-001 already reports the missing length.
+ *
+ * MARGINS: this is where the bus's continuous physics lives, so it is the one
+ * bus rule that measures. Every stub is measured against the stub budget and
+ * the bus is measured against the total-length budget, on every run, whether or
+ * not anything failed — a bus whose worst drop sits at 95% of budget is one
+ * routing change from ringing in the field, and a pass/fail channel cannot say
+ * so. Total bus length has no finding of its own (the budget is a design guide,
+ * not a defect line), so the margin is its only channel.
+ *
+ * Nothing is measured when the bus declares no bit rate: with no budget there
+ * is no ratio, and falling back to the strictest row would hand an optimizer a
+ * slope derived from a rate the design never claimed.
  */
 export const canStubTooLong: Rule = rule(
   "canStubTooLong",
   (ctx) => {
     const units = ctx.hir.harness.units
     for (const bus of collectCanBuses(ctx.hir)) {
+      const declaredRates = bus.bitRatesKbps
+      const budget =
+        declaredRates.length > 0
+          ? lengthBudget(declaredRates[declaredRates.length - 1]!)
+          : undefined
+      if (budget !== undefined) {
+        const runM = longestRunM(bus, units)
+        if (runM !== undefined) {
+          ctx.measure({
+            target: refs.wire(bus.edges[0]!.wireId),
+            quantity: "bus length",
+            measured: round(runM),
+            limit: budget.totalM,
+            unit: "m"
+          })
+        }
+      }
       const stubs = stubsOf(bus)
       if (stubs.length === 0) continue
-      const declared = bus.bitRatesKbps
-      if (declared.length === 0) {
+      const declared = declaredRates
+      if (budget === undefined) {
         ctx.report({
           severity: Info,
           message: `CAN bus ${bus.key} has ${stubs.length} stub${stubs.length === 1 ? "" : "s"} but declares no bit rate, so the stub-length budget could not be evaluated; set bitRateKbps on a pin of this bus.`,
@@ -514,12 +641,21 @@ export const canStubTooLong: Rule = rule(
         continue
       }
       const kbps = declared[declared.length - 1]!
-      const { rate, stubM } = stubBudget(kbps)
+      const { rate, stubM } = budget
       for (const stub of stubs) {
         if (stub.length === undefined) continue
         const lengthM = toMeters(stub.length, units)
-        if (lengthM <= stubM) continue
         const leaf = bus.nodes.get(stub.leaf)!
+        // Measured before the verdict, so a passing drop reports its headroom
+        // instead of vanishing.
+        ctx.measure({
+          target: nodeRef(leaf),
+          quantity: "stub length",
+          measured: round(lengthM),
+          limit: stubM,
+          unit: "m"
+        })
+        if (lengthM <= stubM) continue
         ctx.report({
           severity: Err,
           message: `Stub to ${nodeLabel(leaf)} on CAN bus ${bus.key} is ${round(lengthM)}m; at ${kbps}kbit/s a drop off the trunk must stay under ${stubM}m or it rings as an unterminated line.`,

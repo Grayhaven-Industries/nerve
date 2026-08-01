@@ -192,7 +192,11 @@ describe("typed electrical semantic rules", () => {
           data: { sourceCount: 2 }
         }]
       },
-      report: (report) => reports.push(report)
+      report: (report) => reports.push(report),
+      // This rule is a discrete claim and takes no measurement; the runner
+      // always supplies `measure`, so a no-op keeps the hand-built context
+      // honest to the real one.
+      measure: () => {}
     })
 
     expect(reports).toEqual([{

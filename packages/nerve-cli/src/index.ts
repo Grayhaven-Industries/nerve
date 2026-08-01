@@ -20,8 +20,10 @@ import {
   decodeHir,
   diffHir,
   formatDiff,
+  diffMargins,
   hasErrors,
   isEmptyDiff,
+  runRulesWithMargins,
   type Diagnostic,
   type Hir
 } from "@grayhaven/nerve"
@@ -148,6 +150,9 @@ const parseArgs = (argv: ReadonlyArray<string>): ParsedArgs => {
   }
   return { command, positional, flags }
 }
+
+/** Display-only rounding. The report JSON keeps full precision. */
+const round3 = (n: number): number => Math.round(n * 1000) / 1000
 
 const severityLabel: Record<string, string> = {
   error: "Error",
@@ -559,14 +564,20 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       if (arg === undefined) return usage(io)
       const result = await compileOrExit(arg.file, io)
       if (typeof result === "number") return result
+      // Findings say what is wrong; margins say how close to wrong everything
+      // else is. A design with zero errors can still sit at 99% of every
+      // limit, and no other artifact answers that.
+      const reviewRules = builtinRulesWith(result.config.shop)
+      const { margins } = runRulesWithMargins(result.hir, reviewRules, result.config.rules)
       const report = createReviewReport(result.hir, result.diagnostics, {
         source: { name: basename(arg.file), format: "nerve-typescript" },
         hirFingerprint: hirFingerprint(result.hir),
         toolVersion: cliVersion(),
+        margins,
         rules: {
           package: "@grayhaven/nerve-rules",
           version: cliVersion(),
-          codes: builtinRulesWith(result.config.shop).map((rule) => rule.code)
+          codes: reviewRules.map((rule) => rule.code)
         },
         limitations: [
           "Checks can use only facts present in the submitted design and configured part data.",
@@ -582,6 +593,19 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         io
       )
       printDiagnostics(result.diagnostics, io)
+      if (report.margins !== undefined && report.margins.summary.measured > 0) {
+        const s = report.margins.summary
+        io.out(
+          `${s.measured} measurement(s), ${s.overBudget} over budget. Tightest headroom:`
+        )
+        for (const m of [...report.margins.measurements]
+          .sort((a, b) => a.margin - b.margin)
+          .slice(0, 5)) {
+          io.out(
+            `  ${(m.utilization * 100).toFixed(1).padStart(6)}%  ${m.quantity} — ${m.target} (${round3(m.measured)}/${round3(m.limit)}${m.unit})`
+          )
+        }
+      }
       io.out(
         `${result.hir.harness.id} rev ${result.hir.harness.revision}: ${report.summary.findings} finding(s), fingerprint ${report.harness.fingerprint}`
       )
@@ -1006,13 +1030,32 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const b = await loadHirForDiff(pathB, io)
       if (typeof b === "number") return b
       const d = diffHir(a, b)
+      // Structural diff alone is blind to a design walking toward a cliff
+      // without stepping off it: a revision that eats 30% of the thermal
+      // headroom adds no finding and changes no object. Margin movement is
+      // the only channel that shows it.
+      const rules = builtinRulesWith()
+      const md = diffMargins(
+        runRulesWithMargins(a, rules).margins,
+        runRulesWithMargins(b, rules).margins
+      )
       if (flags["json"] === "true") {
-        io.out(JSON.stringify(d, null, 2))
+        io.out(JSON.stringify({ ...d, margins: md }, null, 2))
       } else {
         io.out(formatDiff(d).trimEnd())
+        if (!md.unchanged) {
+          const worsened = md.changes.filter((c) => c.kind === "worsened")
+          io.out(`\nMargin movement: ${worsened.length} worsened, ${md.changes.filter((c) => c.kind === "improved").length} improved`)
+          if (md.worstRegression !== undefined) {
+            const w = md.worstRegression
+            io.out(
+              `  worst: ${w.quantity} on ${w.target} ${(w.before!.utilization * 100).toFixed(1)}% → ${(w.after!.utilization * 100).toFixed(1)}%${w.crossedLimit === true ? "  (crossed the limit)" : ""}`
+            )
+          }
+        }
       }
       // git-diff convention: exit 1 when differences exist.
-      return isEmptyDiff(d) ? 0 : 1
+      return isEmptyDiff(d) && md.unchanged ? 0 : 1
     }
 
     case "inspect": {

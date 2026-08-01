@@ -13,6 +13,7 @@ import {
   type Hir,
   type HirEndpoint,
   type ElectricalConstraintKind,
+  type PinElectrical,
   type Rule,
   type RuleContext,
   type ShopProfile
@@ -70,6 +71,25 @@ const RULE_VERSION = "1.0.0"
  * the evidence that the rule implements that document. A fabricated citation
  * would destroy exactly the auditability the field exists to create, so an
  * omitted citation is the correct answer whenever the basis is not established.
+ */
+
+/**
+ * On which rules call `ctx.measure`.
+ *
+ * A minority of the rules below take a measurement, and that is deliberate.
+ * A margin is only meaningful where the claim rests on a continuous quantity
+ * divided by a real budget in the same unit — current against ampacity,
+ * ambient against a temperature rating, bundle diameter against a sleeve.
+ * Those rules measure on every evaluation, passing or failing, because the
+ * whole point is knowing how close a *passing* design sits to the edge.
+ *
+ * Everything else is left alone. Counting claims (cavities against pin count,
+ * conductors in a cable, accessible pins on a net) look divisible but have no
+ * gradient worth following: a fully-populated housing is the intended design,
+ * not one at 100% of a budget, and an optimizer told otherwise would waste
+ * cavities to buy a number. AWG range checks are worse still — AWG is an
+ * inverted logarithmic scale, so a ratio of gauge numbers means nothing
+ * physical. A fabricated slope is worse than a missing one.
  */
 
 const endpointKey = (e: HirEndpoint): string =>
@@ -271,6 +291,16 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
       if (awg === undefined) continue
       const ampacity = table[awg]
       if (ampacity === undefined) continue
+      // Measured on every wire, not only overloaded ones: a conductor at 40%
+      // of its derated ampacity and one at 99% both pass, and which of the two
+      // a design is sitting on is exactly what the pass bit discards.
+      ctx.measure({
+        target: refs.wire(w.id),
+        quantity: "conductor current",
+        measured: w.currentEstimate,
+        limit: ampacity,
+        unit: "A"
+      })
       if (w.currentEstimate > ampacity) {
         const required = requiredAwgForCurrent(w.currentEstimate, table)
         const suffix =
@@ -542,6 +572,16 @@ export const connectorCurrentExceeded: Rule = rule(
         if (!isPinEndpoint(end)) continue
         const c = byRef.get(end.connector)
         if (c?.currentLimitA === undefined) continue
+        // Per contact, not per wire: the same wire can be comfortable in one
+        // housing and marginal in the other, and only the per-contact ratio
+        // says which end to re-spec.
+        ctx.measure({
+          target: refs.pin(end.connector, end.pin),
+          quantity: "contact current",
+          measured: w.currentEstimate,
+          limit: c.currentLimitA,
+          unit: "A"
+        })
         if (w.currentEstimate > c.currentLimitA) {
           ctx.report({
             severity: Err,
@@ -574,6 +614,16 @@ export const connectorVoltageExceeded: Rule = rule(
         if (!isPinEndpoint(end)) continue
         const c = byRef.get(end.connector)
         if (c?.voltageLimitV === undefined) continue
+        // The nominal is an inference (see above), but it is the same
+        // inference the finding rests on — so it is measured on the passing
+        // path under exactly the conditions that would have reported it.
+        ctx.measure({
+          target: refs.pin(end.connector, end.pin),
+          quantity: "contact voltage",
+          measured: nominal,
+          limit: c.voltageLimitV,
+          unit: "V"
+        })
         if (nominal > c.voltageLimitV) {
           ctx.report({
             severity: Warn,
@@ -622,6 +672,15 @@ export const voltageRatingBelowSignal: Rule = rule(
       if (w.voltageRating === undefined || w.signal === undefined) continue
       const nominal = signalNominalVolts(w.signal)
       if (nominal === undefined) continue
+      // Insulation headroom: a 24V rail in 30V-rated insulation passes, but
+      // it is a different design from the same rail in 600V insulation.
+      ctx.measure({
+        target: refs.wire(w.id),
+        quantity: "insulation voltage",
+        measured: nominal,
+        limit: w.voltageRating,
+        unit: "V"
+      })
       if (w.voltageRating < nominal) {
         ctx.report({
           severity: Err,
@@ -675,6 +734,16 @@ export const breakoutTighterThanBendRadiusWith = (shop?: ShopProfile): Rule => r
     for (const b of ctx.hir.branches) {
       const minBend = b.minBendRadius ?? shop?.defaultMinBendRadiusMm
       if (minBend === undefined || b.breakoutDistance === undefined) continue
+      // Demand over budget, so the ratio keeps the shared "< 1 passes"
+      // direction: the bend radius the bundle needs is what is spent, and the
+      // distance available before the breakout is the budget it spends from.
+      ctx.measure({
+        target: refs.branch(b.id),
+        quantity: "bend radius",
+        measured: minBend,
+        limit: b.breakoutDistance,
+        unit: ctx.hir.harness.units
+      })
       if (b.breakoutDistance < minBend) {
         ctx.report({
           severity: Err,
@@ -721,6 +790,16 @@ export const bundleOverSleeveCapacityWith = (shop?: ShopProfile): Rule => rule(
       }
       if (ods.length === 0) continue
       const estimated = estimateBundleDiameterMm(ods, shop?.bundlePackingFactor)
+      // Millimetres regardless of `harness.units`: both sides come from mm
+      // reference data (the insulated-OD table and the sleeve's mm size), not
+      // from harness geometry.
+      ctx.measure({
+        target: refs.branch(b.id),
+        quantity: "sleeve fill",
+        measured: estimated,
+        limit: capacity,
+        unit: "mm"
+      })
       if (estimated > capacity) {
         ctx.report({
           severity: Err,
@@ -1017,6 +1096,15 @@ export const wireTempBelowAmbient: Rule = rule(
       if (b.ambientTemperatureC === undefined) continue
       for (const w of wiresOnBranch(ctx.hir, b)) {
         if (w.temperatureRating === undefined) continue
+        // Ambient over rating: a 105°C wire in an 100°C branch passes with
+        // almost nothing left, and that is invisible in the verdict.
+        ctx.measure({
+          target: refs.wire(w.id),
+          quantity: "conductor temperature",
+          measured: b.ambientTemperatureC,
+          limit: w.temperatureRating,
+          unit: "°C"
+        })
         if (w.temperatureRating < b.ambientTemperatureC) {
           ctx.report({
             severity: Err,
@@ -1057,6 +1145,16 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
         }
       }
       if (governing === undefined) continue
+      // How much of the governing conductor's ampacity the device is allowed
+      // to let through before it trips — the coordination headroom, which is
+      // the thing that gets eaten silently when a gauge is thinned.
+      ctx.measure({
+        target: `protection:${p.id}`,
+        quantity: "overcurrent rating",
+        measured: p.ratingA,
+        limit: governing.ampacity,
+        unit: "A"
+      })
       if (p.ratingA > governing.ampacity) {
         ctx.report({
           severity: Err,
@@ -1118,7 +1216,11 @@ const electricalFindingRule = (
   name: string,
   kind: ElectricalConstraintKind,
   severity: typeof Err | typeof Warn,
-  code: string
+  code: string,
+  /** Optional continuous channel. Only the current-budget kind has one; the
+   * rest of the analyzer's findings are discrete relations (two sources, a
+   * protocol clash) with no gradient to follow. */
+  measure?: (ctx: RuleContext) => void
 ): Rule => rule(
   name,
   (ctx: RuleContext) => {
@@ -1133,9 +1235,51 @@ const electricalFindingRule = (
         ...(finding.data !== undefined ? { data: finding.data } : {})
       })
     }
+    measure?.(ctx)
   },
   { code, ruleVersion: RULE_VERSION }
 )
+
+/** A pin's declared current, on the analyzer's own terms: only a finite,
+ * positive figure is a declaration. */
+const declaredCurrentA = (electrical: PinElectrical): number | undefined =>
+  electrical.currentA !== undefined &&
+  Number.isFinite(electrical.currentA) &&
+  electrical.currentA > 0
+    ? electrical.currentA
+    : undefined
+
+/**
+ * Summed sink demand against the single source's capacity, per net, whether
+ * or not it overflows — the analyzer only emits a finding once demand wins,
+ * so the passing ratio has to be recomputed here to exist at all.
+ *
+ * The guards mirror the analyzer exactly (one declared source, positive
+ * declared currents): a net with sinks that declare no current has *unknown*
+ * demand, not zero demand, so it is measured as nothing rather than as slack.
+ */
+const measureSourceCurrent = (ctx: RuleContext): void => {
+  for (const net of ctx.electrical.nets) {
+    const sources = net.pins.filter((pin) => pin.electrical.role === "source")
+    const source = sources.length === 1 ? sources[0] : undefined
+    if (source === undefined) continue
+    const capacityA = declaredCurrentA(source.electrical)
+    if (capacityA === undefined) continue
+    const demands = net.pins.flatMap((pin) => {
+      if (pin.electrical.role !== "sink") return []
+      const demandA = declaredCurrentA(pin.electrical)
+      return demandA === undefined ? [] : [demandA]
+    })
+    if (demands.length === 0) continue
+    ctx.measure({
+      target: source.ref,
+      quantity: "source current",
+      measured: demands.reduce((sum, demandA) => sum + demandA, 0),
+      limit: capacityA,
+      unit: "A"
+    })
+  }
+}
 
 export const multipleElectricalSources: Rule = electricalFindingRule(
   "multipleElectricalSources",
@@ -1176,7 +1320,8 @@ export const sourceCurrentExceeded: Rule = electricalFindingRule(
   "sourceCurrentExceeded",
   "source-current-exceeded",
   Err,
-  "HK-ELEC-017"
+  "HK-ELEC-017",
+  measureSourceCurrent
 )
 
 /**

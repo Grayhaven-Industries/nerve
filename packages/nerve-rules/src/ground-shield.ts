@@ -10,6 +10,16 @@
  *
  * No new part data or geometry is required: this is pure graph analysis over
  * `hir.wires`, which is what the compiler already has.
+ *
+ * NEITHER RULE EMITS A MARGIN, and that is a decision rather than an omission.
+ * A margin is only honest where the underlying quantity is continuous and has a
+ * budget. Both quantities here are counts of paths: a ground net offers one
+ * return path or two, and a shield is tied to ground at zero, one, or two ends.
+ * There is no design halfway between them and no standard number to divide by,
+ * so any utilization would be fabricated — and a fabricated slope is followed,
+ * not ignored, by whatever is optimizing against these rules. Loop *area* is
+ * the continuous quantity that actually governs pickup, and it needs geometry
+ * the HIR does not carry.
  */
 import {
   DiagnosticSeverity,

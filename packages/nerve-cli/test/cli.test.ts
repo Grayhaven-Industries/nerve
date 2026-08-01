@@ -12,6 +12,12 @@ const FIXTURE = resolve(
   "../../../examples/motor-controller/src/main.harness.ts"
 )
 
+/** The dogfood harness: 22 connectors, 65 wires, and real headroom to measure. */
+const ROBOT_FIXTURE = resolve(
+  import.meta.dirname,
+  "../../../examples/robot-platform/src/main.harness.ts"
+)
+
 const capture = (): Io & { stdout: Array<string>; stderr: Array<string> } => {
   const stdout: Array<string> = []
   const stderr: Array<string> = []
@@ -336,6 +342,43 @@ describe("nerve diff", () => {
     const io = capture()
     expect(await run(["diff", join(dir, "harness.json"), join(dir, "harness.json"), "--json"], io)).toBe(0)
     expect(JSON.parse(io.stdout.join("\n")).pinouts).toEqual([])
+  })
+
+  // The failure this exists to catch: a revision that eats headroom without
+  // tripping any rule. Structurally the HIR is unchanged, so the old diff
+  // reported "No differences" and exited 0.
+  it("reports margin movement when nothing structural changed", async () => {
+    const dirA = tmp()
+    const dirB = tmp()
+    await run(["compile", ROBOT_FIXTURE, "--out", dirA], capture())
+    const hir = JSON.parse(readFileSync(join(dirA, "harness.json"), "utf8"))
+    const wire = hir.wires.find((w: { id: string }) => w.id === "W_GND_MD1")
+    expect(wire.currentEstimate).toBe(3)
+    wire.currentEstimate = 3.6 // still inside the 3.7A budget: no new finding
+    mkdirSync(dirB, { recursive: true })
+    writeFileSync(join(dirB, "harness.json"), JSON.stringify(hir))
+
+    const io = capture()
+    expect(await run(["diff", join(dirA, "harness.json"), join(dirB, "harness.json")], io)).toBe(1)
+    const text = io.stdout.join("\n")
+    expect(text).toContain("No differences")
+    expect(text).toContain("worsened")
+    expect(text).toContain("conductor current on wire:W_GND_MD1")
+  })
+})
+
+describe("nerve review margins", () => {
+  it("reports how close a passing design sits to its limits", async () => {
+    const out = tmp()
+    const io = capture()
+    expect(await run(["review", ROBOT_FIXTURE, "--out", out], io)).toBe(0)
+    const report = JSON.parse(readFileSync(join(out, "review-report.json"), "utf8"))
+    expect(report.summary.errors).toBe(0)
+    // Zero errors and still measurably close to the edge — the whole point.
+    expect(report.margins.summary.measured).toBeGreaterThan(0)
+    expect(report.margins.summary.overBudget).toBe(0)
+    expect(report.margins.summary.worst.utilization).toBeGreaterThan(0.5)
+    expect(io.stdout.join("\n")).toContain("Tightest headroom:")
   })
 })
 

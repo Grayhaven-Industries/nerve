@@ -1,4 +1,4 @@
-import type { Diagnostic, Hir } from "@grayhaven/nerve"
+import type { Diagnostic, Hir, Margin } from "@grayhaven/nerve"
 
 export type EvalProvenanceKind =
   | "synthetic"
@@ -311,6 +311,45 @@ export interface ReviewRuleProvenance {
   readonly clause?: string
 }
 
+/**
+ * The tightest measurement in the run, and what owns it.
+ *
+ * A reviewer reading a clean report cannot tell a design sitting at 40% of
+ * every budget from one sitting at 99% — both produce zero findings. This names
+ * the one measurement closest to its limit, which is the first thing anyone
+ * asking "how close to the edge is this?" wants to look at.
+ */
+export interface ReviewWorstMargin {
+  readonly target: string
+  readonly quantity: string
+  readonly code: string
+  readonly margin: number
+  readonly utilization: number
+  readonly unit: string
+}
+
+export interface ReviewMarginSummary {
+  /** How many continuous measurements the run took. */
+  readonly measured: number
+  /** Measurements past their limit, i.e. negative margin. */
+  readonly overBudget: number
+  /** Omitted when the run measured nothing; margins are sparse by design. */
+  readonly worst?: ReviewWorstMargin
+}
+
+/**
+ * How close the design runs to its continuous limits.
+ *
+ * Present only when the caller ran the rules with margins collected. Margins
+ * are sparse — discrete claims like "this pin exists" have no gradient to
+ * report — so an empty measurement list means nothing continuous applied, never
+ * that everything is comfortable.
+ */
+export interface ReviewMargins {
+  readonly summary: ReviewMarginSummary
+  readonly measurements: ReadonlyArray<Margin>
+}
+
 export interface ReviewReportOptions {
   readonly source: {
     readonly name: string
@@ -330,6 +369,11 @@ export interface ReviewReportOptions {
     readonly provenance?: ReadonlyArray<ReviewRuleProvenance>
   }
   readonly limitations?: ReadonlyArray<string>
+  /**
+   * Continuous measurements taken during the run. Optional so a report produced
+   * without them stays byte-identical to reports predating this field.
+   */
+  readonly margins?: ReadonlyArray<Margin>
 }
 
 export interface ReviewReport {
@@ -354,8 +398,48 @@ export interface ReviewReport {
     readonly findings: number
   }
   readonly findings: ReadonlyArray<Diagnostic>
+  /** Omitted entirely when the caller supplied no margins. */
+  readonly margins?: ReviewMargins
   readonly limitations: ReadonlyArray<string>
   readonly disclaimer: string
+}
+
+/**
+ * Canonicalize measurements: sorted by the same `(target, code, quantity)` key
+ * the rule runner and the margin diff use, so a report, a diff, and a rerun all
+ * line up. Two runs over the same measurements must produce identical bytes.
+ */
+const marginsSection = (margins: ReadonlyArray<Margin>): ReviewMargins => {
+  const measurements = [...margins].sort(
+    (a, b) =>
+      a.target.localeCompare(b.target) ||
+      a.code.localeCompare(b.code) ||
+      a.quantity.localeCompare(b.quantity)
+  )
+  // Already canonically ordered, so the first minimum is a stable choice.
+  const worst = measurements.reduce<Margin | undefined>(
+    (lowest, m) => (lowest === undefined || m.margin < lowest.margin ? m : lowest),
+    undefined
+  )
+  return {
+    summary: {
+      measured: measurements.length,
+      overBudget: measurements.filter((m) => m.margin < 0).length,
+      ...(worst !== undefined
+        ? {
+            worst: {
+              target: worst.target,
+              quantity: worst.quantity,
+              code: worst.code,
+              margin: worst.margin,
+              utilization: worst.utilization,
+              unit: worst.unit
+            }
+          }
+        : {})
+    },
+    measurements
+  }
 }
 
 /**
@@ -423,6 +507,8 @@ export const createReviewReport = (
       findings: findings.length
     },
     findings,
+    // Spread so an unsupplied margins option never reaches the output at all.
+    ...(options.margins !== undefined ? { margins: marginsSection(options.margins) } : {}),
     limitations: [...(options.limitations ?? [])],
     disclaimer:
       "This report records deterministic checks performed on the supplied facts. It is not a certification and does not replace qualified engineering review."
