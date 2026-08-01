@@ -5,7 +5,7 @@
 // 3-level branch tree, and composable per-drive helpers.
 import {
   harness, connector, wire, branch, label, splice, cable,
-  type ConnectorPart, type ConnectorInstance, type WireDef, type SpliceDef
+  type ConnectorPart, type ConnectorInstance, type WireDef
 } from "@grayhaven/nerve"
 import { AmassXT60, JstPH, MolexMicroFit } from "@grayhaven/nerve-connectors"
 

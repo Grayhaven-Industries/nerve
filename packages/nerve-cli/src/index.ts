@@ -53,11 +53,7 @@ import { runSnapshot } from "./snapshot.js"
 import { cliVersion, initFiles, setupFiles, writeScaffold } from "./scaffold.js"
 import {
   connectorFacesSvg,
-  assemblyInstructions,
   boardSvg,
-  bomCsv,
-  bopCsv,
-  bopJson,
   analysisCsv,
   analysisJson,
   analyzeHarness,
@@ -87,15 +83,9 @@ import {
   validateContract,
   buildPacket,
   canRelease,
-  cutListCsv,
-  labelScheduleCsv,
-  generateTestPlan,
   hirFingerprint,
-  manufacturingPacketPdf,
   pinoutSvg,
   schematicSvg,
-  testPlanCsv,
-  testPlanJson,
   type ConnectorContract
 } from "@grayhaven/nerve-exporters"
 
