@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-cli",
-  "version": "6.2.0",
+  "version": "7.0.0",
   "type": "module",
   "description": "Deterministic harness import, review, evaluation, validation, and export for local and CI workflows.",
   "bin": {
