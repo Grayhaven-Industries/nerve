@@ -6,7 +6,7 @@
  * HIR's canonical ordering, line endings are `\n`, and there are no
  * timestamps.
  */
-import { isPinEndpoint, type Hir, type HirEndpoint } from "@grayhaven/nerve"
+import { isPinEndpoint, type Hir, type HirEndpoint, type HirWire } from "@grayhaven/nerve"
 import type { TestPlan } from "./test-plan.js"
 
 /** CSV cell pair for an endpoint: connector + pin, or splice id + "". */
@@ -79,6 +79,28 @@ const terminalAt = (hir: Hir, e: HirEndpoint): string => {
   )
 }
 
+/**
+ * Length of wire to cut, in harness units: the finished length plus every
+ * allowance that consumes copper.
+ *
+ *   cut = length + serviceLoop + terminationAllowance.from + terminationAllowance.to
+ *
+ * Strip length is NOT part of it — stripping removes insulation from wire
+ * that is already there, so adding it would over-order every conductor.
+ * A wire with no declared allowances cuts at exactly its finished length,
+ * and a wire with no length has no computable cut length.
+ *
+ * (Mirrored by `cutLengthOf` in @grayhaven/nerve's compiler, which needs the
+ * same number for the wire BOM rollup but cannot depend on this package.)
+ */
+export const wireCutLength = (wire: HirWire): number | undefined =>
+  wire.length === undefined
+    ? undefined
+    : wire.length +
+      (wire.serviceLoop ?? 0) +
+      (wire.terminationAllowance?.from ?? 0) +
+      (wire.terminationAllowance?.to ?? 0)
+
 /** Wire cut list table data (PRD §20.2 columns). */
 export const cutListTable = (hir: Hir, options: CutListOptions = {}): TableData => ({
   headers: [
@@ -89,7 +111,13 @@ export const cutListTable = (hir: Hir, options: CutListOptions = {}): TableData 
     "Stripe",
     "Cut length",
     "Finished length",
+    "Service loop",
+    "Termination allowance (from)",
+    "Termination allowance (to)",
+    "Strip (from)",
+    "Strip (to)",
     "Tolerance",
+    "Units",
     "From connector",
     "From pin",
     "To connector",
@@ -105,9 +133,15 @@ export const cutListTable = (hir: Hir, options: CutListOptions = {}): TableData 
     w.gauge,
     w.color,
     w.stripe,
+    wireCutLength(w),
     w.length,
-    w.length,
+    w.serviceLoop,
+    w.terminationAllowance?.from,
+    w.terminationAllowance?.to,
+    w.stripLength?.from,
+    w.stripLength?.to,
     w.lengthTolerance ?? options.defaultWireTolerance,
+    hir.harness.units,
     ...endpointCells(w.from),
     ...endpointCells(w.to),
     terminalAt(hir, w.from),

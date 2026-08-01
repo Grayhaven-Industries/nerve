@@ -8,6 +8,7 @@ export {
   testPlanCsv,
   testPlanTable,
   toCsv,
+  wireCutLength,
   type Cell,
   type CutListOptions,
   type TableData
@@ -53,7 +54,7 @@ export { builtinAdapters, findAdapter, genericCutStripCsv, genericLabelPrinterCs
 export { builtinContractImporters, contractJson, exportConnectorContract, exportTscircuitCircuitJson, findContractImporter, importKiCadPcbPinout, importPinoutCsv, importTscircuitPinout, kicadPcbContractImporter, validateContract, type ConnectorContract, type ConnectorContractImporter, type ConnectorContractImportMeta } from "./contracts.js"
 export { formboardSheets, type Formboard, type FormboardOptions, type FormboardSheet, type Paper } from "./formboard.js"
 export { computeImpact, createRelease, hirFingerprint, ReleaseBlockedError, releaseJson, type ChangeRisk, type CreateReleaseOptions, type Release, type ReleaseImpact } from "./release.js"
-export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type Measurement, type TestVerdict } from "./build-record.js"
-export { createRedline, resolveRedline, suggestPatch, validateRedlineTarget, type Redline, type RedlineType } from "./redline.js"
+export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict } from "./build-record.js"
+export { createRedline, mergePatches, redlinesFromBuildRecord, resolveRedline, suggestPatch, validateRedlineTarget, type Redline, type RedlineType } from "./redline.js"
 export { manufacturingPacketPdf } from "./pdf.js"
 export { buildPacket, canRelease, type Packet, type PacketOptions } from "./packet.js"

@@ -66,6 +66,34 @@ export interface ConnectorPart {
   readonly provenance?: PartProvenance
 }
 
+/**
+ * Component master data for a wire (PRD §9.2, §30).
+ *
+ * Wire was the last free-text material in the model: `gauge`/`insulation`
+ * strings gave the bundle-diameter and weight estimators nothing to measure
+ * and left the BOM with no orderable wire line items. A wire that names a
+ * part becomes purchasable, weighable, and diameter-accurate; wires without
+ * one keep working exactly as before.
+ */
+export interface WirePart {
+  readonly mpn: string
+  readonly manufacturer?: string
+  readonly family?: string
+  readonly description?: string
+  readonly gauge: AutocompleteString<KnownGauge>
+  readonly strands?: number
+  readonly conductorMaterial?: "copper" | "tinned-copper" | "copper-clad-aluminum"
+  readonly insulation?: string
+  /** Nominal outer diameter, mm. */
+  readonly outerDiameter?: number
+  readonly voltageRating?: number
+  readonly temperatureRating?: number
+  readonly ohmsPerKm?: number
+  readonly gramsPerMeter?: number
+  readonly availableColors?: ReadonlyArray<AutocompleteString<KnownWireColor>>
+  readonly provenance?: PartProvenance
+}
+
 /** A reference to a specific pin/cavity on a connector instance. */
 export interface PinRef {
   readonly kind: "pin-ref"
@@ -135,11 +163,21 @@ export interface ConnectorInstance {
 }
 
 export interface WireProps {
+  /** Wire material this conductor is cut from; the only thing that puts a
+   * wire on the BOM. */
+  readonly part?: WirePart
   readonly gauge?: AutocompleteString<KnownGauge>
   readonly color?: AutocompleteString<KnownWireColor>
   readonly stripe?: AutocompleteString<KnownWireColor>
+  /** Finished (installed) length between the two endpoints. */
   readonly length?: number
   readonly lengthTolerance?: number
+  /** Extra length added to the cut so the wire can be dressed/serviced. */
+  readonly serviceLoop?: number
+  /** Insulation removed at each end — a machine parameter, NOT added to cut length. */
+  readonly stripLength?: { readonly from: number; readonly to: number }
+  /** Length consumed inside each termination — IS added to cut length. */
+  readonly terminationAllowance?: { readonly from: number; readonly to: number }
   readonly signal?: string
   readonly insulation?: string
   readonly voltageRating?: number

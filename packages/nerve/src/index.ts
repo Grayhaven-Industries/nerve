@@ -35,6 +35,7 @@ export type {
   VoltageRange,
   WireDef,
   WireEndpoint,
+  WirePart,
   WireProps
 } from "./domain.js"
 
@@ -137,5 +138,5 @@ export {
   type RuleOptions,
   type RuleReport
 } from "./rules.js"
-export { resolvePart, staticProvider } from "./providers.js"
-export type { PartProvider, ResolvedPart } from "./providers.js"
+export { resolvePart, resolvePartWithCoverage, staticProvider } from "./providers.js"
+export type { PartCoverageReporter, PartProvider, ResolvedPart } from "./providers.js"

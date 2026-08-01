@@ -89,3 +89,29 @@ export const resolvePart = (
   }
   return { part: winner.part, provider: winner.provider, diagnostics }
 }
+
+/**
+ * Reports which built-in checks a part's data leaves dark. Injected rather
+ * than imported: the mapping lives with the part library
+ * (`@grayhaven/nerve-connectors`), which depends on core, not the reverse.
+ */
+export type PartCoverageReporter = (part: ConnectorPart) => ReadonlyArray<Diagnostic>
+
+/**
+ * `resolvePart` plus coverage: the resolved part reports the checks its own
+ * data cannot support, alongside the provider-conflict diagnostics. A part
+ * that answers but carries no terminal list, no seal data, and no ratings
+ * silently disables several rules — surfacing that here is the difference
+ * between a clean report and a report that is clean because nothing ran.
+ */
+export const resolvePartWithCoverage = (
+  providers: ReadonlyArray<PartProvider>,
+  mpn: string,
+  coverage: PartCoverageReporter
+): ResolvedPart => {
+  const resolved = resolvePart(providers, mpn)
+  if (resolved.part === undefined) return resolved
+  const gaps = coverage(resolved.part)
+  if (gaps.length === 0) return resolved
+  return { ...resolved, diagnostics: [...resolved.diagnostics, ...gaps] }
+}

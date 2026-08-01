@@ -6,8 +6,16 @@
  * reject with a recorded reason, and accepted redlines yield a structured
  * patch (the same shape `variant()` consumes) so the fix is a reviewable
  * code change, not a verbal agreement.
+ *
+ * The bench feeds this directly: a build record's as-built length evidence
+ * (PRD §36) becomes one redline per out-of-tolerance wire, and a whole
+ * build's worth of accepted redlines merges into a single patch, so the
+ * design change an engineer reviews is one diff rather than N.
  */
 import { DiagnosticSeverity, type Diagnostic, type Hir, type VariantOptions } from "@grayhaven/nerve"
+import type { BuildRecord } from "./build-record.js"
+
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 export type RedlineType =
   | "ambiguity"
@@ -79,6 +87,44 @@ export const resolveRedline = (
 })
 
 /**
+ * Bulk-generate technician redlines from a build record's out-of-tolerance
+ * length verdicts.
+ *
+ * One redline per out-of-tolerance wire; in-tolerance and no-design-length
+ * verdicts produce nothing, since neither is a finding against the design.
+ * Ids are `${idPrefix}-${wire}` so regenerating from the same record yields
+ * the same ids and a re-run never duplicates an already-resolved redline.
+ * Every redline opens as `"open"`: the measurement proposes, an engineer
+ * still has to accept.
+ */
+export const redlinesFromBuildRecord = (
+  record: BuildRecord,
+  options?: {
+    readonly idPrefix?: string
+    readonly reportedBy?: string
+  }
+): ReadonlyArray<Redline> =>
+  (record.lengths ?? [])
+    .filter((verdict) => verdict.verdict === "out-of-tolerance")
+    .map((verdict) => {
+      const delta = verdict.measuredLength - (verdict.designLength ?? 0)
+      return createRedline({
+        id: `${options?.idPrefix ?? "RL"}-${verdict.wire}`,
+        target: `wire:${verdict.wire}`,
+        type: "incorrect-length",
+        description:
+          `Design length ${verdict.designLength ?? "unspecified"}, ` +
+          `measured ${verdict.measuredLength} on ${record.serial} ` +
+          `(${delta > 0 ? "+" : ""}${delta}).`,
+        proposedValue: String(verdict.measuredLength),
+        release: record.release,
+        serial: record.serial,
+        ...(options?.reportedBy !== undefined ? { reportedBy: options.reportedBy } : {})
+      })
+    })
+    .sort((a, b) => cmp(a.id, b.id))
+
+/**
  * Structured patch for an accepted redline — `VariantOptions`-shaped so it
  * can be applied with `variant()` or hand-translated into the source edit.
  */
@@ -101,4 +147,47 @@ export const suggestPatch = (
     return { branches: { override: { [id]: { nominalLength } } } }
   }
   return undefined
+}
+
+/** Merge one section's override maps; later patches win, keys come out sorted. */
+const mergeOverrides = <T extends object>(
+  overrides: ReadonlyArray<Readonly<Record<string, T>> | undefined>
+): Readonly<Record<string, T>> | undefined => {
+  const merged = new Map<string, Record<string, unknown>>()
+  for (const override of overrides) {
+    if (override === undefined) continue
+    for (const [id, props] of Object.entries(override)) {
+      merged.set(id, { ...merged.get(id), ...props })
+    }
+  }
+  if (merged.size === 0) return undefined
+  const out: Record<string, T> = {}
+  for (const id of [...merged.keys()].sort(cmp)) {
+    const props = merged.get(id)!
+    const sorted: Record<string, unknown> = {}
+    for (const key of Object.keys(props).sort(cmp)) sorted[key] = props[key]
+    out[id] = sorted as unknown as T
+  }
+  return out
+}
+
+/**
+ * Deep-merge accepted-redline patches into one `VariantOptions`-shaped patch.
+ *
+ * A build's worth of accepted redlines becomes a single reviewable change
+ * instead of N. Overrides merge per object and per property, later patches
+ * winning on collision, and every key is emitted sorted so the same
+ * redlines always produce the same patch.
+ */
+export const mergePatches = (
+  patches: ReadonlyArray<Partial<VariantOptions>>
+): Partial<VariantOptions> => {
+  const branches = mergeOverrides(patches.map((p) => p.branches?.override))
+  const labels = mergeOverrides(patches.map((p) => p.labels?.override))
+  const wires = mergeOverrides(patches.map((p) => p.wires?.override))
+  return {
+    ...(branches !== undefined ? { branches: { override: branches } } : {}),
+    ...(labels !== undefined ? { labels: { override: labels } } : {}),
+    ...(wires !== undefined ? { wires: { override: wires } } : {})
+  }
 }

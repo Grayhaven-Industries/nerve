@@ -66,6 +66,8 @@ import {
   createRedline,
   createRelease,
   formboardSheets,
+  mergePatches,
+  redlinesFromBuildRecord,
   releaseJson,
   ReleaseBlockedError,
   resolveRedline,
@@ -255,12 +257,15 @@ Usage:
   nerve machine  <adapter-id> <file.harness.ts> [--out dir]   (shop-floor exports §31)
   nerve contract <file.harness.ts> --connector <ref> [--against contract.json|pinout.csv|board.kicad_pcb] [--component ref] [--out dir]
   nerve release  <file.harness.ts> --eco <id> --reason <text> --date <iso> [--against release.json] [--out dir]
-  nerve record   <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--out dir]
+  nerve record   <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--lengths lengths.json] [--length-tolerance mm] [--out dir]
   nerve redline  add <file.harness.ts> --target <hir-ref> --type <type> --description <text> [--value v] [--release id] [--serial sn]
+  nerve redline  from-record <file.harness.ts> --record <build-record.json> [--file redlines.json] [--prefix RL] [--by name]
   nerve redline  resolve <redlines.json> --id <id> --accept|--reject --reason <text> --date <iso>
+  nerve redline  patch <redlines.json> [--out dir]   (merge accepted redlines into one variant() patch)
   nerve diff     <revA> <revB> [--json]   (each: harness.json, .harness.ts, or revision dir)
   nerve inspect  <harness.json>
-  nerve parts    [spec-or-mpn] [--json]   (bundled connector library)`
+  nerve parts    [spec-or-mpn] [--json]   (bundled connector library + which checks the data enables)
+  nerve parts    scaffold <mpn> --pins <n> [--out dir]   (stub a new part with every rule-relevant field)`
 
 /** Resolve a diff argument to HIR: a harness.json, a .harness.ts, or a directory. */
 const loadHirForDiff = async (path: string, io: Io): Promise<Hir | number> => {
@@ -812,26 +817,48 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       const result = await compileOrExit(file, io)
       if (typeof result === "number") return result
-      let release, measurements
+      // --lengths is the as-built half of the loop (§36): the technician's
+      // measured wire lengths, judged against design length + tolerance.
+      // Optional on purpose — a continuity-only record stays byte-identical.
+      const lengthsPath = flags["lengths"]
+      let release, measurements, lengths
       try {
         release = JSON.parse(readFileSync(resolve(releasePath), "utf8"))
         measurements = JSON.parse(readFileSync(resolve(resultsPath), "utf8"))
+        lengths =
+          lengthsPath !== undefined
+            ? JSON.parse(readFileSync(resolve(lengthsPath), "utf8"))
+            : undefined
       } catch (cause) {
         io.err(`Failed to load inputs: ${cause instanceof Error ? cause.message : String(cause)}`)
         return 2
       }
+      const lengthTolerance = flags["length-tolerance"]
       const record = createBuildRecord(result.hir, release, measurements, {
         serial,
         operator,
         buildDate: date,
         ...(flags["lot"] !== undefined ? { lot: flags["lot"] } : {}),
-        ...(flags["workstation"] !== undefined ? { workstation: flags["workstation"] } : {})
+        ...(flags["workstation"] !== undefined ? { workstation: flags["workstation"] } : {}),
+        ...(lengths !== undefined ? { lengths } : {}),
+        ...(lengthTolerance !== undefined
+          ? { defaultLengthTolerance: Number(lengthTolerance) }
+          : {})
       })
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
       writeOut(outDir, `build-record-${serial}.json`, buildRecordJson(record), io)
       io.out(
         `${serial}: ${record.summary.pass} pass / ${record.summary.fail} fail / ${record.summary.notRun} not run → ${record.summary.status.toUpperCase()}`
       )
+      if (record.lengthSummary !== undefined) {
+        const l = record.lengthSummary
+        io.out(
+          `${serial} lengths: ${l.inTolerance} in tolerance / ${l.outOfTolerance} out / ${l.noDesignLength} no design length`
+        )
+        if (l.outOfTolerance > 0) {
+          io.out(`Turn these into redlines: nerve redline from-record ${file} --record ${join(outDir, `build-record-${serial}.json`)}`)
+        }
+      }
       return record.summary.status === "fail" ? 1 : 0
     }
 
@@ -866,6 +893,72 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         })
         writeFileSync(redlinesPath, JSON.stringify([...existing, redline], null, 2) + "\n")
         io.out(`Recorded ${redline.id} against ${target} in ${redlinesPath}`)
+        return 0
+      }
+      // Bulk-generate redlines from a build record's out-of-tolerance
+      // lengths — the return leg of the loop. Doing this by hand is one
+      // `redline add` per wire, which is why nobody does it.
+      if (sub === "from-record") {
+        const file = positional[1]
+        const recordPath = flags["record"]
+        if (file === undefined || recordPath === undefined) return usage(io)
+        const result = await compileOrExit(file, io)
+        if (typeof result === "number") return result
+        let record
+        try {
+          record = JSON.parse(readFileSync(resolve(recordPath), "utf8"))
+        } catch (cause) {
+          io.err(`Failed to load ${recordPath}: ${cause instanceof Error ? cause.message : String(cause)}`)
+          return 2
+        }
+        const generated = redlinesFromBuildRecord(record, {
+          ...(flags["prefix"] !== undefined ? { idPrefix: flags["prefix"] } : {}),
+          ...(flags["by"] !== undefined ? { reportedBy: flags["by"] } : {})
+        })
+        if (generated.length === 0) {
+          io.out("No out-of-tolerance lengths in this build record; nothing to redline.")
+          return 0
+        }
+        const redlinesPath = resolve(flags["file"] ?? "redlines.json")
+        const existing = existsSync(redlinesPath)
+          ? (JSON.parse(readFileSync(redlinesPath, "utf8")) as Array<{ id: string }>)
+          : []
+        const seen = new Set(existing.map((r) => r.id))
+        const fresh = generated.filter((r) => !seen.has(r.id))
+        writeFileSync(redlinesPath, JSON.stringify([...existing, ...fresh], null, 2) + "\n")
+        for (const r of fresh) io.out(`${r.id}  ${r.target}  ${r.description}`)
+        const skipped = generated.length - fresh.length
+        io.out(
+          `Recorded ${fresh.length} redline(s) in ${redlinesPath}${skipped > 0 ? ` (${skipped} already present)` : ""}`
+        )
+        return 0
+      }
+      // Collapse every accepted redline into one variant()-shaped patch, so a
+      // whole build's feedback is a single reviewable change, not N.
+      if (sub === "patch") {
+        const redlinesPath = positional[1]
+        if (redlinesPath === undefined) return usage(io)
+        let redlines
+        try {
+          redlines = JSON.parse(readFileSync(resolve(redlinesPath), "utf8")) as Array<never>
+        } catch (cause) {
+          io.err(`Failed to load ${redlinesPath}: ${cause instanceof Error ? cause.message : String(cause)}`)
+          return 2
+        }
+        const accepted = redlines.filter((r: { status: string }) => r.status === "accepted")
+        const patches = accepted.map((r) => suggestPatch(r)).filter((p) => p !== undefined)
+        if (patches.length === 0) {
+          io.out("No accepted redlines yield a structured patch.")
+          return 0
+        }
+        const merged = mergePatches(patches)
+        const json = JSON.stringify(merged, null, 2) + "\n"
+        if (flags["out"] !== undefined) {
+          writeOut(resolve(flags["out"]), "redline-patch.json", json, io)
+        } else {
+          io.out(json.trimEnd())
+        }
+        io.out(`${patches.length} accepted redline(s) merged into one patch.`)
         return 0
       }
       if (sub === "resolve") {
@@ -951,7 +1044,30 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
     case "parts": {
       // Bundled library introspection for humans and agents: the same data
       // behind editor completions and the generated docs page.
-      const { allParts, partInfo, partSpecs } = await import("@grayhaven/nerve-connectors")
+      const { allParts, partCoverage, partInfo, partSpecs, scaffoldPartSource } = await import(
+        "@grayhaven/nerve-connectors"
+      )
+      // `parts scaffold` is the cheap path to declaring an unknown part: a
+      // stub with every rule-relevant field present and annotated with the
+      // check it unlocks, so nothing goes dark by accident.
+      if (positional[0] === "scaffold") {
+        const mpn = positional[1]
+        const pins = flags["pins"]
+        if (mpn === undefined || pins === undefined) return usage(io)
+        const pinCount = Number(pins)
+        if (!Number.isInteger(pinCount) || pinCount < 1) {
+          io.err(`--pins must be a positive integer, got "${pins}".`)
+          return 2
+        }
+        const source = scaffoldPartSource(mpn, pinCount)
+        if (flags["out"] !== undefined) {
+          const file = `${mpn.replace(/[^A-Za-z0-9.-]/g, "-")}.ts`
+          writeOut(resolve(flags["out"]), file, source, io)
+        } else {
+          io.out(source.trimEnd())
+        }
+        return 0
+      }
       const query = positional[0]
       if (query !== undefined) {
         const info = partInfo(query)
@@ -959,8 +1075,12 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           io.err(`Unknown part "${query}". Try: nerve parts`)
           return 2
         }
+        // Which built-in checks this part's data actually enables. A part
+        // missing `wireGaugeRange` produces a clean report only because
+        // HK-MFG-004 never ran — say so instead of letting it look verified.
+        const cov = partCoverage(info.part)
         if (flags["json"] !== undefined) {
-          io.out(JSON.stringify(info, null, 2))
+          io.out(JSON.stringify({ ...info, coverage: cov }, null, 2))
         } else {
           const p = info.part
           io.out(`mpn        ${info.mpn}`)
@@ -974,6 +1094,10 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           if (p.voltageLimitV !== undefined) io.out(`voltage    ${p.voltageLimitV}V`)
           if (p.matingMpn !== undefined) io.out(`mates with ${p.matingMpn}`)
           if (p.provenance !== undefined) io.out(`verified   ${p.provenance.verification}`)
+          io.out(`checks     ${cov.active.length} active, ${cov.inactive.length} inactive`)
+          for (const i of cov.inactive) {
+            io.out(`  inactive ${i.code} — needs ${i.missingField}`)
+          }
         }
         return 0
       }

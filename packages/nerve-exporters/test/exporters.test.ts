@@ -38,10 +38,11 @@ describe("CSV exporters (PRD §20)", () => {
     const csv = cutListCsv(hir, { defaultWireTolerance: 10 })
     const lines = csv.trim().split("\n")
     expect(lines[0]).toBe(
-      "Wire ID,Signal,Gauge,Color,Stripe,Cut length,Finished length,Tolerance,From connector,From pin,To connector,To pin,Terminal A,Terminal B,Branch,Notes"
+      "Wire ID,Signal,Gauge,Color,Stripe,Cut length,Finished length,Service loop,Termination allowance (from),Termination allowance (to),Strip (from),Strip (to),Tolerance,Units,From connector,From pin,To connector,To pin,Terminal A,Terminal B,Branch,Notes"
     )
+    // No allowances declared, so cut length still equals finished length.
     expect(lines[1]).toBe(
-      "W1,VBAT_24V,20AWG,red,,420,420,10,J1,1,M1,1,43030-0007,43031-0007,,"
+      "W1,VBAT_24V,20AWG,red,,420,420,,,,,,10,mm,J1,1,M1,1,43030-0007,43031-0007,,"
     )
     expect(csv).toMatchSnapshot()
   })

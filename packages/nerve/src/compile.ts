@@ -15,7 +15,8 @@ import type {
   DifferentialPolarity,
   ElectricalRole,
   HarnessDesign,
-  PinElectrical
+  PinElectrical,
+  WirePart
 } from "./domain.js"
 import { Codes, DiagnosticSeverity, type Diagnostic } from "./diagnostics.js"
 import { canonicalGauge } from "./gauge.js"
@@ -30,7 +31,8 @@ import {
   type HirLabel,
   type HirProtection,
   type HirSplice,
-  type HirWire
+  type HirWire,
+  type HirWirePart
 } from "./hir/schema.js"
 
 export interface CompileResult {
@@ -77,6 +79,22 @@ const normalizeConductor = (value: string | number): string | undefined => {
   return isPositiveInteger(numeric) ? String(numeric) : undefined
 }
 
+/**
+ * Cut length = finished length plus everything the operator has to feed
+ * into the terminations and the service loop. Strip length is deliberately
+ * absent: it is a stripper setting, not extra copper.
+ *
+ * Kept in sync with `wireCutLength` in @grayhaven/nerve-exporters/csv, which
+ * cannot be imported here (exporters depend on core, not the reverse).
+ */
+const cutLengthOf = (w: HirWire): number | undefined =>
+  w.length === undefined
+    ? undefined
+    : w.length +
+      (w.serviceLoop ?? 0) +
+      (w.terminationAllowance?.from ?? 0) +
+      (w.terminationAllowance?.to ?? 0)
+
 /** Strip `undefined` values so optional fields are absent in serialized HIR. */
 const compact = <T extends Record<string, unknown>>(obj: T): T => {
   const out: Record<string, unknown> = {}
@@ -86,7 +104,29 @@ const compact = <T extends Record<string, unknown>>(obj: T): T => {
   return out as T
 }
 
-export const compileDesign = (design: HarnessDesign): CompileResult => {
+/** Normalize wire master data into HIR, canonicalizing its gauge the same
+ * way the wire's own gauge is canonicalized (see ./gauge.ts). */
+const toHirWirePart = (p: WirePart): HirWirePart =>
+  compact({
+    mpn: p.mpn,
+    manufacturer: p.manufacturer,
+    family: p.family,
+    description: p.description,
+    gauge: canonicalGauge(p.gauge),
+    strands: p.strands,
+    conductorMaterial: p.conductorMaterial,
+    insulation: p.insulation,
+    outerDiameter: p.outerDiameter,
+    voltageRating: p.voltageRating,
+    temperatureRating: p.temperatureRating,
+    ohmsPerKm: p.ohmsPerKm,
+    gramsPerMeter: p.gramsPerMeter,
+    availableColors:
+      p.availableColors !== undefined ? [...p.availableColors] : undefined,
+    provenance: p.provenance ? { ...p.provenance } : undefined
+  })
+
+export const compileDesign =(design: HarnessDesign): CompileResult => {
   const diagnostics: Array<Diagnostic> = []
   const report = (
     code: string,
@@ -555,6 +595,7 @@ export const compileDesign = (design: HarnessDesign): CompileResult => {
         id: w.id,
         from,
         to,
+        part: w.part !== undefined ? toHirWirePart(w.part) : undefined,
         // "awg 20" / "20 AWG" / "20" all compile to "20AWG" so gauge-based
         // rules and exporters see one spelling (HK-MFG-007 flags the rest).
         gauge: w.gauge !== undefined ? canonicalGauge(w.gauge) : undefined,
@@ -562,6 +603,15 @@ export const compileDesign = (design: HarnessDesign): CompileResult => {
         stripe: w.stripe,
         length: w.length,
         lengthTolerance: w.lengthTolerance,
+        serviceLoop: w.serviceLoop,
+        stripLength:
+          w.stripLength !== undefined
+            ? { from: w.stripLength.from, to: w.stripLength.to }
+            : undefined,
+        terminationAllowance:
+          w.terminationAllowance !== undefined
+            ? { from: w.terminationAllowance.from, to: w.terminationAllowance.to }
+            : undefined,
         signal: w.signal,
         insulation: w.insulation,
         voltageRating: w.voltageRating,
@@ -821,7 +871,7 @@ export const compileDesign = (design: HarnessDesign): CompileResult => {
   }
   labels.sort((a, b) => compareStrings(a.id, b.id))
 
-  // --- BOM (connector housings + terminals + seals; wire rollups in CSVs) ---
+  // --- BOM (connector housings + terminals + seals + wire) ------------------
   const bomByMpn = new Map<
     string,
     { item: Omit<HirBomItem, "usedBy" | "quantity">; usedBy: Array<string>; qty: number }
@@ -866,9 +916,51 @@ export const compileDesign = (design: HarnessDesign): CompileResult => {
   for (const s of splices) {
     if (s.part !== undefined) bomAdd(s.part, "splice", refs.splice(s.id))
   }
-  const bom: Array<HirBomItem> = [...bomByMpn.values()]
-    .map(({ item, usedBy, qty }) => ({ ...item, quantity: qty, usedBy }))
-    .sort((a, b) => compareStrings(a.mpn, b.mpn))
+
+  // Wire is bought by length, not by the each, so it rolls up on its own:
+  // quantity is summed cut length in harness units. Opt-in — a wire without
+  // a declared `part` names no material and cannot be ordered, so it stays
+  // off the BOM entirely.
+  const wireBomByMpn = new Map<
+    string,
+    { part: HirWirePart; quantity: number; usedBy: Array<string> }
+  >()
+  for (const w of wires) {
+    if (w.part === undefined) continue
+    const existing = wireBomByMpn.get(w.part.mpn)
+    const length = cutLengthOf(w) ?? 0
+    if (existing) {
+      existing.quantity += length
+      existing.usedBy.push(refs.wire(w.id))
+    } else {
+      wireBomByMpn.set(w.part.mpn, {
+        part: w.part,
+        quantity: length,
+        usedBy: [refs.wire(w.id)]
+      })
+    }
+  }
+  const wireBom: Array<HirBomItem> = [...wireBomByMpn.values()].map(
+    ({ part, quantity, usedBy }) =>
+      compact({
+        mpn: part.mpn,
+        manufacturer: part.manufacturer,
+        description: part.description,
+        category: "wire",
+        quantity,
+        unitOfMeasure: design.units,
+        usedBy: [...usedBy].sort(compareStrings)
+      })
+  )
+
+  const bom: Array<HirBomItem> = [
+    ...[...bomByMpn.values()].map(({ item, usedBy, qty }) => ({
+      ...item,
+      quantity: qty,
+      usedBy
+    })),
+    ...wireBom
+  ].sort((a, b) => compareStrings(a.mpn, b.mpn))
 
   // --- Diagnostics (canonical order) ----------------------------------------
   diagnostics.sort(
