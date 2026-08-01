@@ -111,7 +111,20 @@ carries one sanctioned deviation (20AWG) documenting this. A real-Grayhaven-harn
 pipeline run still needs actual hardware specs from the team — none exist in local repos.
 
 PRD coverage is now effectively complete (§32 label depth and §42 part-data providers
-remain as data-model deepening). Remaining ideas:
-Registry + verified component data (§30), shop-floor adapters (§31), formboard 1:1 printing (§33),
-engineering analysis (§34), ECO/release workflow (§35), Build Record (§36), interface contracts (§37),
-redlines (§39), plugin SDK (§40).
+remain as data-model deepening). The "remaining ideas" that used to close this file —
+registry (§30), shop-floor adapters (§31), formboard printing (§33), engineering analysis
+(§34), ECO/release (§35), Build Record (§36), interface contracts (§37), redlines (§39),
+plugin SDK (§40) — have all since shipped.
+
+## Where the roadmap lives now
+
+This file is a delivery record and stops here. What to build next is no longer a
+list of features; it is [docs/rule-coverage.md](./docs/rule-coverage.md), which
+states every failure mode as a row, the information needed to decide it as a
+column, and what Nerve does and does not check in each cell. That turns the
+question into arithmetic instead of preference, and its most useful column is
+the one naming what no design representation can decide at all.
+
+The short version as of the terminal and pinout work: the netlist tier is
+exhausted, so every remaining gain carries a data-acquisition cost rather than
+a coding one.

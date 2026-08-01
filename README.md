@@ -24,7 +24,10 @@ The domain boundaries and validation ownership are documented in
 
 ## What it does
 
-- Runs 43 built-in consistency, electrical, component, and manufacturing checks with stable `HK-*` diagnostic codes.
+- Runs 53 built-in consistency, electrical, component, and manufacturing checks with stable `HK-*` diagnostic codes.
+- Reports how close a passing design sits to each limit, not only whether it passed. A wire at 99% of its derated ampacity and one at 40% both pass, and are not the same design.
+- Judges a wire against the contact that crimps it and a pin against the pinout its part fixes, rather than against the housing or against the design's own restatement of itself.
+- Measures a routed branch instead of trusting a typed length, where the design supplies a centerline.
 - Produces a versioned machine-readable review report with HIR fingerprint, built-in rule coverage, findings, and explicit limitations.
 - Accounts for every mapped CSV or Excel row as accepted or rejected, then emits editable Nerve source and HIR.
 - Compares harness connector assignments with a KiCad 6+ board footprint's pad nets or another interface contract.
@@ -126,12 +129,12 @@ const j1 = connector("J1", MolexMicroFit["43025-0800"], {
 | --- | --- |
 | [`@grayhaven/nerve`](./packages/nerve) | Domain model, authoring API, versioned HIR, diagnostics, rules API, and deterministic `compileDesign` |
 | [`@grayhaven/nerve-compiler`](./packages/nerve-compiler) | Trusted local `.harness.ts` loading, configuration, plugins, and fail-closed validation |
-| [`@grayhaven/nerve-rules`](./packages/nerve-rules) | 43 generic built-in rules with stable diagnostic codes |
+| [`@grayhaven/nerve-rules`](./packages/nerve-rules) | 53 generic built-in rules with stable diagnostic codes |
 | [`@grayhaven/nerve-importers`](./packages/nerve-importers) | Deterministic CSV and Excel wire-list migration with source-row accounting |
 | [`@grayhaven/nerve-eval`](./packages/nerve-eval) | Provenance-aware evaluation and stable review-report primitives |
 | [`@grayhaven/nerve-exporters`](./packages/nerve-exporters) | Review, drawing, manufacturing, release, contract, and test artifacts |
 | [`@grayhaven/nerve-wireviz`](./packages/nerve-wireviz) | WireViz YAML import and export |
-| [`@grayhaven/nerve-connectors`](./packages/nerve-connectors) | Small connector library with provenance fields and a bundled provider |
+| [`@grayhaven/nerve-connectors`](./packages/nerve-connectors) | 21 connector housings and 9 crimp terminals with provenance fields, plus a bundled provider |
 | [`@grayhaven/nerve-cli`](./packages/nerve-cli) | Local and CI workflows for import, review, evaluation, validation, and export |
 | [`@grayhaven/nerve-web`](./packages/nerve-web) | Browser workspace, examples, and documentation |
 | [`@grayhaven/nerve-react`](./packages/nerve-react) | Experimental JSX authoring runtime |
