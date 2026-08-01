@@ -41,6 +41,13 @@ export const Codes = {
   UndefinedPinRef: "HK-CONN-003",
   InvalidConnectorQuantity: "HK-CONN-004",
   InvalidPinElectrical: "HK-CONN-005",
+  /**
+   * Two pins supply full part records for one MPN, and the records differ.
+   * One part number buys one part and gets one BOM line, so the design has
+   * asserted two incompatible facts about a single orderable item; the
+   * compiler refuses to pick one silently.
+   */
+  ConflictingPartRecord: "HK-CONN-006",
   DuplicateWireId: "HK-WIRE-001",
   /** A wire assigns itself to a branch that does not exist. Left unchecked it
    * would vanish from every conductor count that branch feeds. */

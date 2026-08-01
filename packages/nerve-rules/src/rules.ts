@@ -24,6 +24,7 @@ import {
   deratedAmpacityTable,
   differentialPartner,
   isGroundSignal,
+  isCurrentCarrying,
   isPowerSignal,
   isShieldSignal,
   parseAwg,
@@ -55,16 +56,30 @@ const RULE_VERSION = "1.0.0"
 /**
  * Rules that stopped checking a declaration and started checking physics.
  *
- * Three rules below now reach past the number the author typed: HK-WIRE-004
+ * Five rules below now reach past the number the author typed: HK-WIRE-004
  * derates ampacity by how many conductors share the bundle, HK-ELEC-010 walks
- * the splice graph past the declared `protects` list, and HK-MFG-005 prefers
- * the compiler's routed curvature to the asserted one. Each can return a
+ * the splice graph past the declared `protects` list, HK-MFG-005 prefers the
+ * compiler's routed curvature to the asserted one, and HK-MFG-004 and
+ * HK-CONN-016 judge a wire against the contact fitted to the cavity rather
+ * than against the housing that was standing in for it. Each can return a
  * different verdict on HIR that has not changed by a byte, which is precisely
  * the event `ruleVersion` exists to make attributable — a harness that passed
  * last quarter and fails today has to be answerable with "the rule moved",
  * not with a toolchain diff. So they leave the baseline.
  */
 const RULE_VERSION_1_1_0 = "1.1.0"
+
+/**
+ * HK-WIRE-004's second move, on top of the derating it gained at 1.1.0.
+ *
+ * The conductor count it derates by is now a count of current-carrying
+ * conductors rather than of wires on the branch (`isCurrentCarrying` in
+ * wire-data.ts owns that definition). A bundle whose signal wires used to push
+ * it over a band boundary now derates less, so the same HIR can come back with
+ * a different verdict in the *passing* direction — which needs to be as
+ * attributable as a new failure, and arguably more.
+ */
+const RULE_VERSION_1_2_0 = "1.2.0"
 
 /**
  * On the absence of `standard` / `clause` in this file.
@@ -257,6 +272,30 @@ export const missingWireGauge: Rule = rule(
   { code: "HK-MFG-003", ruleVersion: RULE_VERSION }
 )
 
+/**
+ * Conductor gauge against the range of the part that actually crimps it.
+ *
+ * The housing was never the right authority for this check; it was the only
+ * one that existed. A housing family publishes the span of every contact
+ * series it accepts, so a 22AWG wire fitted with a 20–16AWG contact sits
+ * inside the housing range and outside the range of the thing closing on the
+ * copper, and that has always passed. `HirPin.terminalPart` now carries the
+ * contact's own `wireGaugeRange`, so when the design supplied a record rather
+ * than a bare MPN the contact's range wins.
+ *
+ * The message says which range it judged, because they are different claims:
+ * "this housing family does not take 22AWG" and "the contact you fitted does
+ * not take 22AWG" send a reviewer to different parts of the drawing, and only
+ * one of them is what a crimp press will actually reject. The housing wording
+ * is unchanged to the byte for the fallback path — a design with no terminal
+ * records reads exactly what it read before.
+ *
+ * No margin, deliberately. AWG is an inverted logarithmic scale, so a ratio of
+ * two gauge numbers is not a physical quantity and a "utilization" derived
+ * from one would be a slope an optimizer could follow into a worse design.
+ * That holds whichever part supplied the range; see the note on `ctx.measure`
+ * at the top of this file.
+ */
 export const gaugeOutsideConnectorRange: Rule = rule(
   "gaugeOutsideConnectorRange",
   (ctx) => {
@@ -266,7 +305,13 @@ export const gaugeOutsideConnectorRange: Rule = rule(
       if (awg === undefined) continue
       for (const end of [w.from, w.to]) {
         if (!isPinEndpoint(end)) continue
-        const range = byRef.get(end.connector)?.wireGaugeRange
+        const connector = byRef.get(end.connector)
+        const terminal = connector?.pins.find((p) => p.pin === end.pin)?.terminalPart
+        // Present but rangeless is not a reason to skip the housing: a
+        // terminal record that never states a gauge range makes no claim, and
+        // falling back is strictly more checking than falling silent.
+        const terminalRange = terminal?.wireGaugeRange
+        const range = terminalRange ?? connector?.wireGaugeRange
         if (range === undefined) continue
         const thinnest = parseAwg(range.min)
         const thickest = parseAwg(range.max)
@@ -275,14 +320,129 @@ export const gaugeOutsideConnectorRange: Rule = rule(
         if (awg > thinnest || awg < thickest) {
           ctx.report({
             severity: Err,
-            message: `Wire ${w.id} uses ${w.gauge} but connector ${end.connector} accepts ${range.max} to ${range.min}.`,
-            target: refs.pin(end.connector, end.pin)
+            message:
+              terminalRange !== undefined
+                ? `Wire ${w.id} uses ${w.gauge} but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} accepts ${range.max} to ${range.min}.`
+                : `Wire ${w.id} uses ${w.gauge} but connector ${end.connector} accepts ${range.max} to ${range.min}.`,
+            target: refs.pin(end.connector, end.pin),
+            // Only on the terminal path: the housing finding stays the exact
+            // object it has always been, data-free.
+            ...(terminalRange !== undefined
+              ? {
+                  data: {
+                    gauge: w.gauge!,
+                    rangeSource: "terminal",
+                    terminal: terminal!.mpn,
+                    acceptsMin: range.min,
+                    acceptsMax: range.max
+                  }
+                }
+              : {})
           })
         }
       }
     }
   },
-  { code: "HK-MFG-004", ruleVersion: RULE_VERSION }
+  { code: "HK-MFG-004", ruleVersion: RULE_VERSION_1_1_0 }
+)
+
+/**
+ * Wire insulation OD against the crimp barrel that has to close on it.
+ *
+ * A contact grips the conductor at the wire barrel and the insulation at the
+ * insulation barrel, and the second grip is the harness's strain relief:
+ * insulation too thick will not enter the barrel, insulation too thin is not
+ * held by it and every pull on the wire lands on the conductor crimp instead.
+ * `HirTerminalPart.insulationDiameterRange` is that window, and nothing could
+ * check it while a terminal was an MPN string.
+ *
+ * The wire's insulation OD is read from `HirWirePart.outerDiameter` and from
+ * nowhere else. `INSULATED_OD_MM_BY_AWG` in wire-data.ts is a table of typical
+ * PVC hookup wire, honest enough to aggregate over a whole bundle for a sleeve
+ * fill estimate, and far too coarse to fail a specific part against a specific
+ * window — the difference between a thin-wall XLPE and a standard PVC in the
+ * same gauge is larger than the width of most insulation-barrel ranges. A wire
+ * with no declared part therefore has no modelled insulation OD, and this rule
+ * skips it rather than inventing one.
+ *
+ * No margin. The acceptance window is two-sided, and a ratio against its upper
+ * bound reads as comfortable slack for a wire failing the lower bound — the
+ * gradient would point away from the fix. A one-sided margin on a two-sided
+ * window is worse than none.
+ */
+export const insulationOutsideTerminalRange: Rule = rule(
+  "insulationOutsideTerminalRange",
+  (ctx) => {
+    const byRef = new Map(ctx.hir.connectors.map((c) => [c.ref, c]))
+    for (const w of ctx.hir.wires) {
+      const od = w.part?.outerDiameter
+      if (od === undefined || !Number.isFinite(od) || od <= 0) continue
+      for (const end of [w.from, w.to]) {
+        if (!isPinEndpoint(end)) continue
+        const terminal = byRef.get(end.connector)?.pins.find((p) => p.pin === end.pin)?.terminalPart
+        const range = terminal?.insulationDiameterRange
+        if (range === undefined) continue
+        if (od >= range.min && od <= range.max) continue
+        ctx.report({
+          severity: Err,
+          message: `Wire ${w.id} insulation is ${od}mm but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} grips ${range.min}mm to ${range.max}mm.`,
+          target: refs.pin(end.connector, end.pin),
+          targets: [refs.wire(w.id)],
+          data: {
+            insulationDiameterMm: od,
+            terminal: terminal!.mpn,
+            rangeMinMm: range.min,
+            rangeMaxMm: range.max
+          }
+        })
+      }
+    }
+  },
+  { code: "HK-MFG-012", ruleVersion: RULE_VERSION }
+)
+
+/**
+ * Wire insulation OD against the cavity seal that has to close on it.
+ *
+ * Same measured quantity as HK-MFG-012 and a different part, a different
+ * failure and a different fix: a seal outside its diameter window does not
+ * seal, so the connector's sealing claim is void — the housing is rated IP67
+ * and the harness is not. Kept as its own code because "respec the contact"
+ * and "respec the seal" are separate corrective actions and waivers are
+ * granted per code.
+ *
+ * Same OD source and same absence of a margin as HK-MFG-012, for the same two
+ * reasons — see its note above.
+ */
+export const insulationOutsideSealRange: Rule = rule(
+  "insulationOutsideSealRange",
+  (ctx) => {
+    const byRef = new Map(ctx.hir.connectors.map((c) => [c.ref, c]))
+    for (const w of ctx.hir.wires) {
+      const od = w.part?.outerDiameter
+      if (od === undefined || !Number.isFinite(od) || od <= 0) continue
+      for (const end of [w.from, w.to]) {
+        if (!isPinEndpoint(end)) continue
+        const seal = byRef.get(end.connector)?.pins.find((p) => p.pin === end.pin)?.sealPart
+        const range = seal?.insulationDiameterRange
+        if (range === undefined) continue
+        if (od >= range.min && od <= range.max) continue
+        ctx.report({
+          severity: Err,
+          message: `Wire ${w.id} insulation is ${od}mm but seal ${seal!.mpn} at ${end.connector}.${end.pin} seals ${range.min}mm to ${range.max}mm.`,
+          target: refs.pin(end.connector, end.pin),
+          targets: [refs.wire(w.id)],
+          data: {
+            insulationDiameterMm: od,
+            seal: seal!.mpn,
+            rangeMinMm: range.min,
+            rangeMaxMm: range.max
+          }
+        })
+      }
+    }
+  },
+  { code: "HK-MFG-013", ruleVersion: RULE_VERSION }
 )
 
 /** Well-formed metric cross-section, e.g. "0.5mm2" / "16 mm²". */
@@ -332,15 +492,26 @@ export const unparseableGauge: Rule = rule(
  * other alone is worse than no derating at all, so the count only follows the
  * explicit association.
  *
- * Every assigned wire counts. Nerve models no distinction between a loaded and
- * an unloaded conductor, and a missing `currentEstimate` means unknown, not
- * zero — counting only wires that declare a current would quietly remove
- * derating from exactly the sparsely-annotated dense bundles it exists for.
+ * What is counted is the current-carrying conductors, not the wires: the
+ * derating factors count conductors that put heat into the bundle, and a
+ * 26AWG encoder line or a CAN pair does not. `isCurrentCarrying` in
+ * wire-data.ts holds that definition and the argument for it, including why a
+ * wire that declares no current still counts — absence of a `currentEstimate`
+ * is unknown, not zero, and dropping those would quietly remove derating from
+ * exactly the sparsely-annotated dense bundles the rule exists for.
  */
-const bundleConductorCounts = (hir: Hir): ReadonlyMap<string, number> => {
+const bundleConductorCounts = (
+  hir: Hir,
+  // The same table the rule judges against: the negligible-load threshold is
+  // a fraction of table ampacity, so a shop that publishes its own ampacities
+  // must move the threshold with them or the count and the limit would come
+  // from two different tables.
+  table: Readonly<Record<number, number>>
+): ReadonlyMap<string, number> => {
   const counts = new Map<string, number>()
   for (const w of hir.wires) {
     if (w.branch === undefined) continue
+    if (!isCurrentCarrying(w, table)) continue
     counts.set(w.branch, (counts.get(w.branch) ?? 0) + 1)
   }
   return counts
@@ -351,7 +522,7 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
   "gaugeCurrentMismatch",
   (ctx) => {
     const table = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
-    const conductorsByBranch = bundleConductorCounts(ctx.hir)
+    const conductorsByBranch = bundleConductorCounts(ctx.hir, table)
     // One derated table per distinct factor: `requiredAwgForCurrent` has to
     // search the SAME table the verdict came from, or the gauge it recommends
     // would not actually clear the limit the wire was judged against.
@@ -413,7 +584,7 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
       }
     }
   },
-  { code: "HK-WIRE-004", ruleVersion: RULE_VERSION_1_1_0 }
+  { code: "HK-WIRE-004", ruleVersion: RULE_VERSION_1_2_0 }
 )
 
 export const gaugeCurrentMismatch: Rule = gaugeCurrentMismatchWith()
@@ -654,6 +825,22 @@ export const sealIncompatible: Rule = rule(
   { code: "HK-CONN-014", ruleVersion: RULE_VERSION }
 )
 
+/**
+ * Wire current against the rating of the contact carrying it.
+ *
+ * The same substitution HK-MFG-004 was making: `HirConnector.currentLimitA` is
+ * the housing family's per-contact figure, published for whichever contact
+ * series the family assumes, and the design may have fitted a different one.
+ * `HirTerminalPart.currentRatingA` is the rating of the part actually in the
+ * cavity, so it wins where it exists — and where the housing publishes no
+ * figure at all, a terminal record now gets this pin checked for the first
+ * time.
+ *
+ * The margin follows the same number as the finding, whichever part supplied
+ * it. That is the whole contract of the two channels: a design whose contact
+ * is derated relative to its housing must show the tighter utilization, not a
+ * comfortable one computed against a limit the harness does not have.
+ */
 export const connectorCurrentExceeded: Rule = rule(
   "connectorCurrentExceeded",
   (ctx) => {
@@ -663,7 +850,11 @@ export const connectorCurrentExceeded: Rule = rule(
       for (const end of [w.from, w.to]) {
         if (!isPinEndpoint(end)) continue
         const c = byRef.get(end.connector)
-        if (c?.currentLimitA === undefined) continue
+        if (c === undefined) continue
+        const terminal = c.pins.find((p) => p.pin === end.pin)?.terminalPart
+        const contactRating = terminal?.currentRatingA
+        const limit = contactRating ?? c.currentLimitA
+        if (limit === undefined) continue
         // Per contact, not per wire: the same wire can be comfortable in one
         // housing and marginal in the other, and only the per-contact ratio
         // says which end to re-spec.
@@ -671,22 +862,33 @@ export const connectorCurrentExceeded: Rule = rule(
           target: refs.pin(end.connector, end.pin),
           quantity: "contact current",
           measured: w.currentEstimate,
-          limit: c.currentLimitA,
+          limit,
           unit: "A"
         })
-        if (w.currentEstimate > c.currentLimitA) {
+        if (w.currentEstimate > limit) {
           ctx.report({
             severity: Err,
-            message: `Wire ${w.id} estimates ${w.currentEstimate}A but connector ${end.connector} (${c.mpn}) contacts are rated ${c.currentLimitA}A.`,
+            message:
+              contactRating !== undefined
+                ? `Wire ${w.id} estimates ${w.currentEstimate}A but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} is rated ${limit}A.`
+                : `Wire ${w.id} estimates ${w.currentEstimate}A but connector ${end.connector} (${c.mpn}) contacts are rated ${limit}A.`,
             target: refs.pin(end.connector, end.pin),
             targets: [refs.wire(w.id)],
-            data: { currentEstimateA: w.currentEstimate, currentLimitA: c.currentLimitA }
+            data: {
+              currentEstimateA: w.currentEstimate,
+              currentLimitA: limit,
+              // Only on the terminal path: the housing finding keeps exactly
+              // the two keys it has always carried.
+              ...(contactRating !== undefined
+                ? { limitSource: "terminal", terminal: terminal!.mpn }
+                : {})
+            }
           })
         }
       }
     }
   },
-  { code: "HK-CONN-016", ruleVersion: RULE_VERSION }
+  { code: "HK-CONN-016", ruleVersion: RULE_VERSION_1_1_0 }
 )
 
 export const connectorVoltageExceeded: Rule = rule(
@@ -1581,6 +1783,8 @@ export const builtinRules: ReadonlyArray<Rule> = [
   missingWireColor,
   missingWireGauge,
   gaugeOutsideConnectorRange,
+  insulationOutsideTerminalRange,
+  insulationOutsideSealRange,
   unparseableGauge,
   gaugeCurrentMismatch,
   differentialPairNotTwisted,

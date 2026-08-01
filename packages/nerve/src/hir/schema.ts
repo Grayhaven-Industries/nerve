@@ -53,19 +53,59 @@ export const HirPinElectrical = Schema.Struct({
   bitRateKbps: Schema.optional(Schema.Number)
 })
 
-export const HirPin = Schema.Struct({
-  pin: Schema.String,
-  signal: Schema.optional(Schema.String),
-  terminal: Schema.optional(Schema.String),
-  seal: Schema.optional(Schema.String),
-  electrical: Schema.optional(HirPinElectrical)
-})
-
 export const HirProvenance = Schema.Struct({
   source: Schema.optional(Schema.String),
   datasheet: Schema.optional(Schema.String),
   verification: Schema.Literal("unverified", "inspired-by", "verified"),
   lastVerified: Schema.optional(Schema.String)
+})
+
+/** The contact that crimps the wire (PRD §30, §4). Present only when the
+ * design supplied a record rather than a bare MPN. */
+export const HirTerminalPart = Schema.Struct({
+  mpn: Schema.String,
+  manufacturer: Schema.optional(Schema.String),
+  family: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  wireGaugeRange: Schema.optional(
+    Schema.Struct({ min: Schema.String, max: Schema.String })
+  ),
+  insulationDiameterRange: Schema.optional(
+    Schema.Struct({ min: Schema.Number, max: Schema.Number })
+  ),
+  plating: Schema.optional(Schema.String),
+  currentRatingA: Schema.optional(Schema.Number),
+  crimpTool: Schema.optional(Schema.String),
+  dieId: Schema.optional(Schema.String),
+  stripLength: Schema.optional(Schema.Number),
+  crimpHeight: Schema.optional(
+    Schema.Struct({ min: Schema.Number, max: Schema.Number })
+  ),
+  pullForceN: Schema.optional(Schema.Number),
+  provenance: Schema.optional(HirProvenance)
+})
+
+/** A cavity seal, sized to insulation OD rather than conductor gauge. */
+export const HirSealPart = Schema.Struct({
+  mpn: Schema.String,
+  manufacturer: Schema.optional(Schema.String),
+  family: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  insulationDiameterRange: Schema.optional(
+    Schema.Struct({ min: Schema.Number, max: Schema.Number })
+  ),
+  provenance: Schema.optional(HirProvenance)
+})
+
+export const HirPin = Schema.Struct({
+  pin: Schema.String,
+  signal: Schema.optional(Schema.String),
+  terminal: Schema.optional(Schema.String),
+  seal: Schema.optional(Schema.String),
+  /** Full contact record when the design supplied one. */
+  terminalPart: Schema.optional(HirTerminalPart),
+  sealPart: Schema.optional(HirSealPart),
+  electrical: Schema.optional(HirPinElectrical)
 })
 
 export const HirConnector = Schema.Struct({
@@ -296,6 +336,8 @@ export type HirBomItem = Schema.Schema.Type<typeof HirBomItem>
 export type HirPinRef = Schema.Schema.Type<typeof HirPinRef>
 export type HirSpliceRef = Schema.Schema.Type<typeof HirSpliceRef>
 export type HirEndpoint = Schema.Schema.Type<typeof HirEndpoint>
+export type HirTerminalPart = Schema.Schema.Type<typeof HirTerminalPart>
+export type HirSealPart = Schema.Schema.Type<typeof HirSealPart>
 export type HirPin = Schema.Schema.Type<typeof HirPin>
 export type HirPinElectrical = Schema.Schema.Type<typeof HirPinElectrical>
 export type HirSplice = Schema.Schema.Type<typeof HirSplice>

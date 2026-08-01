@@ -1,6 +1,6 @@
 > Grayhaven Nerve docs index: https://nerve.grayhavenindustries.com/llms.txt. Fetch it to discover all pages before exploring further.
 
-# 49 built-in validation rules.
+# 51 built-in validation rules.
 
 Stable `HK-*` codes, suitable for CI gating and waivers. This table is generated from the shipped `builtinRules` array in `@grayhaven/nerve-rules`; it cannot drift from the code. Custom rules use the same `rule()` API and get their own codes.
 
@@ -12,7 +12,9 @@ Stable `HK-*` codes, suitable for CI gating and waivers. This table is generated
 | `HK-MFG-001` | `missingWireLength` | Every wire should declare a length; cut lists need real numbers. |
 | `HK-MFG-002` | `missingWireColor` | Every wire should declare a color for the cut list and loom work. |
 | `HK-MFG-003` | `missingWireGauge` | Every wire must declare a gauge. |
-| `HK-MFG-004` | `gaugeOutsideConnectorRange` | Wire gauge must sit inside the connector part's wireGaugeRange. |
+| `HK-MFG-004` | `gaugeOutsideConnectorRange` | Wire gauge must sit inside the fitted terminal's wireGaugeRange, or the housing's when no terminal record exists. |
+| `HK-MFG-012` | `insulationOutsideTerminalRange` | Wire insulation OD must sit inside the terminal's insulation-barrel range. |
+| `HK-MFG-013` | `insulationOutsideSealRange` | Wire insulation OD must sit inside the cavity seal's diameter range. |
 | `HK-MFG-007` | `unparseableGauge` | Flags gauges that aren't AWG, so the gauge-based checks can't verify them (metric is Info, not a warning). |
 | `HK-WIRE-004` | `gaugeCurrentMismatch` | Wire gauge must carry the declared or estimated current (ampacity table). |
 | `HK-ELEC-001` | `differentialPairNotTwisted` | Differential pairs (CAN_H/CAN_L…) must share a twist group. |

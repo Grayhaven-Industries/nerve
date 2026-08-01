@@ -96,6 +96,59 @@ export interface WirePart {
 }
 
 /** A reference to a specific pin/cavity on a connector instance. */
+/**
+ * The contact that actually crimps the wire.
+ *
+ * A terminal has been an MPN string with nothing behind it, so every check
+ * that wants the contact's own limits has had to substitute the housing's:
+ * HK-MFG-004 compares wire gauge against the *housing* range because the
+ * terminal's range does not exist. The housing is a proxy for the part doing
+ * the crimping, and a proxy is where a check quietly stops being about the
+ * thing it names.
+ *
+ * The process fields are the other half. Strip length, die, crimp height
+ * window and pull force are what an operator at a press needs, and they are
+ * a function of terminal plus gauge — derivable the moment the terminal is
+ * modelled, and underivable while it is a string.
+ */
+export interface TerminalPart {
+  readonly mpn: string
+  readonly manufacturer?: string
+  readonly family?: string
+  readonly description?: string
+  /** Conductor gauge range this contact crimps. */
+  readonly wireGaugeRange?: { readonly min: string; readonly max: string }
+  /** Insulation OD the crimp barrel accepts, mm. */
+  readonly insulationDiameterRange?: { readonly min: number; readonly max: number }
+  readonly plating?: string
+  readonly currentRatingA?: number
+  readonly crimpTool?: string
+  readonly dieId?: string
+  /** Insulation removed before crimping, mm. */
+  readonly stripLength?: number
+  /**
+   * Acceptance window for measured crimp height, mm. The single most
+   * important dimensional spec of a crimp, and the one most often missing
+   * from a drawing — outside this window the crimp is a reject however it
+   * looks.
+   */
+  readonly crimpHeight?: { readonly min: number; readonly max: number }
+  /** Minimum tensile pull before separation, newtons. */
+  readonly pullForceN?: number
+  readonly provenance?: PartProvenance
+}
+
+/** A cavity seal, sized to the wire's insulation rather than its conductor. */
+export interface SealPart {
+  readonly mpn: string
+  readonly manufacturer?: string
+  readonly family?: string
+  readonly description?: string
+  /** Wire insulation OD this seal grips, mm. */
+  readonly insulationDiameterRange?: { readonly min: number; readonly max: number }
+  readonly provenance?: PartProvenance
+}
+
 export interface PinRef {
   readonly kind: "pin-ref"
   readonly connector: string
@@ -169,6 +222,11 @@ export interface ConnectorInstance {
   readonly terminals: Readonly<Record<string, string>>
   /** Seal MPN per pin. */
   readonly seals: Readonly<Record<string, string>>
+  /** Full terminal records, per pin, where the design supplied one rather
+   * than a bare MPN. Absent entirely when every terminal is a string. */
+  readonly terminalParts?: Readonly<Record<string, TerminalPart>>
+  /** Full seal records, per pin. Absent when every seal is a string. */
+  readonly sealParts?: Readonly<Record<string, SealPart>>
   /** Optional electrical semantics per assigned pin. */
   readonly electrical: Readonly<Record<string, PinElectrical>>
   /** Build a `PinRef` for a pin on this connector. */

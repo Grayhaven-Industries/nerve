@@ -1,0 +1,65 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`crimp process data (PRD §28, §30) > is deterministic: same HIR twice, byte-identical output 1`] = `
+"ASSEMBLY INSTRUCTIONS — crimp-process rev A
+Units: mm. Generated from HIR 0.1.0; every step references design object IDs.
+
+Materials
+---------
+ 1. Gather 2x CONN-2 — used by connector:M1, connector:M2.
+ 2. Gather 1x CONN-4 — used by connector:J1.
+
+Cut wires
+---------
+ 3. Cut W1: 18AWG red, 300 mm.
+ 4. Cut W2: 18AWG black, 300 mm.
+ 5. Cut W3: 20AWG yellow, 420 mm.
+ 6. Cut W4: 22AWG blue, 260 mm.
+
+Crimp terminations
+------------------
+ 7. Crimp 1 termination(s) with terminal GH-2210-9 on 20AWG wire: J1.3.
+      Strip length not specified in the terminal record.
+      Crimp tool CT-9082.
+      Die not specified in the terminal record.
+      Crimp height not specified in the terminal record; no window to measure against.
+      Pull force not specified in the terminal record; no minimum to test against.
+      Terminal data is unverified — confirm against the terminal datasheet before setting the press.
+ 8. Crimp 3 termination(s) with terminal GH-4471-3 (Grayhaven Contacts) on 18AWG wire: J1.1, J1.2, M1.1.
+      Strip length 6.43 mm.
+      Crimp tool CT-9082.
+      Die D-7734.
+      Crimp height 1.263 to 1.417 mm, measured with a micrometer across the crimp barrel.
+      Pull force minimum 73.6 N, checked by tensile pull test.
+ 9. Crimp 1 termination(s) with terminal GH-4471-3 (Grayhaven Contacts) on 22AWG wire: M2.2.
+      Strip length 6.43 mm.
+      Crimp tool CT-9082.
+      Die D-7734.
+      Crimp height 1.263 to 1.417 mm, measured with a micrometer across the crimp barrel.
+      Pull force minimum 73.6 N, checked by tensile pull test.
+
+Populate connectors
+-------------------
+10. Populate J1 (CONN-4):
+      cavity 1: W1
+      cavity 2: W2
+      cavity 3: W3
+      cavity 4: W4
+11. Populate M1 (CONN-2):
+      cavity 1: W1
+      cavity 2: W2
+12. Populate M2 (CONN-2):
+      cavity 1: W3
+      cavity 2: W4
+
+Inspection
+----------
+13. Verify every cavity against the pinout table; check seating/lock engagement.
+14. Verify wire colors and labels against the schedule.
+15. Verify branch lengths and sleeve coverage against the board drawing.
+
+Test
+----
+16. Run the continuity-test procedure (tests.csv / test-plan.json); record results per test ID.
+"
+`;

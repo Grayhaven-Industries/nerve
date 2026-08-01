@@ -264,13 +264,13 @@
         },
         {
           "name": "terminals",
-          "type": "PinPartAssignment",
+          "type": "PinPartAssignment<TerminalPart>",
           "optional": true,
           "doc": ""
         },
         {
           "name": "seals",
-          "type": "PinPartAssignment",
+          "type": "PinPartAssignment<SealPart>",
           "optional": true,
           "doc": ""
         },

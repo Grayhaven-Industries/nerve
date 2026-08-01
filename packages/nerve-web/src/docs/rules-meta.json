@@ -28,6 +28,14 @@
     "name": "gaugeOutsideConnectorRange"
   },
   {
+    "code": "HK-MFG-012",
+    "name": "insulationOutsideTerminalRange"
+  },
+  {
+    "code": "HK-MFG-013",
+    "name": "insulationOutsideSealRange"
+  },
+  {
     "code": "HK-MFG-007",
     "name": "unparseableGauge"
   },
