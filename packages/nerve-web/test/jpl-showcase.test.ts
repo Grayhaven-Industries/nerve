@@ -17,7 +17,7 @@ describe("NASA/JPL rover showcase", () => {
     expect(JPL_SHOWCASE_SUMMARY).toEqual({
       designs: 6,
       conductors: 28,
-      ruleCount: 49,
+      ruleCount: 51,
       packetFiles: 22
     })
     expect(JPL_HARNESSES.every((proof) => proof.importDiagnostics.every((d) => d.severity !== "error"))).toBe(true)
