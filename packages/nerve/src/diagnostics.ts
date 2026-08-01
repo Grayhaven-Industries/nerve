@@ -66,7 +66,19 @@ export const Codes = {
   InvalidCableConductor: "HK-CABLE-005",
   DuplicateProtectionId: "HK-PROT-001",
   ProtectionUndefinedWire: "HK-PROT-002",
-  InvalidProtectionRating: "HK-PROT-003"
+  InvalidProtectionRating: "HK-PROT-003",
+  /**
+   * A design object reached the compiler missing structure the type system
+   * says it must have — which can only happen when the object was built by a
+   * different copy of this library than the one compiling it.
+   *
+   * The usual cause is authoring a harness outside the workspace, where
+   * `@grayhaven/nerve` resolves to a published build from the package cache
+   * while the compiler runs from source. Both halves work; they just are not
+   * the same version. Without this check the mismatch surfaced as a raw
+   * TypeError deep inside normalization, which told the reader nothing.
+   */
+  ForeignDesignObject: "HK-DESIGN-001"
 } as const
 
 export const hasErrors = (diagnostics: ReadonlyArray<Diagnostic>): boolean =>
