@@ -342,6 +342,7 @@ export type HirSpliceRef = Schema.Schema.Type<typeof HirSpliceRef>
 export type HirEndpoint = Schema.Schema.Type<typeof HirEndpoint>
 export type HirTerminalPart = Schema.Schema.Type<typeof HirTerminalPart>
 export type HirSealPart = Schema.Schema.Type<typeof HirSealPart>
+export type HirProvenance = Schema.Schema.Type<typeof HirProvenance>
 export type HirPin = Schema.Schema.Type<typeof HirPin>
 export type HirPinElectrical = Schema.Schema.Type<typeof HirPinElectrical>
 export type HirSplice = Schema.Schema.Type<typeof HirSplice>

@@ -514,3 +514,11 @@ export const createReviewReport = (
       "This report records deterministic checks performed on the supplied facts. It is not a certification and does not replace qualified engineering review."
   }
 }
+
+export {
+  auditProvenance,
+  provenanceAuditJson,
+  type AuditedPart,
+  type EvidenceTier,
+  type ProvenanceAudit
+} from "./provenance-audit.js"

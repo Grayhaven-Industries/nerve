@@ -42,7 +42,9 @@ import {
   wireListColumnMapJson
 } from "@grayhaven/nerve-importers"
 import {
+  auditProvenance,
   createCorpusReport,
+  provenanceAuditJson,
   createReviewReport,
   decodeEvalManifest,
   evaluateCase,
@@ -268,6 +270,7 @@ Usage:
   nerve import   <file.yml> [--prepend-file base.yml] [--id harness-id] [--out dir]   (WireViz YAML → HIR)
   nerve import   <file.csv|xlsx> --map columns.json [--sheet name] [--id harness-id] [--out dir]
   nerve review   <file.harness.ts> [--out dir]   (stable machine-readable finding report)
+  nerve provenance <file.harness.ts> [--out dir]   (what the checks rest on)
   nerve eval     [eval-corpus/manifest.json] [--out dir]   (provenance-aware rule scorecard)
   nerve quote    <file.harness.ts> [--out dir]   (requires costing in nerve.config.ts)
   nerve analyze  <file.harness.ts> [--out dir]   (resistance, drop, bundle, weight §34)
@@ -622,6 +625,36 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         `${result.hir.harness.id} rev ${result.hir.harness.revision}: ${report.summary.findings} finding(s), fingerprint ${report.harness.fingerprint}`
       )
       return report.summary.errors > 0 ? 1 : 0
+    }
+
+    // Coverage says what is checked; this says what the checks rest on. A
+    // clean report over unverified limits is not the same result as a clean
+    // report over confirmed ones, and nothing else distinguishes them.
+    case "provenance": {
+      const arg = await resolveHarnessArg(positional)
+      if (arg === undefined) return usage(io)
+      const result = await compileOrExit(arg.file, io)
+      if (typeof result === "number") return result
+      const audit = auditProvenance(result.hir)
+      const outDir = resolveOutDir(flags, result.config, arg.configDir)
+      writeOut(outDir, "provenance-audit.json", provenanceAuditJson(audit), io)
+
+      const s = audit.summary
+      for (const p of audit.parts.filter((x) => x.tier !== "verified" && x.decisiveFields.length > 0)) {
+        io.out(`  ${p.tier.padEnd(12)} ${p.kind.padEnd(10)} ${p.mpn}  (${p.decisiveFields.join(", ")})`)
+      }
+      const tiers = Object.entries(s.byTier)
+        .filter(([, n]) => n > 0)
+        .map(([t, n]) => `${n} ${t}`)
+        .join(", ")
+      io.out(`${s.parts} part(s): ${tiers}`)
+      io.out(
+        s.decisiveUnverified === 0
+          ? "Every limit this design is judged against comes from verified part data."
+          : `${s.decisiveUnverified} part(s) supply a limit a rule judges against without being verified. A clean report is only as good as these.`
+      )
+      // Reporting, not gating: unverified data is a normal state, not a defect.
+      return 0
     }
 
     case "eval": {

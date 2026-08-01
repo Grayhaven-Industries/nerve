@@ -80,6 +80,7 @@ export {
   HirPinRef,
   HirProtection,
   HirSplice,
+  HirProvenance,
   HirSealPart,
   HirSpliceRef,
   HirTerminalPart,
