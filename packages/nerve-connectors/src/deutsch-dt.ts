@@ -2,19 +2,16 @@
  * TE Deutsch DT family (size-16 contacts, 13A, IP68 with integral
  * silicone seals — no per-cavity seal parts, so `sealed` stays unset
  * for the missingSeal rule). Contacts: 0462-201-16141 socket /
- * 0460-202-16141 pin, 14-20 AWG. Wedgelocks required per housing
+ * 0460-202-16141 pin, 16-20 AWG. Wedgelocks required per housing
  * (W2S/W3S/W4S sockets, W2P/W3P/W4P pins).
  * Provenance: TE catalog data, inspired-by tier.
  *
- * OPEN: the 14 AWG end of that range is unconfirmed. A read of TE's size-16
- * application spec put these contacts at 16-20 AWG, 14 AWG needing a larger
- * contact — but te.com returns 403 to automated fetches and two distributor
- * mirrors timed out, so it is not verified here and the range is left as it
- * was rather than changed on one unreplicated reading. The practical impact
- * is contained: `terminals.ts` carries the per-contact range, and the gauge
- * rules prefer it, so this housing range is only the fallback for a design
- * that fits a contact by bare MPN. Sibling JST entries had two real errors
- * found the same way, so treat this as likely rather than doubtful.
+ * The range was previously recorded as 14-20 AWG. Both size-16 contacts take
+ * 16-20; 14 AWG needs a larger contact (0462-209-16141 is the 14 AWG socket,
+ * a different part number). Corrected against agreeing listings from Newark,
+ * Del City, WireCare, BuyDeutsch and others, since te.com returns 403 to
+ * automated fetches. The 13A current limit is unchanged and consistent
+ * across the same sources.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"
 
@@ -35,7 +32,7 @@ const plug = (circuits: number): ConnectorPart => ({
   cavityLayout: { rows: 1, columns: circuits },
   matingMpn: `DT04-${circuits}P`,
   compatibleTerminals: ["0462-201-16141"],
-  wireGaugeRange: { min: "20AWG", max: "14AWG" },
+  wireGaugeRange: { min: "20AWG", max: "16AWG" },
   currentLimitA: 13,
   voltageLimitV: 250,
   provenance
@@ -51,7 +48,7 @@ const receptacle = (circuits: number): ConnectorPart => ({
   cavityLayout: { rows: 1, columns: circuits },
   matingMpn: `DT06-${circuits}S`,
   compatibleTerminals: ["0460-202-16141"],
-  wireGaugeRange: { min: "20AWG", max: "14AWG" },
+  wireGaugeRange: { min: "20AWG", max: "16AWG" },
   currentLimitA: 13,
   voltageLimitV: 250,
   provenance

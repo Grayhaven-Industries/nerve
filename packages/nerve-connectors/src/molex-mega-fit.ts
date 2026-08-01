@@ -2,6 +2,17 @@
  * Molex Mega-Fit power connector family (5.70mm pitch, 23A/circuit).
  * Provenance: Molex catalog data, inspired-by tier — terminal series
  * 76650 (female) per catalog; verify crimp specs before production.
+ *
+ * OPEN, and load-bearing: the 23AWG-12AWG range below is not confirmed for
+ * the 76650 terminals. Molex's own Mega-Fit product specifications put female
+ * crimp terminals at 12-16 AWG, and the Mega-Fit hand-crimp-tool application
+ * spec scopes to the 76823 and 172063 series without mentioning 76650 at all.
+ * If 16 AWG is really the thin end, then anything finer than that cannot be
+ * crimped into these housings, and this entry's 23 AWG floor is letting such
+ * designs pass. Nothing here is changed on that basis because the exact part
+ * numbers could not be confirmed against a Molex document — but this range
+ * should be checked against the terminals actually being bought before it is
+ * trusted, and `examples/robot-platform` runs 20 AWG through 76650-0117.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"
 
