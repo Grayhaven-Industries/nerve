@@ -136,7 +136,7 @@ describe("typed electrical semantic rules", () => {
   }
 
   it("keeps all six built-ins independently addressable with unique codes", () => {
-    expect(builtinRules).toHaveLength(51)
+    expect(builtinRules).toHaveLength(53)
     expect(cases.map(({ rule }) => rule.name)).toEqual([
       "multipleElectricalSources",
       "undrivenElectricalLoad",
@@ -153,7 +153,7 @@ describe("typed electrical semantic rules", () => {
       "HK-ELEC-016",
       "HK-ELEC-017"
     ])
-    expect(new Set(builtinRules.map((rule) => rule.code)).size).toBe(51)
+    expect(new Set(builtinRules.map((rule) => rule.code)).size).toBe(53)
   })
 
   it("honors severity overrides and disabling by rule name", () => {

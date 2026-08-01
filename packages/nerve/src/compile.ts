@@ -205,6 +205,34 @@ const toHirTerminalPart = (p: TerminalPart): HirTerminalPart =>
     provenance: p.provenance ? toHirProvenance(p.provenance) : undefined
   })
 
+/**
+ * Normalize a part's declared pinout into HIR.
+ *
+ * Keys go through `String` for the same reason `reservedPins` does and the
+ * same reason `connector()` does it to authored pin assignments: a cavity is
+ * identified by its printed name, and `1` and `"1"` are the same cavity. A
+ * pinout that kept a different spelling would silently fail to line up with
+ * the pin assignments it exists to be checked against.
+ *
+ * Rebuilt in `comparePins` order rather than spread, so two authors who type
+ * the same datasheet in a different order produce the same bytes — HIR is
+ * serialized byte-for-byte and an authored object promises nothing about its
+ * key order.
+ *
+ * `undefined` for an empty pinout: a record with no entries claims nothing
+ * about any pin, which is exactly what declaring no pinout claims, and
+ * `compact()` then keeps the key out of HIR rather than emitting `{}`.
+ */
+const toHirPinout = (
+  pinout: Readonly<Record<string, string>>
+): Readonly<Record<string, string>> | undefined => {
+  const entries = Object.entries(pinout).sort(([a], [b]) => comparePins(a, b))
+  if (entries.length === 0) return undefined
+  const out: Record<string, string> = {}
+  for (const [pin, signal] of entries) out[String(pin)] = signal
+  return out
+}
+
 /** Normalize a seal record into HIR, on the same terms as a terminal. */
 const toHirSealPart = (p: SealPart): HirSealPart =>
   compact({
@@ -493,6 +521,51 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         { data: { rows: c.part.cavityLayout.rows, columns: c.part.cavityLayout.columns } }
       )
     }
+    /**
+     * A pinout that cannot be true of the part it is attached to.
+     *
+     * The pinout is the outside authority a pin assignment gets checked
+     * against, so it has to be checkable itself: a part naming a signal on a
+     * pin it does not have, or on a pin it reserves for keying, is describing
+     * a part that does not exist, and every downstream comparison against it
+     * inherits the error. Both halves come from the part's own datasheet
+     * fields — nothing here reads the design's pin assignments, because a
+     * pinout that contradicts the harness is a design defect for the rules to
+     * find, not an impossible part.
+     *
+     * Only numeric pin names are range-checked. `pinCount` counts cavities and
+     * says nothing about how they are labelled, so a lettered or gridded name
+     * (`A1`, `B2`) is unjudgeable here and passes rather than being guessed at.
+     * A `pinCount` that is not a positive integer has already been reported;
+     * measuring against it would only add a second finding for one defect.
+     */
+    if (c.part.pinout !== undefined) {
+      const reserved = new Set((c.part.reservedPins ?? []).map(String))
+      for (const pin of Object.keys(c.part.pinout).sort(comparePins)) {
+        const n = Number(pin)
+        if (
+          isPositiveInteger(c.part.pinCount) &&
+          Number.isInteger(n) &&
+          (n < 1 || n > c.part.pinCount)
+        ) {
+          report(
+            Codes.ImpossiblePartPinout,
+            `Connector ${c.ref} part ${c.part.mpn} declares a pinout for pin ${pin}, but the part has ${c.part.pinCount} pins.`,
+            refs.pin(c.ref, pin),
+            DiagnosticSeverity.Error,
+            { data: { mpn: c.part.mpn, pin, pinCount: c.part.pinCount } }
+          )
+        } else if (reserved.has(pin)) {
+          report(
+            Codes.ImpossiblePartPinout,
+            `Connector ${c.ref} part ${c.part.mpn} declares a pinout for pin ${pin}, which the same part reserves.`,
+            refs.pin(c.ref, pin),
+            DiagnosticSeverity.Error,
+            { data: { mpn: c.part.mpn, pin } }
+          )
+        }
+      }
+    }
     for (const [field, value] of [
       ["currentLimitA", c.part.currentLimitA],
       ["voltageLimitV", c.part.voltageLimitV]
@@ -528,6 +601,7 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
           ? { rows: c.part.cavityLayout.rows, columns: c.part.cavityLayout.columns }
           : undefined,
         reservedPins: c.part.reservedPins?.map(String),
+        pinout: c.part.pinout !== undefined ? toHirPinout(c.part.pinout) : undefined,
         sealed: c.part.sealed,
         currentLimitA: c.part.currentLimitA,
         voltageLimitV: c.part.voltageLimitV,

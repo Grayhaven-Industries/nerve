@@ -1,18 +1,20 @@
 /**
  * Molex Mega-Fit power connector family (5.70mm pitch, 23A/circuit).
- * Provenance: Molex catalog data, inspired-by tier — terminal series
- * 76650 (female) per catalog; verify crimp specs before production.
+ * Provenance: Molex catalog data, inspired-by tier — female crimp terminals
+ * 76823-0321 (14/16AWG) and 76823-0322 (12AWG); verify crimp specs before
+ * production.
  *
- * OPEN, and load-bearing: the 23AWG-12AWG range below is not confirmed for
- * the 76650 terminals. Molex's own Mega-Fit product specifications put female
- * crimp terminals at 12-16 AWG, and the Mega-Fit hand-crimp-tool application
- * spec scopes to the 76823 and 172063 series without mentioning 76650 at all.
- * If 16 AWG is really the thin end, then anything finer than that cannot be
- * crimped into these housings, and this entry's 23 AWG floor is letting such
- * designs pass. Nothing here is changed on that basis because the exact part
- * numbers could not be confirmed against a Molex document — but this range
- * should be checked against the terminals actually being bought before it is
- * trusted, and `examples/robot-platform` runs 20 AWG through 76650-0117.
+ * This entry previously named 76650-0117 / 76650-0118 as its terminals and
+ * declared a 23AWG-12AWG range. Neither was right. Molex's datasheet for the
+ * sibling 76650-0125 shows that block to be *kit* part numbers in the
+ * PicoBlade family — 1.25mm pitch, 32-28AWG — and the Mega-Fit tooling
+ * document names only the 76823 and 172063 series. The system is specified
+ * for 16-12AWG.
+ *
+ * The bogus 23AWG floor was load-bearing: it let a 20AWG drive feed pass into
+ * a connector that cannot crimp anything thinner than 16AWG, while the far
+ * end of the same wire sat in a Micro-Fit that tops out at 20AWG. Two ranges
+ * with no overlap, and no gauge that satisfies both.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"
 

@@ -122,6 +122,10 @@ export const HirConnector = Schema.Struct({
   cavityLayout: Schema.optional(Schema.Struct({ rows: Schema.Number, columns: Schema.Number })),
   matingMpn: Schema.optional(Schema.String),
   reservedPins: Schema.optional(Schema.Array(Schema.String)),
+  /** Signals the part itself fixes per pin, where it fixes them (a device,
+   * not a bare housing). The outside authority a pin assignment can be
+   * checked against. */
+  pinout: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
   sealed: Schema.optional(Schema.Boolean),
   compatibleTerminals: Schema.optional(Schema.Array(Schema.String)),
   compatibleSeals: Schema.optional(Schema.Array(Schema.String)),

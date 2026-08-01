@@ -174,10 +174,16 @@
           "doc": ""
         },
         {
+          "name": "pinout",
+          "type": "Readonly<Record<string, string>>",
+          "optional": true,
+          "doc": "The signal each pin carries on the part itself, where the part fixes it.\n\nA bare housing has no pinout — pin 1 of a Micro-Fit receptacle is whatever\nyou crimp into it. A device does: a sensor, a module, a board header have\ntheir pinout defined by the thing, not by the harness. Declaring it turns\npin assignment into a claim that can be contradicted by an outside\nauthority.\n\nThat matters because it is the one thing HK-CONN-011 cannot do. It\ncompares a wire's signal against a pin assignment, but both are written by\nthe same author in the same file, so a consistently wrong pinout — the\nmistake people actually make — agrees with itself and compiles clean.\n`matingMpn` does not help: it is a part number with nothing behind it."
+        },
+        {
           "name": "reservedPins",
           "type": "ReadonlyArray<number | string>",
           "optional": true,
-          "doc": "Pins that must stay unassigned (keying, future use, no-connects)."
+          "doc": ""
         },
         {
           "name": "matingMpn",

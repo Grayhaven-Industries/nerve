@@ -34,6 +34,7 @@ Array of:
 | `cavityLayout` | `{ rows, columns }` | no |  |
 | `matingMpn` | `string` | no |  |
 | `reservedPins` | `Array<string>` | no |  |
+| `pinout` | `Record<string, string>` | no |  |
 | `sealed` | `boolean` | no |  |
 | `compatibleTerminals` | `Array<string>` | no |  |
 | `compatibleSeals` | `Array<string>` | no |  |

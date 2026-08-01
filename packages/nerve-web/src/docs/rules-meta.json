@@ -196,6 +196,14 @@
     "name": "canStubTooLong"
   },
   {
+    "code": "HK-CONN-023",
+    "name": "pinoutSignalContradiction"
+  },
+  {
+    "code": "HK-CONN-024",
+    "name": "pinoutPinUnassigned"
+  },
+  {
     "code": "HK-ELEC-022",
     "name": "groundLoop"
   },

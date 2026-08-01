@@ -35,6 +35,7 @@ import {
   sleeveCapacityMm
 } from "./wire-data.js"
 import { busTopologyRules } from "./bus-topology.js"
+import { pinoutRules } from "./pinout.js"
 import { groundLoop, shieldTerminationScheme } from "./ground-shield.js"
 
 const { Error: Err, Warning: Warn, Info } = DiagnosticSeverity
@@ -1820,6 +1821,9 @@ export const builtinRules: ReadonlyArray<Rule> = [
   // Bus and return-path topology (ISO 11898-2 / grounding convention).
   // Pure graph analysis over HIR — no part data or geometry required.
   ...busTopologyRules,
+  // The part as an outside authority: HK-CONN-011 compares two statements
+  // by the same author, so a consistently wrong pinout agrees with itself.
+  ...pinoutRules,
   groundLoop,
   shieldTerminationScheme
 ]

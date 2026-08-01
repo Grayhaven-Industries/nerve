@@ -135,6 +135,14 @@
                 "type": "string"
               }
             },
+            "pinout": {
+              "type": "object",
+              "required": [],
+              "properties": {},
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "sealed": {
               "type": "boolean"
             },

@@ -51,6 +51,22 @@ export interface ConnectorPart {
   readonly pinNumbering?: string
   readonly cavityLayout?: { readonly rows: number; readonly columns: number }
   /** Pins that must stay unassigned (keying, future use, no-connects). */
+  /**
+   * The signal each pin carries on the part itself, where the part fixes it.
+   *
+   * A bare housing has no pinout — pin 1 of a Micro-Fit receptacle is whatever
+   * you crimp into it. A device does: a sensor, a module, a board header have
+   * their pinout defined by the thing, not by the harness. Declaring it turns
+   * pin assignment into a claim that can be contradicted by an outside
+   * authority.
+   *
+   * That matters because it is the one thing HK-CONN-011 cannot do. It
+   * compares a wire's signal against a pin assignment, but both are written by
+   * the same author in the same file, so a consistently wrong pinout — the
+   * mistake people actually make — agrees with itself and compiles clean.
+   * `matingMpn` does not help: it is a part number with nothing behind it.
+   */
+  readonly pinout?: Readonly<Record<string, string>>
   readonly reservedPins?: ReadonlyArray<number | string>
   readonly matingMpn?: string
   readonly compatibleTerminals?: ReadonlyArray<string>

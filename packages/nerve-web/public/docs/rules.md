@@ -1,6 +1,6 @@
 > Grayhaven Nerve docs index: https://nerve.grayhavenindustries.com/llms.txt. Fetch it to discover all pages before exploring further.
 
-# 51 built-in validation rules.
+# 53 built-in validation rules.
 
 Stable `HK-*` codes, suitable for CI gating and waivers. This table is generated from the shipped `builtinRules` array in `@grayhaven/nerve-rules`; it cannot drift from the code. Custom rules use the same `rule()` API and get their own codes.
 
@@ -55,6 +55,8 @@ Stable `HK-*` codes, suitable for CI gating and waivers. This table is generated
 | `HK-ELEC-019` | `canTerminationNotAtBusEnd` | A CAN termination belongs at an end of the trunk, on a node with a single bus wire. |
 | `HK-ELEC-020` | `canBusNotLinear` | A CAN trunk is linear; junctions are reported so their drops can be checked against the stub budget. |
 | `HK-ELEC-021` | `canStubTooLong` | A CAN drop must stay inside the stub budget for the bus's declared bit rate. |
+| `HK-CONN-023` | `pinoutSignalContradiction` | A pin assigned a signal the part itself fixes as something else — the part is the authority, not the design. |
+| `HK-CONN-024` | `pinoutPinUnassigned` | A pin the part defines that the design leaves unwired; legitimate for a spare, worth seeing for a signal. |
 | `HK-ELEC-022` | `groundLoop` | A ground net offering more than one return path between the same points forms a circulating-current loop. |
 | `HK-ELEC-023` | `shieldTerminationScheme` | A cable shield should be terminated deliberately: one end normally, both only by intent, neither never. |
 

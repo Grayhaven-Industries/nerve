@@ -48,6 +48,13 @@ export const Codes = {
    * compiler refuses to pick one silently.
    */
   ConflictingPartRecord: "HK-CONN-006",
+  /**
+   * A part declares a pinout for a pin it does not have or for one it
+   * reserves. The pinout exists to be the outside authority a pin assignment
+   * is checked against, so a pinout describing a part that does not exist
+   * poisons every comparison made against it.
+   */
+  ImpossiblePartPinout: "HK-CONN-007",
   DuplicateWireId: "HK-WIRE-001",
   /** A wire assigns itself to a branch that does not exist. Left unchecked it
    * would vanish from every conductor count that branch feeds. */

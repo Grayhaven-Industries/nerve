@@ -54,5 +54,7 @@ export const RULE_SUMMARIES: Record<string, string> = {
   canBusNotLinear: "A CAN trunk is linear; junctions are reported so their drops can be checked against the stub budget.",
   canStubTooLong: "A CAN drop must stay inside the stub budget for the bus's declared bit rate.",
   groundLoop: "A ground net offering more than one return path between the same points forms a circulating-current loop.",
-  shieldTerminationScheme: "A cable shield should be terminated deliberately: one end normally, both only by intent, neither never."
+  shieldTerminationScheme: "A cable shield should be terminated deliberately: one end normally, both only by intent, neither never.",
+  pinoutSignalContradiction: "A pin assigned a signal the part itself fixes as something else — the part is the authority, not the design.",
+  pinoutPinUnassigned: "A pin the part defines that the design leaves unwired; legitimate for a spare, worth seeing for a signal."
 }
