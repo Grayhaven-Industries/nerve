@@ -123,6 +123,23 @@ const wiredPins = (hir: Hir): ReadonlySet<string> => {
 
 /** Wires whose endpoints both sit on a branch's path (splices count via their
  * branch assignment) — the same membership the bundle-diameter rule uses. */
+/**
+ * The wires running in a branch.
+ *
+ * A wire that names its branch is taken at its word, and a wire that names a
+ * *different* branch is excluded outright — otherwise an explicit assignment
+ * and the fallback below could both claim it and the conductor count would
+ * double.
+ *
+ * Everything else falls back to path adjacency: a member is a wire with both
+ * endpoints on the branch's `path`. That heuristic is load-bearing for sleeve
+ * fill, ambient and derating, and it is weaker than it looks — membership
+ * depends on whether the author happened to list the shared source connector
+ * in the path. Two physically identical bundles can disagree, one counting
+ * every conductor and the other counting none, and a count of none passes
+ * every check it feeds. Declare `branch` on the wire wherever the number
+ * matters.
+ */
 const wiresOnBranch = (
   hir: Hir,
   branch: Hir["branches"][number]
@@ -135,7 +152,11 @@ const wiresOnBranch = (
     isPinEndpoint(e)
       ? onPath.has(e.connector)
       : spliceBranch.get(e.splice) === branch.id || onPath.has(e.splice)
-  return hir.wires.filter((w) => nodeOnBranch(w.from) && nodeOnBranch(w.to))
+  return hir.wires.filter((w) =>
+    w.branch !== undefined
+      ? w.branch === branch.id
+      : nodeOnBranch(w.from) && nodeOnBranch(w.to)
+  )
 }
 
 // --- Documentation ----------------------------------------------------------

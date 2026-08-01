@@ -435,10 +435,16 @@
           "doc": ""
         },
         {
+          "name": "branch",
+          "type": "string",
+          "optional": true,
+          "doc": "The bundle segment this wire runs in, by branch id.\n\nMembership is otherwise inferred from whether both of a wire's endpoints\nappear in a branch's `path`, which makes it depend on an authoring\naccident: two physically identical bundles disagree if one path happens\nto name the shared source connector and the other does not. Anything\ncounting conductors in a bundle — derating, sleeve fill, ambient — is\nonly as good as that count, so say it outright when it matters."
+        },
+        {
           "name": "cable",
           "type": "string",
           "optional": true,
-          "doc": "Cable this wire is a conductor of (see `cable()`)."
+          "doc": ""
         },
         {
           "name": "conductor",

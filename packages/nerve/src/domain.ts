@@ -202,6 +202,17 @@ export interface WireProps {
   readonly twistGroup?: string
   readonly shieldGroup?: string
   /** Cable this wire is a conductor of (see `cable()`). */
+  /**
+   * The bundle segment this wire runs in, by branch id.
+   *
+   * Membership is otherwise inferred from whether both of a wire's endpoints
+   * appear in a branch's `path`, which makes it depend on an authoring
+   * accident: two physically identical bundles disagree if one path happens
+   * to name the shared source connector and the other does not. Anything
+   * counting conductors in a bundle — derating, sleeve fill, ambient — is
+   * only as good as that count, so say it outright when it matters.
+   */
+  readonly branch?: string
   readonly cable?: string
   /** Conductor number/name within the cable. */
   readonly conductor?: string | number
