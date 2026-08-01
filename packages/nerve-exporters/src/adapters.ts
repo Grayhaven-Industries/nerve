@@ -12,7 +12,6 @@
 import {
   DiagnosticSeverity,
   HIR_SCHEMA_VERSION,
-  isPinEndpoint,
   refs,
   type Diagnostic,
   type Hir
