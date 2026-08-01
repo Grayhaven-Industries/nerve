@@ -321,6 +321,12 @@
       "name": "WireProps",
       "props": [
         {
+          "name": "part",
+          "type": "WirePart",
+          "optional": true,
+          "doc": "Wire material this conductor is cut from; the only thing that puts a\nwire on the BOM."
+        },
+        {
           "name": "gauge",
           "type": "AutocompleteString<KnownGauge>",
           "optional": true,
@@ -342,13 +348,31 @@
           "name": "length",
           "type": "number",
           "optional": true,
-          "doc": ""
+          "doc": "Finished (installed) length between the two endpoints."
         },
         {
           "name": "lengthTolerance",
           "type": "number",
           "optional": true,
           "doc": ""
+        },
+        {
+          "name": "serviceLoop",
+          "type": "number",
+          "optional": true,
+          "doc": "Extra length added to the cut so the wire can be dressed/serviced."
+        },
+        {
+          "name": "stripLength",
+          "type": "{ readonly from: number; readonly to: number }",
+          "optional": true,
+          "doc": "Insulation removed at each end — a machine parameter, NOT added to cut length."
+        },
+        {
+          "name": "terminationAllowance",
+          "type": "{ readonly from: number; readonly to: number }",
+          "optional": true,
+          "doc": "Length consumed inside each termination — IS added to cut length."
         },
         {
           "name": "signal",

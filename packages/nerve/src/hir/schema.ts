@@ -89,15 +89,57 @@ export const HirConnector = Schema.Struct({
   pins: Schema.Array(HirPin)
 })
 
+// effect 3.22.0 (resolved by bun.lock from the `^3.16.0` range): in v3
+// `Schema.optional(S)` produces an exact-optional key whose type also admits
+// `undefined` — which is what lets `compact()`-built objects assign cleanly
+// under `exactOptionalPropertyTypes`. Same primitive as the rest of this file.
+/** Wire material master data (PRD §9.2, §30) — the wire counterpart of
+ * `HirConnector`'s part fields, and what makes a wire orderable. */
+export const HirWirePart = Schema.Struct({
+  mpn: Schema.String,
+  manufacturer: Schema.optional(Schema.String),
+  family: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  gauge: Schema.String,
+  strands: Schema.optional(Schema.Number),
+  conductorMaterial: Schema.optional(
+    Schema.Literal("copper", "tinned-copper", "copper-clad-aluminum")
+  ),
+  insulation: Schema.optional(Schema.String),
+  /** Nominal outer diameter, mm. */
+  outerDiameter: Schema.optional(Schema.Number),
+  voltageRating: Schema.optional(Schema.Number),
+  temperatureRating: Schema.optional(Schema.Number),
+  ohmsPerKm: Schema.optional(Schema.Number),
+  gramsPerMeter: Schema.optional(Schema.Number),
+  availableColors: Schema.optional(Schema.Array(Schema.String)),
+  provenance: Schema.optional(HirProvenance)
+})
+
+/** Length consumed or removed at each end of a wire, in harness units. */
+export const HirWireEndAllowance = Schema.Struct({
+  from: Schema.Number,
+  to: Schema.Number
+})
+
 export const HirWire = Schema.Struct({
   id: Schema.String,
   from: HirEndpoint,
   to: HirEndpoint,
+  /** Present only when the design declares a wire material. */
+  part: Schema.optional(HirWirePart),
   gauge: Schema.optional(Schema.String),
   color: Schema.optional(Schema.String),
   stripe: Schema.optional(Schema.String),
+  /** Finished (installed) length; the cut length adds the allowances below. */
   length: Schema.optional(Schema.Number),
   lengthTolerance: Schema.optional(Schema.Number),
+  /** Slack added to the cut so the wire can be dressed/serviced. */
+  serviceLoop: Schema.optional(Schema.Number),
+  /** Insulation removed at each end — a machine parameter, not cut length. */
+  stripLength: Schema.optional(HirWireEndAllowance),
+  /** Length consumed inside each termination — added to cut length. */
+  terminationAllowance: Schema.optional(HirWireEndAllowance),
   signal: Schema.optional(Schema.String),
   insulation: Schema.optional(Schema.String),
   voltageRating: Schema.optional(Schema.Number),
@@ -224,6 +266,8 @@ export const Hir = Schema.Struct({
 export type Hir = Schema.Schema.Type<typeof Hir>
 export type HirConnector = Schema.Schema.Type<typeof HirConnector>
 export type HirWire = Schema.Schema.Type<typeof HirWire>
+export type HirWirePart = Schema.Schema.Type<typeof HirWirePart>
+export type HirWireEndAllowance = Schema.Schema.Type<typeof HirWireEndAllowance>
 export type HirBranch = Schema.Schema.Type<typeof HirBranch>
 export type HirLabel = Schema.Schema.Type<typeof HirLabel>
 export type HirBomItem = Schema.Schema.Type<typeof HirBomItem>

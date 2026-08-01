@@ -125,11 +125,15 @@ defineConfig(config: NerveConfig)
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
+| `part` | `WirePart` | no | Wire material this conductor is cut from; the only thing that puts a wire on the BOM. |
 | `gauge` | `AutocompleteString<KnownGauge>` | no |  |
 | `color` | `AutocompleteString<KnownWireColor>` | no |  |
 | `stripe` | `AutocompleteString<KnownWireColor>` | no |  |
-| `length` | `number` | no |  |
+| `length` | `number` | no | Finished (installed) length between the two endpoints. |
 | `lengthTolerance` | `number` | no |  |
+| `serviceLoop` | `number` | no | Extra length added to the cut so the wire can be dressed/serviced. |
+| `stripLength` | `{ readonly from: number; readonly to: number }` | no | Insulation removed at each end — a machine parameter, NOT added to cut length. |
+| `terminationAllowance` | `{ readonly from: number; readonly to: number }` | no | Length consumed inside each termination — IS added to cut length. |
 | `signal` | `string` | no |  |
 | `insulation` | `string` | no |  |
 | `voltageRating` | `number` | no |  |

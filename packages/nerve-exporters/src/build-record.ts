@@ -6,6 +6,12 @@
  * are computed by replaying measured values against the release's generated
  * test plan, so a pass means "the physical harness matches the design
  * graph," traceable test-by-test.
+ *
+ * As-built wire lengths ride along the same way. A technician measures the
+ * harness that actually came off the board; the record judges each measured
+ * length against the design length and its tolerance and stops there. It
+ * never amends the design — an out-of-tolerance length is an observation
+ * that a human turns into a redline (PRD §39), reviews, and accepts.
  */
 import type { Hir } from "@grayhaven/nerve"
 import { generateTestPlan, type HarnessTest } from "./test-plan.js"
@@ -23,6 +29,23 @@ export interface TestVerdict {
   readonly expected: "closed" | "open"
   readonly measuredOhms?: number
   readonly verdict: "pass" | "fail" | "not-run"
+}
+
+export interface LengthObservation {
+  /** Wire id, matching HIR `wires[].id`. */
+  readonly wire: string
+  /** Measured end-to-end length in harness units. */
+  readonly measuredLength: number
+}
+
+export interface LengthVerdict {
+  readonly wire: string
+  readonly designLength?: number
+  readonly tolerance?: number
+  readonly measuredLength: number
+  /** measured - design, present only when a design length exists. */
+  readonly delta?: number
+  readonly verdict: "in-tolerance" | "out-of-tolerance" | "no-design-length"
 }
 
 export interface BuildRecord {
@@ -44,6 +67,13 @@ export interface BuildRecord {
     readonly notRun: number
     readonly status: "pass" | "fail" | "incomplete"
   }
+  /** As-built length evidence. Omitted entirely when nothing was measured. */
+  readonly lengths?: ReadonlyArray<LengthVerdict>
+  readonly lengthSummary?: {
+    readonly inTolerance: number
+    readonly outOfTolerance: number
+    readonly noDesignLength: number
+  }
   readonly rework?: ReadonlyArray<string>
   readonly deviations?: ReadonlyArray<string>
 }
@@ -60,8 +90,61 @@ export interface BuildRecordOptions {
   readonly workstation?: string
   readonly materialLots?: Readonly<Record<string, string>>
   readonly tools?: Readonly<Record<string, string>>
+  /** As-built wire lengths measured on the bench. */
+  readonly lengths?: ReadonlyArray<LengthObservation>
+  /**
+   * Tolerance applied to wires that declare no `lengthTolerance` of their
+   * own. Without it, an exact match is the only thing in tolerance.
+   */
+  readonly defaultLengthTolerance?: number
   readonly rework?: ReadonlyArray<string>
   readonly deviations?: ReadonlyArray<string>
+}
+
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+/**
+ * Judge measured lengths against the design.
+ *
+ * Tolerance resolution runs wire `lengthTolerance` first, then
+ * `defaultLengthTolerance`, then zero — with no tolerance declared anywhere,
+ * any nonzero delta is out of tolerance.
+ *
+ * A wire the design gives no `length` is `"no-design-length"`: there is
+ * nothing to judge against, so it is reported, not failed. An observation
+ * naming a wire id that is not in the HIR lands in the same bucket rather
+ * than throwing, matching how `createBuildRecord` already treats a
+ * measurement id with no matching test — unknown ids are surfaced in the
+ * output as unjudgeable, never fatal and never counted as a failure.
+ */
+const judgeLengths = (
+  hir: Hir,
+  observations: ReadonlyArray<LengthObservation>,
+  defaultLengthTolerance: number | undefined
+): ReadonlyArray<LengthVerdict> => {
+  const wires = new Map(hir.wires.map((w) => [w.id, w]))
+  return [...observations]
+    .sort((a, b) => cmp(a.wire, b.wire))
+    .map((obs): LengthVerdict => {
+      const designLength = wires.get(obs.wire)?.length
+      if (designLength === undefined) {
+        return {
+          wire: obs.wire,
+          measuredLength: obs.measuredLength,
+          verdict: "no-design-length"
+        }
+      }
+      const tolerance = wires.get(obs.wire)?.lengthTolerance ?? defaultLengthTolerance
+      const delta = obs.measuredLength - designLength
+      return {
+        wire: obs.wire,
+        designLength,
+        ...(tolerance !== undefined ? { tolerance } : {}),
+        measuredLength: obs.measuredLength,
+        delta,
+        verdict: Math.abs(delta) <= (tolerance ?? 0) ? "in-tolerance" : "out-of-tolerance"
+      }
+    })
 }
 
 export const createBuildRecord = (
@@ -90,6 +173,12 @@ export const createBuildRecord = (
   const pass = results.filter((r) => r.verdict === "pass").length
   const fail = results.filter((r) => r.verdict === "fail").length
   const notRun = results.filter((r) => r.verdict === "not-run").length
+  // Omitted wholesale when nothing was measured: a record with no length
+  // evidence must serialize exactly as it always has.
+  const lengths =
+    options.lengths !== undefined
+      ? judgeLengths(hir, options.lengths, options.defaultLengthTolerance)
+      : undefined
   return {
     recordVersion: "0.1.0",
     release: release.releaseId,
@@ -109,6 +198,16 @@ export const createBuildRecord = (
       notRun,
       status: fail > 0 ? "fail" : notRun > 0 ? "incomplete" : "pass"
     },
+    ...(lengths !== undefined
+      ? {
+          lengths,
+          lengthSummary: {
+            inTolerance: lengths.filter((l) => l.verdict === "in-tolerance").length,
+            outOfTolerance: lengths.filter((l) => l.verdict === "out-of-tolerance").length,
+            noDesignLength: lengths.filter((l) => l.verdict === "no-design-length").length
+          }
+        }
+      : {}),
     ...(options.rework !== undefined ? { rework: options.rework } : {}),
     ...(options.deviations !== undefined ? { deviations: options.deviations } : {})
   }

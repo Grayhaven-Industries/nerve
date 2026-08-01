@@ -104,9 +104,9 @@ describe("splice rendering and outputs", () => {
 
   it("cut list shows splice endpoints and cable membership", () => {
     const csv = cutListCsv(hir, { defaultWireTolerance: 5 })
-    expect(csv).toContain("W2,V5,26AWG,red,,180,180,5,S1,,P1,1")
+    expect(csv).toContain("W2,V5,26AWG,red,,180,180,,,,,,5,mm,S1,,P1,1")
     expect(csv).toContain(
-      "W7,CAN_H,26AWG,white,,300,300,5,J1,3,P1,3,SPH-004T-P0.5S,SPH-004T-P0.5S,C1"
+      "W7,CAN_H,26AWG,white,,300,300,,,,,,5,mm,J1,3,P1,3,SPH-004T-P0.5S,SPH-004T-P0.5S,C1"
     )
   })
 

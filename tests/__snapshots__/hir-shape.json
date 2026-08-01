@@ -346,6 +346,92 @@
                 }
               ]
             },
+            "part": {
+              "type": "object",
+              "required": [
+                "mpn",
+                "gauge"
+              ],
+              "properties": {
+                "mpn": {
+                  "type": "string"
+                },
+                "manufacturer": {
+                  "type": "string"
+                },
+                "family": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "gauge": {
+                  "type": "string"
+                },
+                "strands": {
+                  "type": "number"
+                },
+                "conductorMaterial": {
+                  "type": "string",
+                  "enum": [
+                    "copper",
+                    "tinned-copper",
+                    "copper-clad-aluminum"
+                  ]
+                },
+                "insulation": {
+                  "type": "string"
+                },
+                "outerDiameter": {
+                  "type": "number"
+                },
+                "voltageRating": {
+                  "type": "number"
+                },
+                "temperatureRating": {
+                  "type": "number"
+                },
+                "ohmsPerKm": {
+                  "type": "number"
+                },
+                "gramsPerMeter": {
+                  "type": "number"
+                },
+                "availableColors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "provenance": {
+                  "type": "object",
+                  "required": [
+                    "verification"
+                  ],
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "datasheet": {
+                      "type": "string"
+                    },
+                    "verification": {
+                      "type": "string",
+                      "enum": [
+                        "unverified",
+                        "inspired-by",
+                        "verified"
+                      ]
+                    },
+                    "lastVerified": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
             "gauge": {
               "type": "string"
             },
@@ -360,6 +446,41 @@
             },
             "lengthTolerance": {
               "type": "number"
+            },
+            "serviceLoop": {
+              "type": "number"
+            },
+            "stripLength": {
+              "type": "object",
+              "required": [
+                "from",
+                "to"
+              ],
+              "properties": {
+                "from": {
+                  "type": "number"
+                },
+                "to": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            "terminationAllowance": {
+              "type": "object",
+              "required": [
+                "from",
+                "to"
+              ],
+              "properties": {
+                "from": {
+                  "type": "number"
+                },
+                "to": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
             },
             "signal": {
               "type": "string"

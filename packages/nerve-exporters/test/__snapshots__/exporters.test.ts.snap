@@ -10,11 +10,11 @@ exports[`CSV exporters (PRD §20) > BOM has the §20.1 columns and connector rol
 `;
 
 exports[`CSV exporters (PRD §20) > cut list has the §20.2 columns, with default tolerance applied 1`] = `
-"Wire ID,Signal,Gauge,Color,Stripe,Cut length,Finished length,Tolerance,From connector,From pin,To connector,To pin,Terminal A,Terminal B,Branch,Notes
-W1,VBAT_24V,20AWG,red,,420,420,10,J1,1,M1,1,43030-0007,43031-0007,,
-W2,GND,20AWG,black,,420,420,10,J1,2,M1,2,43030-0007,43031-0007,,
-W3,CAN_H,24AWG,white,,,,10,J1,3,M1,3,43030-0007,43031-0007,,
-W4,CAN_L,24AWG,blue,,,,10,J1,4,M1,4,43030-0007,43031-0007,,
+"Wire ID,Signal,Gauge,Color,Stripe,Cut length,Finished length,Service loop,Termination allowance (from),Termination allowance (to),Strip (from),Strip (to),Tolerance,Units,From connector,From pin,To connector,To pin,Terminal A,Terminal B,Branch,Notes
+W1,VBAT_24V,20AWG,red,,420,420,,,,,,10,mm,J1,1,M1,1,43030-0007,43031-0007,,
+W2,GND,20AWG,black,,420,420,,,,,,10,mm,J1,2,M1,2,43030-0007,43031-0007,,
+W3,CAN_H,24AWG,white,,,,,,,,,10,mm,J1,3,M1,3,43030-0007,43031-0007,,
+W4,CAN_L,24AWG,blue,,,,,,,,,10,mm,J1,4,M1,4,43030-0007,43031-0007,,
 "
 `;
 
@@ -176,7 +176,7 @@ exports[`harness board view (PRD §9.5.3) > renders branch trunk, endpoints, sle
 "
 `;
 
-exports[`manufacturing packet (PRD §9.8) > packet zip bytes are golden — an fflate/pdf-lib bump that changes them fails here 1`] = `"896c9fb681e7d1af2a54897dd3aea8d4334579759d594b377bd81e9d1b08424f"`;
+exports[`manufacturing packet (PRD §9.8) > packet zip bytes are golden — an fflate/pdf-lib bump that changes them fails here 1`] = `"930b451648a647abf1bf907caef3964d02a8ddc90e043f53212965118de3f354"`;
 
 exports[`test plan (PRD §9.9) > CSV form is deterministic 1`] = `
 "Test ID,Type,From connector,From pin,To connector,To pin,Expected,Net,Wire

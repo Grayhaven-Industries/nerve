@@ -52,11 +52,15 @@ Array of:
 | `id` | `string` | yes |  |
 | `from` | `{ connector, pin } \| { splice }` | yes |  |
 | `to` | `{ connector, pin } \| { splice }` | yes |  |
+| `part` | `{ mpn, manufacturer, family, description, gauge, strands, conductorMaterial, insulation, outerDiameter, voltageRating, temperatureRating, ohmsPerKm, gramsPerMeter, availableColors, provenance }` | no |  |
 | `gauge` | `string` | no |  |
 | `color` | `string` | no |  |
 | `stripe` | `string` | no |  |
 | `length` | `number` | no |  |
 | `lengthTolerance` | `number` | no |  |
+| `serviceLoop` | `number` | no |  |
+| `stripLength` | `{ from, to }` | no |  |
+| `terminationAllowance` | `{ from, to }` | no |  |
 | `signal` | `string` | no |  |
 | `insulation` | `string` | no |  |
 | `voltageRating` | `number` | no |  |
