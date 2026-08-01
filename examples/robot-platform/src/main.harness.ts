@@ -7,12 +7,11 @@ import {
   harness, connector, wire, branch, label, splice, cable,
   type ConnectorPart, type ConnectorInstance, type WireDef, type SpliceDef
 } from "@grayhaven/nerve"
-import { AmassXT60, JstPH, MolexMegaFit, MolexMicroFit } from "@grayhaven/nerve-connectors"
+import { AmassXT60, JstPH, MolexMicroFit } from "@grayhaven/nerve-connectors"
 
 // --- Parts: the verified library is the source of truth (PRD §30/§42) ---------
 const xt60 = AmassXT60["XT60PW-M"]
 const xt60F = AmassXT60["XT60PW-F"]
-const megaFit8 = MolexMegaFit["76829-0008"]
 const microFit16 = MolexMicroFit["43025-1600"]
 const jstPh4 = JstPH["PHR-4"]
 const jstPh2 = JstPH["PHR-2"]
@@ -29,12 +28,18 @@ const estop = connector("ESTOP1", faston4, {
   pins: { 1: "VBAT_RAW", 2: "VBAT_SW", 3: "ESTOP_SENSE", 4: "GND_SIG" }
 })
 const pdbIn = connector("PDB_IN", xt60, { pins: { 1: "VBAT_SW", 2: "GND_BAT" } })
-const pdbOut = connector("PDB_OUT", megaFit8, {
+// Micro-Fit rather than Mega-Fit. The drive feeds carry 1.5A continuous, and
+// Mega-Fit is a 23A/circuit part that bottoms out at 16AWG — so pairing it
+// with the Micro-Fit driver end (30-20AWG) left no gauge that crimps into
+// both. Micro-Fit is 8.5A/circuit, still ~5x the load, and matches the
+// driver, PDB_AUX and MCU ends so one gauge and one terminal serve the whole
+// distribution.
+const pdbOut = connector("PDB_OUT", MolexMicroFit["43025-0800"], {
   pins: {
     1: "VBAT_MD1", 2: "GND_MD1", 3: "VBAT_MD2", 4: "GND_MD2",
     5: "VBAT_MD3", 6: "GND_MD3", 7: "VBAT_MD4", 8: "GND_MD4"
   },
-  terminals: "76650-0117"
+  terminals: "43030-0007"
 })
 const pdbAux = connector("PDB_AUX", MolexMicroFit["43025-0800"], {
   pins: {

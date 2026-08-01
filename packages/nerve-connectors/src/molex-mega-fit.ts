@@ -34,8 +34,8 @@ export const MolexMegaFit = {
     pinCount: 8,
     cavityLayout: { rows: 2, columns: 4 },
     matingMpn: "76825-0008",
-    compatibleTerminals: ["76650-0117", "76650-0118"],
-    wireGaugeRange: { min: "23AWG", max: "12AWG" },
+    compatibleTerminals: ["76823-0321", "76823-0322"],
+    wireGaugeRange: { min: "16AWG", max: "12AWG" },
     currentLimitA: 23,
     voltageLimitV: 600,
     provenance
@@ -50,8 +50,8 @@ export const MolexMegaFit = {
     pinCount: 8,
     cavityLayout: { rows: 2, columns: 4 },
     matingMpn: "76829-0008",
-    compatibleTerminals: ["76650-0117", "76650-0118"],
-    wireGaugeRange: { min: "23AWG", max: "12AWG" },
+    compatibleTerminals: ["76823-0321", "76823-0322"],
+    wireGaugeRange: { min: "16AWG", max: "12AWG" },
     currentLimitA: 23,
     voltageLimitV: 600,
     provenance

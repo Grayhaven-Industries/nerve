@@ -346,12 +346,15 @@ describe("determinism", () => {
   // purpose: robot-platform now declares each wire's branch (its breakouts
   // previously counted zero conductors) and states the drives' continuous
   // 1.5A draw rather than their 3A peak.
+  // Moved again when PDB_OUT went from Mega-Fit to Micro-Fit: Mega-Fit
+  // bottoms out at 16AWG and the driver end tops out at 20AWG, so no gauge
+  // crimped into both.
   it("compiles examples/robot-platform to its pinned output", () => {
     const json = JSON.stringify(compileDesign(robotPlatform).hir)
 
     expect(createHash("sha256").update(json).digest("hex")).toBe(
-      "f00cb66948da63e1192434535fd4d9e81f570e7df925a3e85082d4c390cec7fc"
+      "acfd13d46953ef355c2022aac051f3ca861aed683a1ef29292653767b968871f"
     )
-    expect(Buffer.byteLength(json)).toBe(36151)
+    expect(Buffer.byteLength(json)).toBe(35936)
   })
 })

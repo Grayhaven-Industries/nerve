@@ -11,14 +11,19 @@ import { allParts, allTerminals } from "../src/index.js"
 /**
  * Terminals a housing names that this library deliberately does not model.
  *
- * 76650-0117 / 76650-0118 are referenced by the Mega-Fit housings, but the
- * Molex tooling document for Mega-Fit female crimp terminals scopes them to
- * the 76823 and 172063 series — 76650 does not appear there, and distributor
- * listings put 76650-0117 in an unrelated Molex product line. Rather than
- * publish a guess about which contact these are, they stay unmodelled until
- * someone can confirm the part against a Molex drawing.
+ * 76823-0321 / 76823-0322 are the Mega-Fit female crimp terminals — 14/16AWG
+ * and 12AWG respectively. They replaced 76650-0117 / 76650-0118, which were
+ * never Mega-Fit parts at all: Molex's own datasheet for the sibling
+ * 76650-0125 shows the 76650 block to be *kit* part numbers in the PicoBlade
+ * family, 1.25mm pitch and 32-28AWG. The Mega-Fit tooling document naming
+ * only the 76823 and 172063 series was the tell.
+ *
+ * They stay unmodelled here because their crimp process data could not be
+ * read from a Molex document — the same reason no terminal in this library
+ * carries a crimp height. The housings' gauge range is corrected regardless,
+ * which is what the rules actually need.
  */
-const NOT_YET_MODELLED: ReadonlyArray<string> = ["76650-0117", "76650-0118"]
+const NOT_YET_MODELLED: ReadonlyArray<string> = ["76823-0321", "76823-0322"]
 
 describe("bundled terminal library", () => {
   it("every terminal's mpn matches its key", () => {
