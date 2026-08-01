@@ -37,6 +37,24 @@ jobs:
       - name: Build packages
         run: bun run build
 
+      # `bun run build` regenerates tracked files (jpl-proofs.json, the
+      # nerve-web docs content). If a commit changes a source those derive
+      # from without regenerating them, every gate above still passes —
+      # typecheck and test both ran before the build that would have exposed
+      # it. This is the step that catches it, and it is why the build runs
+      # before this and the tests run again after.
+      - name: Generated files are current
+        run: |
+          if ! git diff --exit-code --stat; then
+            echo "::error::Committed generated files do not match the build. Run 'bun run build' and commit the result."
+            exit 1
+          fi
+
+      # Re-run after the build for the same reason: a test run that precedes
+      # a step which rewrites tracked files did not test what is committed.
+      - name: Test against built output
+        run: bun run test
+
       - name: CLI smoke test
         run: |
           cd examples/motor-controller
