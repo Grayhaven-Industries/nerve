@@ -25,6 +25,51 @@ export interface RuleReport {
   readonly code?: string
 }
 
+/**
+ * A continuous measurement, emitted whether or not the rule failed.
+ *
+ * Findings are a failure-only channel: `report()` is called when something is
+ * wrong, so a wire at 99% of its derated ampacity and one at 40% are
+ * indistinguishable — both simply produce nothing. That compresses a scalar
+ * into a bit and discards the rest, which for a human is a small loss and for
+ * an optimizing agent is most of the signal: a boolean verifier offers a wall
+ * to satisfy, never a direction to improve in. So an agent converges on the
+ * first passing design rather than a good one, which is a property of the
+ * verifier, not of the model.
+ *
+ * `utilization` is deliberately dimensionless (`measured / limit`, under 1
+ * passes) so margins from unrelated physics — thermal, voltage drop, bundle
+ * diameter — are commensurable and can be minimised over. Without a shared
+ * scale and direction an objective function is just a pile of numbers.
+ */
+export interface Margin {
+  /** Rule code that took the measurement. */
+  readonly code: string
+  /** HIR object measured, PRD §19 refs grammar, e.g. `wire:W12`. */
+  readonly target: string
+  /** What was measured, e.g. `"stub length"`. Stable per rule. */
+  readonly quantity: string
+  readonly measured: number
+  /** The budget `measured` is judged against. Same unit; must be finite and > 0. */
+  readonly limit: number
+  readonly unit: string
+  /** `measured / limit`. < 1 passes. */
+  readonly utilization: number
+  /** `1 - utilization`. Negative when over budget. */
+  readonly margin: number
+}
+
+/** What a rule passes to `ctx.measure`; the runner derives the ratios. */
+export interface MarginReport {
+  readonly target: string
+  readonly quantity: string
+  readonly measured: number
+  readonly limit: number
+  readonly unit: string
+  /** Override the rule's code, matching `report`'s escape hatch. */
+  readonly code?: string
+}
+
 export interface RuleContext {
   readonly hir: Hir
   /**
@@ -35,6 +80,16 @@ export interface RuleContext {
   /** Typed electrical semantics and constraint findings, computed on demand. */
   readonly electrical: ElectricalAnalysis
   report(report: RuleReport): void
+  /**
+   * Record a continuous measurement. Call this on EVERY evaluation, passing
+   * or failing — a margin that only appears on failure is just a finding.
+   *
+   * Sparse by design: only call it where the underlying quantity is genuinely
+   * continuous. Discrete claims (a pin exists, an id is unique, a terminal
+   * family matches) have no meaningful gradient, and inventing one is worse
+   * than omitting it because an optimizer will follow the fake slope.
+   */
+  measure(margin: MarginReport): void
 }
 
 /**
@@ -97,8 +152,26 @@ export const runRules = (
   hir: Hir,
   rules: ReadonlyArray<Rule>,
   config: RuleConfig = {}
-): ReadonlyArray<Diagnostic> => {
+): ReadonlyArray<Diagnostic> => runRulesWithMargins(hir, rules, config).diagnostics
+
+export interface RuleRun {
+  readonly diagnostics: ReadonlyArray<Diagnostic>
+  /** Sparse: only rules measuring a continuous budget contribute. */
+  readonly margins: ReadonlyArray<Margin>
+}
+
+/**
+ * Run rules, keeping both channels: findings (what is wrong) and margins (how
+ * close to wrong everything else is). `runRules` is this with the margins
+ * dropped, so every existing caller is unaffected.
+ */
+export const runRulesWithMargins = (
+  hir: Hir,
+  rules: ReadonlyArray<Rule>,
+  config: RuleConfig = {}
+): RuleRun => {
   const diagnostics: Array<Diagnostic> = []
+  const margins: Array<Margin> = []
   // Lazy + shared: rules that never touch nets pay nothing; rules that do
   // all see one computation.
   let netsCache: HarnessNets | undefined
@@ -126,6 +199,23 @@ export const runRules = (
           ...(targets !== undefined && targets.length > 0 ? { targets } : {}),
           ...(data !== undefined && Object.keys(data).length > 0 ? { data } : {})
         })
+      },
+      measure: ({ target, quantity, measured, limit, unit, code }) => {
+        // A non-finite or non-positive limit cannot be normalised, and a
+        // fabricated ratio would poison any aggregate computed over it.
+        // Drop the measurement rather than emit a meaningless one.
+        if (!Number.isFinite(measured) || !Number.isFinite(limit) || limit <= 0) return
+        const utilization = measured / limit
+        margins.push({
+          code: code ?? r.code,
+          target,
+          quantity,
+          measured,
+          limit,
+          unit,
+          utilization,
+          margin: 1 - utilization
+        })
       }
     })
   }
@@ -135,7 +225,10 @@ export const runRules = (
       cmp(a.code, b.code) ||
       cmp(a.message, b.message)
   )
-  return diagnostics
+  margins.sort(
+    (a, b) => cmp(a.target, b.target) || cmp(a.code, b.code) || cmp(a.quantity, b.quantity)
+  )
+  return { diagnostics, margins }
 }
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)

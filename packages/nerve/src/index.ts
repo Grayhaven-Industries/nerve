@@ -97,6 +97,12 @@ export { canonicalGauge, parseAwg, type KnownGauge } from "./gauge.js"
 
 export { computeNets, endpointRefKey, type HarnessNets, type NetSource } from "./nets.js"
 export {
+  diffMargins,
+  MARGIN_EPSILON,
+  type MarginChange,
+  type MarginDiff
+} from "./margin-diff.js"
+export {
   bendRadiusAt,
   cumulativeLengths,
   distance,
@@ -143,12 +149,16 @@ export {
 export {
   rule,
   runRules,
+  runRulesWithMargins,
+  type Margin,
+  type MarginReport,
   type Rule,
   type RuleConfig,
   type RuleContext,
   type RuleOptions,
   type RuleProvenance,
-  type RuleReport
+  type RuleReport,
+  type RuleRun
 } from "./rules.js"
 export { resolvePart, resolvePartWithCoverage, staticProvider } from "./providers.js"
 export type { PartCoverageReporter, PartProvider, ResolvedPart } from "./providers.js"
