@@ -120,6 +120,7 @@ interface ParsedArgs {
 // --update's "value" and updates every configured harness instead.
 const BOOLEAN_FLAGS = new Set([
   "update",
+  "codes",
   "ci",
   "json",
   "accept",
@@ -154,17 +155,35 @@ const parseArgs = (argv: ReadonlyArray<string>): ParsedArgs => {
 /** Display-only rounding. The report JSON keeps full precision. */
 const round3 = (n: number): number => Math.round(n * 1000) / 1000
 
+// Lowercase to match formatDiff's section labels; the severity is a tag on
+// the line, not a heading over it.
 const severityLabel: Record<string, string> = {
-  error: "Error",
-  warning: "Warning",
-  info: "Info"
+  error: "error",
+  warning: "warning",
+  info: "info"
 }
 
-const printDiagnostics = (diagnostics: ReadonlyArray<Diagnostic>, io: Io): void => {
+/**
+ * Findings lead with the object and what is wrong with it, not the rule code.
+ *
+ * A code is a database key: useful to CI, to a waiver, and to an auditor
+ * reading the coverage map, and noise to somebody mid-iteration who has to
+ * translate it before learning anything. The browser workspace already treats
+ * it that way — a small link chip beside the target, with the message given
+ * the room. This matches it. `--codes` puts them back for the audit read, and
+ * every JSON artifact carries them unconditionally either way.
+ */
+const printDiagnostics = (
+  diagnostics: ReadonlyArray<Diagnostic>,
+  io: Io,
+  showCodes = false
+): void => {
   for (const d of diagnostics) {
-    const head = `${d.code} ${severityLabel[d.severity] ?? d.severity}${d.target !== undefined ? `  ${d.target}` : ""}`
+    const label = severityLabel[d.severity] ?? d.severity
+    const target = d.target !== undefined ? `  ${d.target}` : ""
+    const code = showCodes ? `  ${d.code}` : ""
     const print = d.severity === "error" ? io.err : io.out
-    print(head)
+    print(`${label}${target}${code}`)
     print(`  ${d.message}`)
   }
 }
@@ -244,6 +263,9 @@ const writeOut = (dir: string, name: string, contents: string | Uint8Array, io: 
 
 const USAGE = `nerve — deterministic harness review (Grayhaven Nerve)
 
+Findings print as object + message. Add --codes for the HK-* codes; every
+JSON artifact carries them either way.
+
 Usage:
   nerve init [dir]
   nerve setup [dir]   (write CI workflows: validate, snapshot, reproduce)
@@ -307,7 +329,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const outDir = resolveOutDir(flags, result.config, configDir)
       writeOut(outDir, "harness.json", JSON.stringify(result.hir, null, 2) + "\n", io)
       writeOut(outDir, "diagnostics.json", JSON.stringify(result.diagnostics, null, 2) + "\n", io)
-      printDiagnostics(result.diagnostics, io)
+      printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       io.out(summarize(result.hir))
       return hasErrors(result.diagnostics) ? 1 : 0
     }
@@ -350,7 +372,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const { file } = arg
       const result = await compileOrExit(file, io)
       if (typeof result === "number") return result
-      printDiagnostics(result.diagnostics, io)
+      printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       io.out(summarize(result.hir))
       return hasErrors(result.diagnostics) ? 1 : 0
     }
@@ -412,7 +434,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         const result = await compileOrExit(file, io)
         if (typeof result === "number") return result
         const { yaml, diagnostics } = exportWireViz(result.hir)
-        printDiagnostics(diagnostics, io)
+        printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
         const outDir = resolveOutDir(flags, result.config, configDir)
         writeOut(outDir, "wireviz.yml", yaml, io)
         return 0
@@ -423,7 +445,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       const result = await compileOrExit(file, io)
       if (typeof result === "number") return result
-      printDiagnostics(result.diagnostics, io)
+      printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       if (!canRelease(result.hir)) {
         io.err(
           "Export blocked: validation errors present. Release exports fail closed (PRD §15)."
@@ -496,7 +518,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
               JSON.stringify(imported.diagnostics, null, 2) + "\n",
               io
             )
-            printDiagnostics(imported.diagnostics, io)
+            printDiagnostics(imported.diagnostics, io, flags["codes"] !== undefined)
             return 1
           }
           const scaffoldFiles = new Map(initFiles(cliVersion()))
@@ -522,7 +544,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
             JSON.stringify(diagnostics, null, 2) + "\n",
             io
           )
-          printDiagnostics(diagnostics, io)
+          printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
           io.out(
             `${imported.report.accepted} row(s) accepted, ${imported.report.rejected} rejected. Review every unverified part before release.`
           )
@@ -551,7 +573,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const { hir, diagnostics: structural } = compileDesign(result.design)
       const diagnostics = [...result.diagnostics, ...structural]
       const full = { ...hir, diagnostics }
-      printDiagnostics(diagnostics, io)
+      printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
       const outDir = resolve(flags["out"] ?? "dist")
       writeOut(outDir, "harness.json", JSON.stringify(full, null, 2) + "\n", io)
       writeOut(outDir, "diagnostics.json", JSON.stringify(diagnostics, null, 2) + "\n", io)
@@ -592,7 +614,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         JSON.stringify(report, null, 2) + "\n",
         io
       )
-      printDiagnostics(result.diagnostics, io)
+      printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       if (report.margins !== undefined && report.margins.summary.measured > 0) {
         const s = report.margins.summary
         io.out(
@@ -697,7 +719,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const result = await compileOrExit(file, io)
       if (typeof result === "number") return result
       const { files, diagnostics } = adapter.generate(result.hir)
-      printDiagnostics(diagnostics, io)
+      printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
       if (hasErrors(diagnostics)) return 1
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
       for (const [name, contents] of files) writeOut(outDir, name, contents, io)
@@ -756,7 +778,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           contractJson(contract),
           io
         )
-        printDiagnostics(diagnostics, io)
+        printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
         io.out(
           diagnostics.length === 0
             ? `Connector ${connectorRef} conforms to ${against}.`
@@ -898,7 +920,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         if (typeof result === "number") return result
         const invalid = validateRedlineTarget(result.hir, target)
         if (invalid !== undefined) {
-          printDiagnostics([invalid], io)
+          printDiagnostics([invalid], io, flags["codes"] !== undefined)
           return 1
         }
         const redlinesPath = resolve(flags["file"] ?? "redlines.json")

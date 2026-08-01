@@ -63,8 +63,30 @@ describe("nerve validate", () => {
     const io = capture()
     expect(await run(["validate", FIXTURE], io)).toBe(0)
     const text = io.stdout.join("\n")
-    expect(text).toContain("HK-CONN-010 Warning")
-    expect(text).toContain("HK-ELEC-004 Warning")
+    expect(text).toContain("warning  connector:")
+    expect(text).toContain("Shield drain pin")
+  })
+
+  // Rule codes are a key for CI, waivers and the coverage map — not the
+  // headline for someone mid-iteration, who has to translate them before
+  // learning anything. They stay out of the default read and out of nothing
+  // else: every JSON artifact carries them regardless.
+  it("keeps rule codes out of the default read and restores them with --codes", async () => {
+    const plain = capture()
+    await run(["validate", FIXTURE], plain)
+    expect(plain.stdout.join("\n")).not.toContain("HK-")
+
+    const coded = capture()
+    await run(["validate", FIXTURE, "--codes"], coded)
+    expect(coded.stdout.join("\n")).toContain("HK-CONN-010")
+  })
+
+  // --codes is value-less; if it ever leaves BOOLEAN_FLAGS it swallows the
+  // next token and validates the wrong file.
+  it("does not let --codes consume the following argument", async () => {
+    const io = capture()
+    expect(await run(["validate", "--codes", FIXTURE], io)).toBe(0)
+    expect(io.stdout.join("\n")).toContain("HK-CONN-010")
   })
 
   it("exits 1 when a design has validation errors", async () => {
@@ -86,7 +108,7 @@ export default harness("bad", {
     )
     const io = capture()
     expect(await run(["validate", bad], io)).toBe(1)
-    expect(io.stderr.join("\n")).toContain("HK-MFG-002 Error")
+    expect(io.stderr.join("\n")).toContain("error  ")
   })
 })
 
