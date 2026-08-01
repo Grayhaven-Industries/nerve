@@ -353,8 +353,8 @@ describe("determinism", () => {
     const json = JSON.stringify(compileDesign(robotPlatform).hir)
 
     expect(createHash("sha256").update(json).digest("hex")).toBe(
-      "acfd13d46953ef355c2022aac051f3ca861aed683a1ef29292653767b968871f"
+      "71b26adc303458f02d20b2e44a9c0cc2d7257db0cb873a0a5dc1c8809c684eca"
     )
-    expect(Buffer.byteLength(json)).toBe(35936)
+    expect(Buffer.byteLength(json)).toBe(35865)
   })
 })

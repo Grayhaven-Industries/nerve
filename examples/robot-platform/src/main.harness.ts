@@ -82,7 +82,31 @@ const mcu = connector("MCU1", microFit16, {
     4: { bitRateKbps: 500 }
   }
 })
-const imu = connector("IMU1", jstPh4, {
+/**
+ * The IMU module's header, not a bare housing.
+ *
+ * A JST PH-4 receptacle fixes no signal — pin 1 is whatever you crimp into
+ * it. The module behind it does, and stating that turns the wiring below into
+ * a claim something outside this file can contradict. HK-CONN-011 alone
+ * cannot: it compares the wire's signal against the pin assignment, and both
+ * are written here, so swapping CAN_H and CAN_L in both places agrees with
+ * itself. HK-CONN-023 catches that against the module's pinout.
+ *
+ * `GH-R1-IMU-01` is this platform's internal part number for its own
+ * assembly, not a commercial MPN, and the pinout is a fact about the GH-R1
+ * rather than a claim about anyone's catalogue.
+ */
+const imuModule: ConnectorPart = {
+  mpn: "GH-R1-IMU-01",
+  family: "GH-R1",
+  description: "GH-R1 IMU module, JST PH 4-circuit header",
+  pinCount: 4,
+  wireGaugeRange: { min: "32AWG", max: "24AWG" },
+  compatibleTerminals: ["SPH-004T-P0.5S", "SPH-002T-P0.5S"],
+  pinout: { 1: "5V_SENS", 2: "GND_SENS", 3: "CAN_H", 4: "CAN_L" }
+}
+
+const imu = connector("IMU1", imuModule, {
   pins: { 1: "5V_SENS", 2: "GND_SENS", 3: "CAN_H", 4: "CAN_L" },
   terminals: "SPH-004T-P0.5S"
 })

@@ -303,11 +303,28 @@ describe("scope, margins and determinism", () => {
     ])
   })
 
-  it("produces nothing on the three bundled examples, none of which declares a pinout", () => {
-    for (const design of [motorController, sensorSplice, robotPlatform]) {
+  it("stays silent on the two examples that declare no pinout", () => {
+    for (const design of [motorController, sensorSplice]) {
       const { hir } = compileDesign(design)
       expect(hir.connectors.every((c) => c.pinout === undefined)).toBe(true)
       expect(runRulesWithMargins(hir, pinoutRules)).toEqual({ diagnostics: [], margins: [] })
     }
+  })
+
+  // robot-platform models its IMU as a device part rather than a bare housing,
+  // so these rules are exercised by a real harness and not only by fixtures.
+  // A rule nothing runs is indistinguishable from a rule that cannot fire.
+  it("is exercised by robot-platform's IMU module and finds it correct", () => {
+    const { hir } = compileDesign(robotPlatform)
+    const withPinout = hir.connectors.filter((c) => c.pinout !== undefined)
+
+    expect(withPinout.map((c) => c.ref)).toEqual(["IMU1"])
+    expect(withPinout[0]!.pinout).toEqual({
+      "1": "5V_SENS",
+      "2": "GND_SENS",
+      "3": "CAN_H",
+      "4": "CAN_L"
+    })
+    expect(runRulesWithMargins(hir, pinoutRules)).toEqual({ diagnostics: [], margins: [] })
   })
 })

@@ -299,8 +299,8 @@ describe("determinism", () => {
     {
       name: "robot-platform",
       design: robotPlatform,
-      digest: "acfd13d46953ef355c2022aac051f3ca861aed683a1ef29292653767b968871f",
-      bytes: 35936
+      digest: "71b26adc303458f02d20b2e44a9c0cc2d7257db0cb873a0a5dc1c8809c684eca",
+      bytes: 35865
     },
     {
       name: "sensor-splice",
@@ -311,7 +311,7 @@ describe("determinism", () => {
   ]
 
   for (const { name, design, digest, bytes } of bundled) {
-    it(`compiles examples/${name} to its pre-pinout output`, () => {
+    it(`compiles examples/${name} to its pinned output`, () => {
       const json = JSON.stringify(compileDesign(design).hir)
 
       expect(createHash("sha256").update(json).digest("hex")).toBe(digest)
