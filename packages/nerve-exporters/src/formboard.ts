@@ -8,9 +8,21 @@
  * calibration ruler so the technician can verify the printer didn't scale.
  *
  * Print at 100% / "actual size".
+ *
+ * Routed branches. A branch that carries an authored 3D centerline is laid
+ * into the sheet by arc-length unroll (board.ts documents the projection in
+ * full). That choice is made for THIS output specifically: a formboard is a
+ * physical template that someone lays bundle against and cuts, so the property
+ * worth guaranteeing is that distance measured ALONG a printed trunk equals
+ * the harness's real routed length — which every planar projection breaks by
+ * foreshortening, silently and in the short direction. The cost is that the
+ * sheet is not a true plan view of a route with torsion: straight-line
+ * distances ACROSS the paper between two trunks, or between two points on one
+ * trunk, are not real distances, and a bundle that passes over itself in space
+ * may cross itself here. Sheets carrying a routed trunk say so on the page.
  */
 import type { Hir } from "@grayhaven/nerve"
-import { boardDrawing } from "./board.js"
+import { boardDrawing, isRoutedBranch, ROUTED_PROJECTION_NOTE } from "./board.js"
 import { renderItems } from "./drawing.js"
 
 const PAPERS = {
@@ -62,6 +74,10 @@ export const formboardSheets = (
   // rescale and no lossy path round-trip — calibration is exact by
   // construction.
   const drawing = boardDrawing(hir)
+  // The template is 1:1 along a routed trunk but not across the sheet, and the
+  // person holding the paper is the one who has to know that. Emitted only
+  // when a routed trunk exists, so unrouted sheets are unchanged.
+  const routedNote = hir.branches.some(isRoutedBranch)
   const cols = Math.max(1, Math.ceil(drawing.width / tileW))
   const rows = Math.max(1, Math.ceil(drawing.height / tileH))
   const body = renderItems(drawing.items)
@@ -80,6 +96,11 @@ export const formboardSheets = (
         fiducial(x0 + 6, y0 + tileH - 6),
         fiducial(x0 + tileW - 6, y0 + tileH - 6),
         `<text x="${x0 + tileW - 12}" y="${y0 + tileH - 10}" font-size="5" text-anchor="end" fill="#000">${hir.harness.id} rev ${hir.harness.revision} · ${label} of R${rows}C${cols} · 1:1</text>`,
+        ...(routedNote
+          ? [
+              `<text x="${x0 + 12}" y="${y0 + tileH - 10}" font-size="5" fill="#000">${ROUTED_PROJECTION_NOTE}</text>`
+            ]
+          : []),
         ...(r === 0 && c === 0
           ? [
               // Calibration ruler: exactly 100 mm with 10 mm ticks.

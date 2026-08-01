@@ -20,6 +20,8 @@ import {
 } from "@grayhaven/nerve"
 import {
   AMPACITY_BY_AWG,
+  bundleDeratingFactor,
+  deratedAmpacityTable,
   differentialPartner,
   isGroundSignal,
   isPowerSignal,
@@ -49,6 +51,20 @@ const { Error: Err, Warning: Warn, Info } = DiagnosticSeverity
  * @see docs/rule-coverage.md
  */
 const RULE_VERSION = "1.0.0"
+
+/**
+ * Rules that stopped checking a declaration and started checking physics.
+ *
+ * Three rules below now reach past the number the author typed: HK-WIRE-004
+ * derates ampacity by how many conductors share the bundle, HK-ELEC-010 walks
+ * the splice graph past the declared `protects` list, and HK-MFG-005 prefers
+ * the compiler's routed curvature to the asserted one. Each can return a
+ * different verdict on HIR that has not changed by a byte, which is precisely
+ * the event `ruleVersion` exists to make attributable — a harness that passed
+ * last quarter and fails today has to be answerable with "the rule moved",
+ * not with a toolchain diff. So they leave the baseline.
+ */
+const RULE_VERSION_1_1_0 = "1.1.0"
 
 /**
  * On the absence of `standard` / `clause` in this file.
@@ -280,20 +296,66 @@ export const unparseableGauge: Rule = rule(
 
 // --- Electrical sanity ------------------------------------------------------
 
+/**
+ * Current-carrying conductors per bundle segment, keyed by branch id.
+ *
+ * Membership is `HirWire.branch` — the explicit assignment of a conductor to a
+ * bundle segment — and deliberately NOT the path-adjacency membership
+ * `wiresOnBranch` uses. That heuristic calls a wire a member when both of its
+ * endpoints happen to sit on the branch's connector path, which is a statement
+ * about how the path was authored rather than about what is inside the sleeve:
+ * on `examples/robot-platform` it counts four members on `drive_l` and zero on
+ * `drive_r` for two physically identical drive bundles, because one path
+ * happens to name the distribution connector and the other does not. A
+ * derating factor that halves one of two identical bundles and leaves the
+ * other alone is worse than no derating at all, so the count only follows the
+ * explicit association.
+ *
+ * Every assigned wire counts. Nerve models no distinction between a loaded and
+ * an unloaded conductor, and a missing `currentEstimate` means unknown, not
+ * zero — counting only wires that declare a current would quietly remove
+ * derating from exactly the sparsely-annotated dense bundles it exists for.
+ */
+const bundleConductorCounts = (hir: Hir): ReadonlyMap<string, number> => {
+  const counts = new Map<string, number>()
+  for (const w of hir.wires) {
+    if (w.branch === undefined) continue
+    counts.set(w.branch, (counts.get(w.branch) ?? 0) + 1)
+  }
+  return counts
+}
+
 /** Shop-parameterized variant: the profile's ampacity table wins. */
 export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
   "gaugeCurrentMismatch",
   (ctx) => {
     const table = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
+    const conductorsByBranch = bundleConductorCounts(ctx.hir)
+    // One derated table per distinct factor: `requiredAwgForCurrent` has to
+    // search the SAME table the verdict came from, or the gauge it recommends
+    // would not actually clear the limit the wire was judged against.
+    const tablesByFactor = new Map<number, Readonly<Record<number, number>>>()
+    const tableFor = (factor: number): Readonly<Record<number, number>> => {
+      const cached = tablesByFactor.get(factor)
+      if (cached !== undefined) return cached
+      const derated = deratedAmpacityTable(table, factor)
+      tablesByFactor.set(factor, derated)
+      return derated
+    }
     for (const w of ctx.hir.wires) {
       if (w.currentEstimate === undefined || w.gauge === undefined) continue
       const awg = parseAwg(w.gauge)
       if (awg === undefined) continue
-      const ampacity = table[awg]
+      const conductors = w.branch !== undefined ? conductorsByBranch.get(w.branch) : undefined
+      const factor = conductors !== undefined ? bundleDeratingFactor(conductors) : 1
+      const derated = tableFor(factor)
+      const ampacity = derated[awg]
       if (ampacity === undefined) continue
       // Measured on every wire, not only overloaded ones: a conductor at 40%
       // of its derated ampacity and one at 99% both pass, and which of the two
-      // a design is sitting on is exactly what the pass bit discards.
+      // a design is sitting on is exactly what the pass bit discards. The
+      // limit is the derated one — the same number the finding below judges
+      // against, so a margin can never disagree with a diagnostic.
       ctx.measure({
         target: refs.wire(w.id),
         quantity: "conductor current",
@@ -302,26 +364,35 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
         unit: "A"
       })
       if (w.currentEstimate > ampacity) {
-        const required = requiredAwgForCurrent(w.currentEstimate, table)
+        const required = requiredAwgForCurrent(w.currentEstimate, derated)
         const suffix =
           required !== undefined
             ? ` requires at least ${required}AWG`
             : ` exceeds the ampacity table`
+        // Only said when derating actually moved the limit: otherwise the
+        // message has to stay what it has always been.
+        const bundleNote =
+          factor < 1 && conductors !== undefined && w.branch !== undefined
+            ? ` when derated ${factor}× for the ${conductors} conductors bundled on branch ${w.branch}`
+            : ""
         ctx.report({
           severity: Err,
-          message: `Wire ${w.id} uses ${w.gauge} but its ${w.currentEstimate}A estimate${suffix}.`,
+          message: `Wire ${w.id} uses ${w.gauge} but its ${w.currentEstimate}A estimate${suffix}${bundleNote}.`,
           target: refs.wire(w.id),
           data: {
             gauge: w.gauge,
             currentEstimateA: w.currentEstimate,
             ampacityA: ampacity,
-            ...(required !== undefined ? { requiredGauge: `${required}AWG` } : {})
+            ...(required !== undefined ? { requiredGauge: `${required}AWG` } : {}),
+            ...(bundleNote !== ""
+              ? { bundleConductors: conductors!, deratingFactor: factor }
+              : {})
           }
         })
       }
     }
   },
-  { code: "HK-WIRE-004", ruleVersion: RULE_VERSION }
+  { code: "HK-WIRE-004", ruleVersion: RULE_VERSION_1_1_0 }
 )
 
 export const gaugeCurrentMismatch: Rule = gaugeCurrentMismatchWith()
@@ -726,13 +797,33 @@ export const reservedPinAssigned: Rule = rule(
   { code: "HK-CONN-015", ruleVersion: RULE_VERSION }
 )
 
-/** Shop-parameterized variant: the profile's default bend radius applies
- * to branches that declare none. */
+/**
+ * Shop-parameterized variant: the profile's default bend radius applies
+ * to branches that declare none.
+ *
+ * Two different claims can supply the radius, and the diagnostic says which
+ * one it judged, because they are not the same claim about the world.
+ * `minBendRadius` is a number a person typed; `routedMinBendRadius` is
+ * measured by the compiler off an authored 3D centerline, so it is the
+ * curvature the bundle is actually being asked to take rather than the
+ * curvature someone believed it would take. When the computed value exists it
+ * wins — and the margin follows it, so the two channels never disagree about
+ * which radius the branch was judged on.
+ *
+ * An ABSENT `routedMinBendRadius` is not a radius of zero. The compiler omits
+ * it for a straight run, whose radius is infinite, and for any branch with no
+ * waypoints at all — which is every bundled example today. Absence therefore
+ * falls back to the asserted radius, exactly as before. Reading it as zero
+ * would invert the comparison and quietly clear every straight bundle while
+ * pretending to have checked it.
+ */
 export const breakoutTighterThanBendRadiusWith = (shop?: ShopProfile): Rule => rule(
   "breakoutTighterThanBendRadius",
   (ctx) => {
     for (const b of ctx.hir.branches) {
-      const minBend = b.minBendRadius ?? shop?.defaultMinBendRadiusMm
+      const asserted = b.minBendRadius ?? shop?.defaultMinBendRadiusMm
+      const computed = b.routedMinBendRadius
+      const minBend = computed ?? asserted
       if (minBend === undefined || b.breakoutDistance === undefined) continue
       // Demand over budget, so the ratio keeps the shared "< 1 passes"
       // direction: the bend radius the bundle needs is what is spent, and the
@@ -747,14 +838,23 @@ export const breakoutTighterThanBendRadiusWith = (shop?: ShopProfile): Rule => r
       if (b.breakoutDistance < minBend) {
         ctx.report({
           severity: Err,
-          message: `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but the bundle needs a ${minBend}mm bend radius.`,
+          message:
+            computed !== undefined
+              ? // `~` because the printed figure is rounded off a measured
+                // centerline; `data` and the margin carry it unrounded.
+                `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but its routed centerline bends to a computed ~${computed.toFixed(1)}mm radius.`
+              : `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but the bundle needs a ${minBend}mm bend radius.`,
           target: refs.branch(b.id),
-          data: { breakoutDistanceMm: b.breakoutDistance, minBendRadiusMm: minBend }
+          data: {
+            breakoutDistanceMm: b.breakoutDistance,
+            minBendRadiusMm: minBend,
+            ...(computed !== undefined ? { radiusSource: "computed" } : {})
+          }
         })
       }
     }
   },
-  { code: "HK-MFG-005", ruleVersion: RULE_VERSION }
+  { code: "HK-MFG-005", ruleVersion: RULE_VERSION_1_1_0 }
 )
 
 export const breakoutTighterThanBendRadius: Rule = breakoutTighterThanBendRadiusWith()
@@ -1120,9 +1220,97 @@ export const wireTempBelowAmbient: Rule = rule(
   { code: "HK-ELEC-009", ruleVersion: RULE_VERSION }
 )
 
+/** Wire ids attached to each splice, in HIR wire order (which the compiler
+ * sorts by id), so every traversal below is deterministic. */
+const wiresBySplice = (hir: Hir): ReadonlyMap<string, ReadonlyArray<string>> => {
+  const index = new Map<string, Array<string>>()
+  for (const w of hir.wires) {
+    for (const end of [w.from, w.to]) {
+      if (isPinEndpoint(end)) continue
+      const list = index.get(end.splice) ?? []
+      list.push(w.id)
+      index.set(end.splice, list)
+    }
+  }
+  return index
+}
+
+/**
+ * Conductors downstream of a protection device's declared run — the honest
+ * scope, and where it stops.
+ *
+ * HIR has no current-direction model. A fuse is not a node in the wire graph;
+ * it is an annotation naming some wires. So "downstream" cannot be read off
+ * the graph, and the union-find net is far too much: a net walk from a fuse on
+ * a distribution bus reaches the battery feed on the supply side and the
+ * return leg on the far side of a load, and reporting either against this
+ * device's rating is a false positive.
+ *
+ * The traversal rule is therefore: **expand through splices, never through a
+ * connector pin.**
+ *
+ *   - A splice is a pure conductive junction. Nothing sits inside it, so
+ *     current entering on one wire leaves on the others, and every wire on
+ *     that splice is carrying the fused current. Those are genuinely governed
+ *     by this device, listed in `protects` or not.
+ *   - A connector pin is a device boundary. HIR does not model what a box does
+ *     between its pins, so a conductor on the far side may be re-fused,
+ *     switched, transformed, or on the return leg of a load — none of which
+ *     this device protects. A shared pin (two wires in one contact) is also
+ *     the usual shape of the SUPPLY side, the battery post or distribution
+ *     stud, so expanding through it would sweep in wires upstream of the fuse.
+ *     Both are inferences the model cannot support, so the walk stops there.
+ *   - A splice that also carries a wire declared by a DIFFERENT protection
+ *     device is a distribution point between two devices, not a continuation
+ *     of this one, so it is not expanded either. Without that, two fuses fed
+ *     from a common splice would each inherit the other's downstream.
+ *
+ * The boundary this accepts: a run that necks down after passing through an
+ * inline mating connector is NOT reached, and a run that necks down on the far
+ * side of an unspliced double-crimp is not reached either. That is deliberate
+ * under-reporting. A device rating checked against a conductor it does not
+ * protect is a false failure that teaches reviewers to ignore the rule; a
+ * conductor this walk cannot reach is simply still covered by the declared
+ * `protects` list, which is left exactly as strict as it has always been.
+ */
+const downstreamOfProtection = (
+  seeds: ReadonlyArray<string>,
+  wireById: ReadonlyMap<string, Hir["wires"][number]>,
+  spliceWires: ReadonlyMap<string, ReadonlyArray<string>>,
+  otherDeclared: ReadonlySet<string>
+): ReadonlyArray<string> => {
+  const seen = new Set<string>(seeds)
+  const found: Array<string> = []
+  const queue = seeds.filter((id) => wireById.has(id))
+  while (queue.length > 0) {
+    const w = wireById.get(queue.shift()!)
+    if (w === undefined) continue
+    for (const end of [w.from, w.to]) {
+      if (isPinEndpoint(end)) continue
+      const attached = spliceWires.get(end.splice) ?? []
+      if (attached.some((id) => otherDeclared.has(id))) continue
+      for (const id of attached) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        found.push(id)
+        queue.push(id)
+      }
+    }
+  }
+  return [...found].sort()
+}
+
 /** The cardinal protection rule: an overcurrent device must trip before the
  * wire it guards overheats, so its rating cannot exceed the ampacity of the
  * thinnest conductor it protects — otherwise "the wire becomes the fuse."
+ *
+ * The governing conductor is the thinnest of the declared `protects` list AND
+ * everything `downstreamOfProtection` reaches from it, so a run that necks
+ * down three splices past the fuse is caught even though nobody listed it.
+ * The declared wires are still considered first and in declared order, so a
+ * design whose thinnest conductor is a declared one reports exactly what it
+ * reported before; the scope can only ever make this rule stricter.
+ *
  * Shop-parameterized so the ampacity table can be overridden. */
 export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rule(
   "overcurrentExceedsConductor",
@@ -1131,18 +1319,31 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
     if (protections.length === 0) return
     const table = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
     const wireById = new Map(ctx.hir.wires.map((w) => [w.id, w]))
-    for (const p of protections) {
-      let governing: { wireId: string; ampacity: number } | undefined
-      for (const wireId of p.protects) {
+    const spliceWires = wiresBySplice(ctx.hir)
+    for (const [index, p] of protections.entries()) {
+      const own = new Set(p.protects)
+      const otherDeclared = new Set(
+        protections.flatMap((other, j) =>
+          j === index ? [] : other.protects.filter((id) => !own.has(id))
+        )
+      )
+      let governing: { wireId: string; ampacity: number; declared: boolean } | undefined
+      const consider = (wireId: string, declared: boolean): void => {
         const w = wireById.get(wireId)
-        if (w?.gauge === undefined) continue
+        if (w?.gauge === undefined) return
         const awg = parseAwg(w.gauge)
-        if (awg === undefined) continue
+        if (awg === undefined) return
         const ampacity = table[awg]
-        if (ampacity === undefined) continue
+        if (ampacity === undefined) return
         if (governing === undefined || ampacity < governing.ampacity) {
-          governing = { wireId, ampacity }
+          governing = { wireId, ampacity, declared }
         }
+      }
+      // Declared first, in declared order: a tie between a declared and a
+      // traversed conductor keeps the answer this rule has always given.
+      for (const wireId of p.protects) consider(wireId, true)
+      for (const wireId of downstreamOfProtection(p.protects, wireById, spliceWires, otherDeclared)) {
+        consider(wireId, false)
       }
       if (governing === undefined) continue
       // How much of the governing conductor's ampacity the device is allowed
@@ -1158,15 +1359,22 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
       if (p.ratingA > governing.ampacity) {
         ctx.report({
           severity: Err,
-          message: `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A; the wire would fail before the device trips.`,
+          message: governing.declared
+            ? `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A; the wire would fail before the device trips.`
+            : `${p.kind} ${p.id} is rated ${p.ratingA}A but wire ${governing.wireId}, reached by walking splices downstream of its protected run, carries only ${governing.ampacity}A; the wire would fail before the device trips.`,
           target: `protection:${p.id}`,
           targets: [refs.wire(governing.wireId)],
-          data: { ratingA: p.ratingA, conductorAmpacityA: governing.ampacity, governingWire: governing.wireId }
+          data: {
+            ratingA: p.ratingA,
+            conductorAmpacityA: governing.ampacity,
+            governingWire: governing.wireId,
+            ...(governing.declared ? {} : { governingWireSource: "downstream" })
+          }
         })
       }
     }
   },
-  { code: "HK-ELEC-010", ruleVersion: RULE_VERSION }
+  { code: "HK-ELEC-010", ruleVersion: RULE_VERSION_1_1_0 }
 )
 
 export const overcurrentExceedsConductor: Rule = overcurrentExceedsConductorWith()

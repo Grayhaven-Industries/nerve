@@ -25,6 +25,73 @@ export const AMPACITY_BY_AWG: Readonly<Record<number, number>> = {
   10: 38
 }
 
+/**
+ * Bundle derating: how much of a conductor's ampacity survives being one of
+ * many conductors in the same bundle.
+ *
+ * `AMPACITY_BY_AWG` is a single flat table, and one flat table cannot be right
+ * for both cases it gets asked about. A conductor in a pair sheds heat into
+ * still air over most of its surface; a conductor in the interior of a 30-way
+ * trunk can only convect into the conductors touching it, each of which is
+ * also dissipating. So every wire in a dense bundle can pass individually
+ * while the bundle still cooks — the failure the flat table cannot see.
+ *
+ * PROVENANCE — READ THIS BEFORE RELYING ON THESE NUMBERS.
+ *
+ * 0.7 for four to six conductors, 0.6 for seven to 24, and 0.5 above 25 are
+ * the factors reproduced across widely-published secondary sources (wiring
+ * guides and vendor application notes that paraphrase automotive bundle
+ * derating). They are NOT quoted from a standard. ISO 6722, SAE J1128,
+ * NEC 310.15, ABYC E-11 and MIL-STD-975 are all paywalled, none of them is
+ * present in this repository, and nothing here has been checked against a
+ * primary text. Confirm them against the purchased standard before this rule
+ * is used in a process control plan.
+ *
+ * That is also why HK-WIRE-004 still carries no `standard` field. A citation
+ * claims the rule implements a document a reviewer can go and read; the
+ * evidence for that claim does not exist in this repository, and a fabricated
+ * one would destroy exactly the auditability the field exists to create.
+ * See the provenance note at the top of `rules.ts`.
+ */
+export const BUNDLE_DERATING_FACTORS: ReadonlyArray<readonly [number, number]> = [
+  [4, 0.7],
+  [7, 0.6],
+  [25, 0.5]
+]
+
+/**
+ * Fraction of table ampacity a conductor keeps in a bundle of `conductorCount`
+ * current-carrying conductors.
+ *
+ * 1 below the first threshold, and 1 for any count that is not a finite
+ * number: an unknown bundle size is not a reason to derate, and a fabricated
+ * factor is worse than a missing one.
+ */
+export const bundleDeratingFactor = (conductorCount: number): number => {
+  if (!Number.isFinite(conductorCount)) return 1
+  let factor = 1
+  for (const [threshold, derated] of BUNDLE_DERATING_FACTORS) {
+    if (conductorCount >= threshold) factor = derated
+  }
+  return factor
+}
+
+/**
+ * An ampacity table with every entry scaled by a bundle derating factor.
+ *
+ * Returns the input table itself at factor 1, so an underated wire is judged
+ * against byte-identical numbers to the ones it saw before derating existed.
+ */
+export const deratedAmpacityTable = (
+  table: Readonly<Record<number, number>>,
+  factor: number
+): Readonly<Record<number, number>> =>
+  factor === 1
+    ? table
+    : Object.fromEntries(
+        Object.entries(table).map(([awg, amps]) => [Number(awg), amps * factor])
+      )
+
 /** Smallest (thickest-allowed) AWG number that carries `current` amps, or undefined if off-table. */
 export const requiredAwgForCurrent = (
   current: number,

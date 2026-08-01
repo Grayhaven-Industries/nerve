@@ -180,6 +180,7 @@ defineConfig(config: NerveConfig)
 | `breakoutDistance` | `number` | no |  |
 | `minBendRadius` | `number` | no | Tightest bend the bundle tolerates (mm) — breakouts must clear it. |
 | `ambientTemperatureC` | `number` | no | Ambient temperature the bundle runs in (°C); member wires need a temperature rating at or above it. |
+| `waypoints` | `ReadonlyArray<Point3>` | no | Routed centerline through space, in harness units. Present means lengths and curvature are computed rather than asserted. |
 
 ### LabelProps
 

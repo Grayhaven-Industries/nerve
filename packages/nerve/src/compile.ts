@@ -20,6 +20,7 @@ import type {
 } from "./domain.js"
 import { Codes, DiagnosticSeverity, type Diagnostic } from "./diagnostics.js"
 import { canonicalGauge } from "./gauge.js"
+import { minBendRadius, polylineLength, type Point3 } from "./geometry.js"
 import { endpointLabel, HIR_SCHEMA_VERSION, refs } from "./hir/core.js"
 import {
   type Hir,
@@ -54,6 +55,27 @@ const compareStrings = (a: string, b: string): number =>
 const isPositiveFinite = (value: number): boolean => Number.isFinite(value) && value > 0
 const isNonNegativeFinite = (value: number): boolean => Number.isFinite(value) && value >= 0
 const isPositiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0
+
+const isFinitePoint = (p: Point3): boolean =>
+  Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)
+
+/**
+ * How far an authored `nominalLength` may sit from the length measured off the
+ * branch's own waypoints before the two are reported as contradicting.
+ *
+ * Relative rather than absolute: 5 mm is noise on a 3 m trunk and a third of a
+ * short jumper, and the kernel is unit-agnostic, so an absolute figure would
+ * mean different things in mm and in inches.
+ *
+ * 1% is the loosest threshold that still catches what this feature exists to
+ * catch and the tightest that does not fire on honest authoring. Nominal
+ * lengths are routinely rounded to the nearest 5 or 10 units (900 for a
+ * measured 903.5 is 0.4%), and a routed centerline ignores the sag and the
+ * take-up at each tie, so demanding closer agreement would flag every routed
+ * branch. Above it the numbers disagree by more than rounding can explain: the
+ * 20 mm error on a 900 mm branch that scraps 200 wires is 2.2%, well clear.
+ */
+const ROUTED_LENGTH_TOLERANCE = 0.01
 
 const electricalRoles: ReadonlySet<string> = new Set([
   "source",
@@ -782,6 +804,74 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       }
     }
 
+    /**
+     * Fewer than two waypoints is not a route, it is an unfinished one, and it
+     * is rejected rather than measured: `polylineLength` of a lone point is 0,
+     * and a `routedLength` of 0 would travel downstream as a measurement — into
+     * a cut list, a formboard, the bend-radius rule — indistinguishable from a
+     * branch that really was measured at zero. An unfinished route is a
+     * data-entry error (HK-BRANCH-003, the same code as any other unusable
+     * branch geometry) and contributes nothing: no `waypoints`, no
+     * `routedLength`, no `routedMinBendRadius`. Non-finite coordinates are
+     * rejected the same way — a NaN would otherwise poison the sum silently.
+     *
+     * A route of two or more points is always measured, and `routedLength` is
+     * then present whether or not the author also typed a `nominalLength`, so
+     * "the branch is not routed" (key absent) can never be read as "the two
+     * lengths agree".
+     */
+    const authoredWaypoints = b.waypoints
+    const routed =
+      authoredWaypoints !== undefined &&
+      authoredWaypoints.length >= 2 &&
+      authoredWaypoints.every(isFinitePoint)
+        ? // Rebuilt in canonical key order rather than aliased: HIR is
+          // serialized byte-for-byte, and authored objects carry no promise
+          // about their key order or their extra keys.
+          authoredWaypoints.map((p): Point3 => ({ x: p.x, y: p.y, z: p.z }))
+        : undefined
+    if (authoredWaypoints !== undefined && routed === undefined) {
+      report(
+        Codes.InvalidBranchGeometry,
+        `Branch ${b.id} declares ${authoredWaypoints.length} waypoint(s) with finite coordinates required; a route needs at least two.`,
+        refs.branch(b.id),
+        DiagnosticSeverity.Error,
+        { data: { field: "waypoints", waypoints: authoredWaypoints.length } }
+      )
+    }
+
+    const routedLength = routed !== undefined ? polylineLength(routed) : undefined
+    // `undefined` for a straight run — infinite radius, not zero. Passed
+    // through as absence so the bend-radius rule never reads it as a bend.
+    const routedMinBendRadius = routed !== undefined ? minBendRadius(routed) : undefined
+
+    // Both numbers claim to be the same length. When they disagree by more than
+    // rounding can explain, one of them is wrong, and which one is wrong is the
+    // author's call — the compiler only refuses to pick silently.
+    if (
+      routedLength !== undefined &&
+      b.nominalLength !== undefined &&
+      isPositiveFinite(b.nominalLength)
+    ) {
+      const scale = Math.max(b.nominalLength, routedLength)
+      const relative = Math.abs(b.nominalLength - routedLength) / scale
+      if (relative > ROUTED_LENGTH_TOLERANCE) {
+        report(
+          Codes.BranchLengthMismatch,
+          `Branch ${b.id} declares nominalLength ${b.nominalLength} but its waypoints measure ${routedLength}.`,
+          refs.branch(b.id),
+          DiagnosticSeverity.Error,
+          {
+            data: {
+              nominalLength: b.nominalLength,
+              routedLength,
+              tolerance: ROUTED_LENGTH_TOLERANCE
+            }
+          }
+        )
+      }
+    }
+
     branches.push(
       compact({
         id: b.id,
@@ -791,7 +881,10 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         nominalLength: b.nominalLength,
         breakoutDistance: b.breakoutDistance,
         minBendRadius: b.minBendRadius,
-        ambientTemperatureC: b.ambientTemperatureC
+        ambientTemperatureC: b.ambientTemperatureC,
+        waypoints: routed,
+        routedLength,
+        routedMinBendRadius
       })
     )
   }
