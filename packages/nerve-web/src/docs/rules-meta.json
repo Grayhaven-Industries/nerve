@@ -170,5 +170,29 @@
   {
     "code": "HK-ELEC-017",
     "name": "sourceCurrentExceeded"
+  },
+  {
+    "code": "HK-ELEC-018",
+    "name": "canTerminationCountWrong"
+  },
+  {
+    "code": "HK-ELEC-019",
+    "name": "canTerminationNotAtBusEnd"
+  },
+  {
+    "code": "HK-ELEC-020",
+    "name": "canBusNotLinear"
+  },
+  {
+    "code": "HK-ELEC-021",
+    "name": "canStubTooLong"
+  },
+  {
+    "code": "HK-ELEC-022",
+    "name": "groundLoop"
+  },
+  {
+    "code": "HK-ELEC-023",
+    "name": "shieldTerminationScheme"
   }
 ]
