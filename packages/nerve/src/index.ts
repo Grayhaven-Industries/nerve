@@ -30,7 +30,9 @@ export type {
   ProtectionProps,
   SpliceDef,
   SpliceProps,
+  SealPart,
   SpliceRef,
+  TerminalPart,
   Units,
   VoltageRange,
   WireDef,
@@ -78,7 +80,9 @@ export {
   HirPinRef,
   HirProtection,
   HirSplice,
+  HirSealPart,
   HirSpliceRef,
+  HirTerminalPart,
   HirWire
 } from "./hir/schema.js"
 

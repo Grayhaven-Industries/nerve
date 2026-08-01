@@ -6,6 +6,8 @@
  * diagnostics instead of throwing mid-definition.
  */
 import type {
+  SealPart,
+  TerminalPart,
   BranchDef,
   BranchProps,
   CableDef,
@@ -33,29 +35,53 @@ const toRef = (target: ConnectorInstance | string): string =>
   typeof target === "string" ? target : target.ref
 
 /**
- * Per-pin part assignment: a map of pin → MPN, or a single MPN applied to
- * every assigned pin (the common case — one terminal type per housing).
+ * A pin-level part, given either as a bare MPN or as a full record, as a map
+ * of pin → part or a single value applied to every assigned pin (the common
+ * case — one terminal type per housing).
+ *
+ * Both spellings stay valid on purpose: an MPN is what a migrated wire list
+ * carries, and a record is what makes the contact's own limits and its crimp
+ * process data available to rules and work instructions. Supplying a record
+ * never changes the MPN that reaches HIR, so existing designs are unaffected.
  */
-export type PinPartAssignment = string | Readonly<Record<string | number, string>>
+export type PinPart<T> = string | T
+export type PinPartAssignment<T = never> =
+  | PinPart<T>
+  | Readonly<Record<string | number, PinPart<T>>>
 
 export interface ConnectorProps {
   readonly pins: PinAssignments
-  readonly terminals?: PinPartAssignment
-  readonly seals?: PinPartAssignment
+  readonly terminals?: PinPartAssignment<TerminalPart>
+  readonly seals?: PinPartAssignment<SealPart>
   readonly electrical?: PinElectricalAssignments
 }
 
-const expandPinParts = (
-  assignment: PinPartAssignment | undefined,
+const mpnOf = <T extends { readonly mpn: string }>(p: PinPart<T>): string =>
+  typeof p === "string" ? p : p.mpn
+
+/**
+ * Expand a pin-part assignment to per-pin MPNs and, where a full record was
+ * supplied, the records beside them. The MPN map is what it has always been,
+ * so HIR and the BOM are unchanged for designs that pass strings.
+ */
+const expandPinParts = <T extends { readonly mpn: string }>(
+  assignment: PinPartAssignment<T> | undefined,
   pins: Readonly<Record<string, string>>
-): Record<string, string> => {
-  if (assignment === undefined) return {}
-  if (typeof assignment === "string") {
-    return Object.fromEntries(Object.keys(pins).map((pin) => [pin, assignment]))
+): { mpns: Record<string, string>; parts: Record<string, T> } => {
+  if (assignment === undefined) return { mpns: {}, parts: {} }
+  const entries: Array<readonly [string, PinPart<T>]> =
+    typeof assignment === "string" || typeof assignment === "object" && "mpn" in assignment
+      ? Object.keys(pins).map((pin) => [pin, assignment as PinPart<T>] as const)
+      : Object.entries(assignment as Readonly<Record<string, PinPart<T>>>).map(
+          ([pin, p]) => [String(pin), p] as const
+        )
+  const mpns: Record<string, string> = {}
+  const parts: Record<string, T> = {}
+  for (const [pin, p] of entries) {
+    mpns[pin] = mpnOf(p)
+    if (typeof p !== "string") parts[pin] = p
   }
-  return Object.fromEntries(
-    Object.entries(assignment).map(([pin, mpn]) => [String(pin), mpn])
-  )
+  return { mpns, parts }
 }
 
 /** Place a connector in the harness: `connector("J1", MolexMicroFit["43025-0800"], { pins: {...}, terminals: "43030-0007" })`. */
@@ -72,13 +98,19 @@ export const connector = (
   for (const [pin, semantics] of Object.entries(opts.electrical ?? {})) {
     electrical[String(pin)] = semantics
   }
+  const terminals = expandPinParts(opts.terminals, pins)
+  const seals = expandPinParts(opts.seals, pins)
   return {
     kind: "connector",
     ref,
     part,
     pins,
-    terminals: expandPinParts(opts.terminals, pins),
-    seals: expandPinParts(opts.seals, pins),
+    terminals: terminals.mpns,
+    seals: seals.mpns,
+    // Omitted when no record was supplied, so a string-only design produces
+    // the identical ConnectorInstance it always has.
+    ...(Object.keys(terminals.parts).length > 0 ? { terminalParts: terminals.parts } : {}),
+    ...(Object.keys(seals.parts).length > 0 ? { sealParts: seals.parts } : {}),
     electrical,
     pin: (pin: string | number): PinRef => ({
       kind: "pin-ref",

@@ -205,6 +205,182 @@
                   "seal": {
                     "type": "string"
                   },
+                  "terminalPart": {
+                    "type": "object",
+                    "required": [
+                      "mpn"
+                    ],
+                    "properties": {
+                      "mpn": {
+                        "type": "string"
+                      },
+                      "manufacturer": {
+                        "type": "string"
+                      },
+                      "family": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "wireGaugeRange": {
+                        "type": "object",
+                        "required": [
+                          "min",
+                          "max"
+                        ],
+                        "properties": {
+                          "min": {
+                            "type": "string"
+                          },
+                          "max": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "insulationDiameterRange": {
+                        "type": "object",
+                        "required": [
+                          "min",
+                          "max"
+                        ],
+                        "properties": {
+                          "min": {
+                            "type": "number"
+                          },
+                          "max": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "plating": {
+                        "type": "string"
+                      },
+                      "currentRatingA": {
+                        "type": "number"
+                      },
+                      "crimpTool": {
+                        "type": "string"
+                      },
+                      "dieId": {
+                        "type": "string"
+                      },
+                      "stripLength": {
+                        "type": "number"
+                      },
+                      "crimpHeight": {
+                        "type": "object",
+                        "required": [
+                          "min",
+                          "max"
+                        ],
+                        "properties": {
+                          "min": {
+                            "type": "number"
+                          },
+                          "max": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "pullForceN": {
+                        "type": "number"
+                      },
+                      "provenance": {
+                        "type": "object",
+                        "required": [
+                          "verification"
+                        ],
+                        "properties": {
+                          "source": {
+                            "type": "string"
+                          },
+                          "datasheet": {
+                            "type": "string"
+                          },
+                          "verification": {
+                            "type": "string",
+                            "enum": [
+                              "unverified",
+                              "inspired-by",
+                              "verified"
+                            ]
+                          },
+                          "lastVerified": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sealPart": {
+                    "type": "object",
+                    "required": [
+                      "mpn"
+                    ],
+                    "properties": {
+                      "mpn": {
+                        "type": "string"
+                      },
+                      "manufacturer": {
+                        "type": "string"
+                      },
+                      "family": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "insulationDiameterRange": {
+                        "type": "object",
+                        "required": [
+                          "min",
+                          "max"
+                        ],
+                        "properties": {
+                          "min": {
+                            "type": "number"
+                          },
+                          "max": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "provenance": {
+                        "type": "object",
+                        "required": [
+                          "verification"
+                        ],
+                        "properties": {
+                          "source": {
+                            "type": "string"
+                          },
+                          "datasheet": {
+                            "type": "string"
+                          },
+                          "verification": {
+                            "type": "string",
+                            "enum": [
+                              "unverified",
+                              "inspired-by",
+                              "verified"
+                            ]
+                          },
+                          "lastVerified": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
                   "electrical": {
                     "type": "object",
                     "required": [],

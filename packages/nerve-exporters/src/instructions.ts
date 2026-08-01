@@ -1,13 +1,17 @@
 /**
  * Assembly instruction generation (PRD §20.4).
  *
- * Generated from HIR only, in build order: materials → cut → twist →
- * populate → branch assembly → labels → inspection → test. Process-level
- * data (crimp heights, pull forces, tooling) arrives with the
- * Manufacturing Operations IR (PRD §28); these instructions cover what HIR
- * already knows.
+ * Generated from HIR only, in build order: materials → cut → twist → crimp →
+ * populate → branch assembly → labels → inspection → test.
+ *
+ * The crimp section is the one an operator reads standing at the press, so it
+ * is grouped the way a press is set up — per (terminal MPN, wire gauge), see
+ * `CrimpSetup` — and every number in it is read off the pin's terminal record.
+ * A harness whose pins carry no terminal record prints exactly what it printed
+ * before: no section, no fabricated defaults.
  */
 import { isPinEndpoint, type Hir } from "@grayhaven/nerve"
+import { crimpSetupHeadline, crimpSetups, crimpSpecSentences } from "./bop.js"
 
 export const assemblyInstructions = (hir: Hir): string => {
   const lines: Array<string> = []
@@ -66,6 +70,17 @@ export const assemblyInstructions = (hir: Hir): string => {
         s.notes
       ].filter((x): x is string => x !== undefined)
       add(parts.join(" ") + ".")
+    }
+  }
+
+  const setups = crimpSetups(hir)
+  if (setups.length > 0) {
+    section("Crimp terminations")
+    for (const setup of setups) {
+      add(`${crimpSetupHeadline(setup)}.`)
+      for (const sentence of crimpSpecSentences(setup.terminal)) {
+        lines.push(`      ${sentence}`)
+      }
     }
   }
 

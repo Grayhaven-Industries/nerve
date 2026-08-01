@@ -41,7 +41,7 @@ Array of:
 | `voltageLimitV` | `number` | no |  |
 | `crimpTool` | `string` | no |  |
 | `provenance` | `{ source, datasheet, verification, lastVerified }` | no |  |
-| `pins` | `Array<{ pin, signal, terminal, seal, electrical }>` | yes |  |
+| `pins` | `Array<{ pin, signal, terminal, seal, terminalPart, sealPart, electrical }>` | yes |  |
 
 ## wires
 

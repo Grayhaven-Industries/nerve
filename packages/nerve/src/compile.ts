@@ -15,7 +15,10 @@ import type {
   DifferentialPolarity,
   ElectricalRole,
   HarnessDesign,
+  PartProvenance,
   PinElectrical,
+  SealPart,
+  TerminalPart,
   WirePart
 } from "./domain.js"
 import { Codes, DiagnosticSeverity, type Diagnostic } from "./diagnostics.js"
@@ -31,7 +34,9 @@ import {
   type HirEndpoint,
   type HirLabel,
   type HirProtection,
+  type HirSealPart,
   type HirSplice,
+  type HirTerminalPart,
   type HirWire,
   type HirWirePart
 } from "./hir/schema.js"
@@ -147,6 +152,86 @@ const toHirWirePart = (p: WirePart): HirWirePart =>
       p.availableColors !== undefined ? [...p.availableColors] : undefined,
     provenance: p.provenance ? { ...p.provenance } : undefined
   })
+
+/**
+ * Provenance rebuilt in canonical key order rather than spread.
+ *
+ * Terminal and seal records are compared to each other by their serialized
+ * form (see `partRecordIdentity`), so every nested object they contain has to
+ * be built key-by-key here: two authors who type the same datasheet and the
+ * same verification state in a different order describe the same part, and a
+ * spread would preserve their key order and make them look different.
+ */
+const toHirProvenance = (
+  p: PartProvenance
+): NonNullable<HirTerminalPart["provenance"]> =>
+  compact({
+    source: p.source,
+    datasheet: p.datasheet,
+    verification: p.verification,
+    lastVerified: p.lastVerified
+  })
+
+/**
+ * Normalize a terminal record into HIR.
+ *
+ * Rebuilt field by field rather than aliased: HIR is serialized byte-for-byte
+ * and an authored object carries no promise about its key order or its extra
+ * keys. Gauges are passed through rather than canonicalized, matching how the
+ * housing's own `wireGaugeRange` is carried — a range is datasheet text, not a
+ * gauge the rules do arithmetic on.
+ */
+const toHirTerminalPart = (p: TerminalPart): HirTerminalPart =>
+  compact({
+    mpn: p.mpn,
+    manufacturer: p.manufacturer,
+    family: p.family,
+    description: p.description,
+    wireGaugeRange: p.wireGaugeRange
+      ? { min: p.wireGaugeRange.min, max: p.wireGaugeRange.max }
+      : undefined,
+    insulationDiameterRange: p.insulationDiameterRange
+      ? { min: p.insulationDiameterRange.min, max: p.insulationDiameterRange.max }
+      : undefined,
+    plating: p.plating,
+    currentRatingA: p.currentRatingA,
+    crimpTool: p.crimpTool,
+    dieId: p.dieId,
+    stripLength: p.stripLength,
+    crimpHeight: p.crimpHeight
+      ? { min: p.crimpHeight.min, max: p.crimpHeight.max }
+      : undefined,
+    pullForceN: p.pullForceN,
+    provenance: p.provenance ? toHirProvenance(p.provenance) : undefined
+  })
+
+/** Normalize a seal record into HIR, on the same terms as a terminal. */
+const toHirSealPart = (p: SealPart): HirSealPart =>
+  compact({
+    mpn: p.mpn,
+    manufacturer: p.manufacturer,
+    family: p.family,
+    description: p.description,
+    insulationDiameterRange: p.insulationDiameterRange
+      ? { min: p.insulationDiameterRange.min, max: p.insulationDiameterRange.max }
+      : undefined,
+    provenance: p.provenance ? toHirProvenance(p.provenance) : undefined
+  })
+
+/**
+ * The identity of a part record for contradiction detection: deep equality,
+ * expressed as the JSON of its already-normalized HIR form.
+ *
+ * Deep rather than shallow because every field of a terminal is a claim about
+ * the part — two records agreeing on manufacturer and description but naming
+ * different crimp heights describe different parts, and the crimp height is
+ * the one an operator sets the press to. Serializing the *normalized* record
+ * is what makes the comparison structural rather than textual: `toHir*Part`
+ * has already dropped absent fields and rebuilt every nested object in a fixed
+ * key order, so records differ here only when their contents differ.
+ */
+const partRecordIdentity = (part: HirTerminalPart | HirSealPart): string =>
+  JSON.stringify(part)
 
 export const compileDesign =(design: HarnessDesign): CompileResult => {
   const diagnostics: Array<Diagnostic> = []
@@ -456,15 +541,23 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         provenance: c.part.provenance ? { ...c.part.provenance } : undefined,
         pins: Object.entries(c.pins)
           .sort(([a], [b]) => comparePins(a, b))
-          .map(([pin, signal]) =>
-            compact({
+          .map(([pin, signal]) => {
+            // The MPN is what it has always been; the record rides beside it
+            // and is absent entirely when the design named a bare MPN, so a
+            // string-only harness compiles to the identical pin object.
+            const terminalPart = c.terminalParts?.[pin]
+            const sealPart = c.sealParts?.[pin]
+            return compact({
               pin,
               signal,
               terminal: c.terminals[pin],
               seal: c.seals[pin],
+              terminalPart:
+                terminalPart !== undefined ? toHirTerminalPart(terminalPart) : undefined,
+              sealPart: sealPart !== undefined ? toHirSealPart(sealPart) : undefined,
               electrical: electricalByConnector.get(c.ref)?.[pin]
             })
-          )
+          })
       })
     )
 
@@ -1055,20 +1148,81 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       })
     }
   }
+  /**
+   * First record seen for each MPN, so a second one can be compared with it.
+   *
+   * Keyed by MPN alone rather than by MPN and kind, because the BOM is: one
+   * part number buys one part and gets one line, whatever cavity it went into.
+   * A design that describes 12345 as one thing at one pin and another thing at
+   * another pin has not made a typo in a description — it has asserted two
+   * incompatible facts about a single orderable item, and the BOM can only
+   * print one of them.
+   */
+  const partRecords = new Map<
+    string,
+    { readonly identity: string; readonly kind: string; readonly target: string }
+  >()
+  const checkPartRecord = (
+    mpn: string,
+    kind: string,
+    part: HirTerminalPart | HirSealPart,
+    target: string
+  ): void => {
+    const identity = partRecordIdentity(part)
+    const first = partRecords.get(mpn)
+    if (first === undefined) {
+      partRecords.set(mpn, { identity, kind, target })
+      return
+    }
+    if (first.identity === identity) return
+    report(
+      Codes.ConflictingPartRecord,
+      `Part ${mpn} is described as a ${kind} at ${target} and differently as a ${first.kind} at ${first.target}; one part number cannot describe two different parts.`,
+      target,
+      DiagnosticSeverity.Error,
+      { targets: [first.target], data: { mpn, kind, firstTarget: first.target } }
+    )
+  }
+
   for (const c of [...connectorByRef.values()].sort((a, b) => compareStrings(a.ref, b.ref))) {
     bomAdd(c.part.mpn, "connector", refs.connector(c.ref), {
       manufacturer: c.part.manufacturer,
       description: c.part.description
     })
+    // A terminal given as a record becomes purchasable: same MPN, same
+    // quantity, same usedBy, now with the manufacturer and description a buyer
+    // needs — exactly what the housing above has always carried.
     for (const [pin, terminal] of Object.entries(c.terminals).sort(([a], [b]) =>
       comparePins(a, b)
     )) {
-      bomAdd(terminal, "terminal", refs.pin(c.ref, pin))
+      const target = refs.pin(c.ref, pin)
+      const authored = c.terminalParts?.[pin]
+      const part = authored !== undefined ? toHirTerminalPart(authored) : undefined
+      if (part !== undefined) checkPartRecord(terminal, "terminal", part, target)
+      bomAdd(
+        terminal,
+        "terminal",
+        target,
+        part !== undefined
+          ? { manufacturer: part.manufacturer, description: part.description }
+          : {}
+      )
     }
     for (const [pin, seal] of Object.entries(c.seals).sort(([a], [b]) =>
       comparePins(a, b)
     )) {
-      bomAdd(seal, "seal", refs.pin(c.ref, pin))
+      const target = refs.pin(c.ref, pin)
+      const authored = c.sealParts?.[pin]
+      const part = authored !== undefined ? toHirSealPart(authored) : undefined
+      if (part !== undefined) checkPartRecord(seal, "seal", part, target)
+      bomAdd(
+        seal,
+        "seal",
+        target,
+        part !== undefined
+          ? { manufacturer: part.manufacturer, description: part.description }
+          : {}
+      )
     }
   }
   for (const s of splices) {

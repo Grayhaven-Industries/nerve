@@ -105,8 +105,8 @@ defineConfig(config: NerveConfig)
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `pins` | `PinAssignments` | yes |  |
-| `terminals` | `PinPartAssignment` | no |  |
-| `seals` | `PinPartAssignment` | no |  |
+| `terminals` | `PinPartAssignment<TerminalPart>` | no |  |
+| `seals` | `PinPartAssignment<SealPart>` | no |  |
 | `electrical` | `PinElectricalAssignments` | no |  |
 
 ### PinElectrical

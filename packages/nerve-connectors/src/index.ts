@@ -25,6 +25,13 @@ export const allParts: Readonly<Record<string, ConnectorPart>> = {
 
 /** The bundled verified library as a PartProvider (PRD §42). */
 export const nerveConnectorsProvider = staticProvider("nerve-connectors", allParts)
+export {
+  allTerminals,
+  DeutschDTTerminals,
+  JstPHTerminals,
+  JstXHTerminals,
+  MolexMicroFitTerminals
+} from "./terminals.js"
 export { part, partInfo, partSpecs, type PartInfo, type PartSpecName } from "./part-spec.js"
 export {
   coverageTable,
