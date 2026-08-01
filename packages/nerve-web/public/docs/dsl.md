@@ -144,7 +144,8 @@ defineConfig(config: NerveConfig)
 | `emcClass` | `"aggressor" \| "victim" \| "neutral"` | no | Crosstalk role for EMC segregation: "aggressor" (noisy source), "victim" (sensitive sink), or "neutral". |
 | `twistGroup` | `string` | no |  |
 | `shieldGroup` | `string` | no |  |
-| `cable` | `string` | no | Cable this wire is a conductor of (see `cable()`). |
+| `branch` | `string` | no | The bundle segment this wire runs in, by branch id.  Membership is otherwise inferred from whether both of a wire's endpoints appear in a branch's `path`, which makes it depend on an authoring accident: two physically identical bundles disagree if one path happens to name the shared source connector and the other does not. Anything counting conductors in a bundle — derating, sleeve fill, ambient — is only as good as that count, so say it outright when it matters. |
+| `cable` | `string` | no |  |
 | `conductor` | `string \| number` | no | Conductor number/name within the cable. |
 | `notes` | `string` | no |  |
 

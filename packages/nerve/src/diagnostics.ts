@@ -42,6 +42,9 @@ export const Codes = {
   InvalidConnectorQuantity: "HK-CONN-004",
   InvalidPinElectrical: "HK-CONN-005",
   DuplicateWireId: "HK-WIRE-001",
+  /** A wire assigns itself to a branch that does not exist. Left unchecked it
+   * would vanish from every conductor count that branch feeds. */
+  WireUndefinedBranch: "HK-WIRE-005",
   WireEndpointsIdentical: "HK-WIRE-002",
   InvalidWireQuantity: "HK-WIRE-003",
   DuplicateBranchId: "HK-BRANCH-001",

@@ -555,6 +555,10 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
   const wireIds = new Set<string>()
   const wires: Array<HirWire> = []
   const conductorOwners = new Map<string, string>()
+  // Branches compile after wires, so their ids are collected up front. A wire
+  // naming a branch that does not exist would otherwise drop silently out of
+  // every conductor count that branch feeds.
+  const declaredBranchIds = new Set(design.branches.map((b) => b.id))
   for (const w of design.wires) {
     if (wireIds.has(w.id)) {
       report(
@@ -665,6 +669,13 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       } else conductorOwners.set(key, w.id)
     }
 
+    if (w.branch !== undefined && !declaredBranchIds.has(w.branch)) {
+      report(
+        Codes.WireUndefinedBranch,
+        `Wire ${w.id} declares branch ${w.branch}, which is not defined.`,
+        refs.wire(w.id)
+      )
+    }
     wires.push(
       compact({
         id: w.id,
@@ -695,6 +706,7 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         emcClass: w.emcClass,
         twistGroup: w.twistGroup,
         shieldGroup: w.shieldGroup,
+        branch: w.branch,
         cable: w.cable,
         conductor,
         notes: w.notes
