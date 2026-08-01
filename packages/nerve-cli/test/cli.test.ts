@@ -375,8 +375,10 @@ describe("nerve diff", () => {
     await run(["compile", ROBOT_FIXTURE, "--out", dirA], capture())
     const hir = JSON.parse(readFileSync(join(dirA, "harness.json"), "utf8"))
     const wire = hir.wires.find((w: { id: string }) => w.id === "W_GND_MD1")
-    expect(wire.currentEstimate).toBe(3)
-    wire.currentEstimate = 3.6 // still inside the 3.7A budget: no new finding
+    expect(wire.currentEstimate).toBe(1.5)
+    // Still inside the 2.22A derated budget for a 16-conductor bundle, so no
+    // new finding — only the headroom moves, which is the point.
+    wire.currentEstimate = 2.1
     mkdirSync(dirB, { recursive: true })
     writeFileSync(join(dirB, "harness.json"), JSON.stringify(hir))
 

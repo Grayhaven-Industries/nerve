@@ -92,13 +92,13 @@ const canL = splice("S_CANL", {
 })
 
 const canDrop = (
-  tag: string, target: ConnectorInstance, length: number
+  tag: string, target: ConnectorInstance, length: number, branchId: string
 ): ReadonlyArray<WireDef> => [
   wire(`W_CANH_${tag}`, canH, target.pin(3), {
-    gauge: "24AWG", color: "white", length, signal: "CAN_H", twistGroup: `TW_CAN_${tag}`
+    gauge: "24AWG", color: "white", length, signal: "CAN_H", twistGroup: `TW_CAN_${tag}`, branch: branchId
   }),
   wire(`W_CANL_${tag}`, canL, target.pin(4), {
-    gauge: "24AWG", color: "blue", length, signal: "CAN_L", twistGroup: `TW_CAN_${tag}`
+    gauge: "24AWG", color: "blue", length, signal: "CAN_L", twistGroup: `TW_CAN_${tag}`, branch: branchId
   })
 ]
 
@@ -109,7 +109,9 @@ interface Drive {
   readonly wires: ReadonlyArray<WireDef>
 }
 
-const drive = (n: 1 | 2 | 3 | 4, feedLength: number, encLength: number): Drive => {
+const drive = (
+  n: 1 | 2 | 3 | 4, feedLength: number, encLength: number, branchId: string
+): Drive => {
   const driver = connector(`MD${n}`, MolexMicroFit["43025-0800"], {
     pins: {
       1: `VBAT_MD${n}`, 2: `GND_MD${n}`, 3: "CAN_H", 4: "CAN_L",
@@ -131,29 +133,37 @@ const drive = (n: 1 | 2 | 3 | 4, feedLength: number, encLength: number): Drive =
     wires: [
       // 20AWG: Micro-Fit 3.0 max (verified); drives are sized accordingly.
       wire(`W_VBAT_MD${n}`, pdbOut.pin(feedPin), driver.pin(1), {
-        gauge: "20AWG", color: "red", length: feedLength, signal: `VBAT_MD${n}`, currentEstimate: 3
+        gauge: "20AWG", color: "red", length: feedLength, signal: `VBAT_MD${n}`, currentEstimate: 1.5, branch: branchId
       }),
       wire(`W_GND_MD${n}`, pdbOut.pin(feedPin + 1), driver.pin(2), {
-        gauge: "20AWG", color: "black", length: feedLength, signal: `GND_MD${n}`, currentEstimate: 3
+        gauge: "20AWG", color: "black", length: feedLength, signal: `GND_MD${n}`, currentEstimate: 1.5, branch: branchId
       }),
-      ...canDrop(`MD${n}`, driver, feedLength + 60),
+      ...canDrop(`MD${n}`, driver, feedLength + 60, branchId),
       wire(`W_ENCA_M${n}`, motor.pin(1), driver.pin(5), {
-        gauge: "26AWG", color: "yellow", length: encLength, signal: `ENC${n}_A`
+        gauge: "26AWG", color: "yellow", length: encLength, signal: `ENC${n}_A`, branch: branchId
       }),
       wire(`W_ENCB_M${n}`, motor.pin(2), driver.pin(6), {
-        gauge: "26AWG", color: "green", length: encLength, signal: `ENC${n}_B`
+        gauge: "26AWG", color: "green", length: encLength, signal: `ENC${n}_B`, branch: branchId
       }),
       wire(`W_TEMP_M${n}`, motor.pin(3), driver.pin(7), {
-        gauge: "26AWG", color: "orange", length: encLength, signal: `MOTOR${n}_TEMP`
+        gauge: "26AWG", color: "orange", length: encLength, signal: `MOTOR${n}_TEMP`, branch: branchId
       }),
       wire(`W_SHLD_M${n}`, motor.pin(4), driver.pin(8), {
-        gauge: "26AWG", color: "gray", length: encLength, signal: `SHIELD${n}_DRAIN`
+        gauge: "26AWG", color: "gray", length: encLength, signal: `SHIELD${n}_DRAIN`, branch: branchId
       })
     ]
   }
 }
 
-const drives = [drive(1, 450, 120), drive(2, 470, 120), drive(3, 450, 120), drive(4, 470, 120)]
+// Drives 1-2 run in the left breakout, 3-4 in the right. Stating it on the
+// wire rather than leaving it to path adjacency is what makes the two bundles
+// count the same number of conductors — see docs/rule-coverage.md.
+const drives = [
+  drive(1, 450, 120, "drive_l"),
+  drive(2, 470, 120, "drive_l"),
+  drive(3, 450, 120, "drive_r"),
+  drive(4, 470, 120, "drive_r")
+]
 
 // --- Sensor / accessory drops -----------------------------------------------------
 const gps = connector("GPS1", jstPh4, {
@@ -195,51 +205,51 @@ export default harness("robot-platform-harness", {
   cables: [ethCable],
   wires: [
     // Battery → e-stop → PDB, with charge-port taps.
-    wire("W_BAT_P", battery.pin(1), batPlus, { gauge: "12AWG", color: "red", length: 80, signal: "VBAT_RAW" }),
-    wire("W_ESTOP_IN", batPlus, estop.pin(1), { gauge: "12AWG", color: "red", length: 140, signal: "VBAT_RAW" }),
-    wire("W_ESTOP_OUT", estop.pin(2), pdbIn.pin(1), { gauge: "12AWG", color: "red", length: 130, signal: "VBAT_SW" }),
-    wire("W_BAT_N", battery.pin(2), batMinus, { gauge: "12AWG", color: "black", length: 95, signal: "GND_BAT" }),
-    wire("W_PDB_N", batMinus, pdbIn.pin(2), { gauge: "12AWG", color: "black", length: 260, signal: "GND_BAT" }),
-    wire("W_CHG_P", charger.pin(1), batPlus, { gauge: "14AWG", color: "red", length: 160, signal: "VBAT_RAW" }),
-    wire("W_CHG_N", charger.pin(2), batMinus, { gauge: "14AWG", color: "black", length: 165, signal: "GND_BAT" }),
+    wire("W_BAT_P", battery.pin(1), batPlus, { gauge: "12AWG", color: "red", length: 80, signal: "VBAT_RAW" , branch: "spine" }),
+    wire("W_ESTOP_IN", batPlus, estop.pin(1), { gauge: "12AWG", color: "red", length: 140, signal: "VBAT_RAW" , branch: "spine" }),
+    wire("W_ESTOP_OUT", estop.pin(2), pdbIn.pin(1), { gauge: "12AWG", color: "red", length: 130, signal: "VBAT_SW" , branch: "spine" }),
+    wire("W_BAT_N", battery.pin(2), batMinus, { gauge: "12AWG", color: "black", length: 95, signal: "GND_BAT" , branch: "spine" }),
+    wire("W_PDB_N", batMinus, pdbIn.pin(2), { gauge: "12AWG", color: "black", length: 260, signal: "GND_BAT" , branch: "spine" }),
+    wire("W_CHG_P", charger.pin(1), batPlus, { gauge: "14AWG", color: "red", length: 160, signal: "VBAT_RAW" , branch: "spine" }),
+    wire("W_CHG_N", charger.pin(2), batMinus, { gauge: "14AWG", color: "black", length: 165, signal: "GND_BAT" , branch: "spine" }),
 
     // MCU power + CAN trunk head.
-    wire("W_5V_MCU", pdbAux.pin(1), mcu.pin(1), { gauge: "20AWG", color: "red", length: 300, signal: "5V_MCU" }),
-    wire("W_GND_MCU", pdbAux.pin(2), mcu.pin(2), { gauge: "20AWG", color: "black", length: 300, signal: "GND_MCU" }),
-    wire("W_CANH_MCU", mcu.pin(3), canH, { gauge: "24AWG", color: "white", length: 120, signal: "CAN_H", twistGroup: "TW_CAN_MCU" }),
-    wire("W_CANL_MCU", mcu.pin(4), canL, { gauge: "24AWG", color: "blue", length: 130, signal: "CAN_L", twistGroup: "TW_CAN_MCU" }),
-    ...canDrop("IMU", imu, 180),
+    wire("W_5V_MCU", pdbAux.pin(1), mcu.pin(1), { gauge: "20AWG", color: "red", length: 300, signal: "5V_MCU" , branch: "ctrl" }),
+    wire("W_GND_MCU", pdbAux.pin(2), mcu.pin(2), { gauge: "20AWG", color: "black", length: 300, signal: "GND_MCU" , branch: "ctrl" }),
+    wire("W_CANH_MCU", mcu.pin(3), canH, { gauge: "24AWG", color: "white", length: 120, signal: "CAN_H", twistGroup: "TW_CAN_MCU" , branch: "ctrl" }),
+    wire("W_CANL_MCU", mcu.pin(4), canL, { gauge: "24AWG", color: "blue", length: 130, signal: "CAN_L", twistGroup: "TW_CAN_MCU" , branch: "ctrl" }),
+    ...canDrop("IMU", imu, 180, "ctrl"),
 
     // Drive feeds, CAN drops, encoder bundles (×4).
     ...drives.flatMap((d) => d.wires),
 
     // Sensor power.
-    wire("W_5V_SENS_GPS", pdbAux.pin(7), gps.pin(1), { gauge: "24AWG", color: "red", length: 380, signal: "5V_SENS" }),
-    wire("W_GND_SENS_GPS", pdbAux.pin(8), gps.pin(2), { gauge: "24AWG", color: "black", length: 380, signal: "GND_SENS" }),
-    wire("W_5V_SENS_IMU", pdbAux.pin(7), imu.pin(1), { gauge: "24AWG", color: "red", length: 340, signal: "5V_SENS" }),
-    wire("W_GND_SENS_IMU", pdbAux.pin(8), imu.pin(2), { gauge: "24AWG", color: "black", length: 340, signal: "GND_SENS" }),
+    wire("W_5V_SENS_GPS", pdbAux.pin(7), gps.pin(1), { gauge: "24AWG", color: "red", length: 380, signal: "5V_SENS" , branch: "sens" }),
+    wire("W_GND_SENS_GPS", pdbAux.pin(8), gps.pin(2), { gauge: "24AWG", color: "black", length: 380, signal: "GND_SENS" , branch: "sens" }),
+    wire("W_5V_SENS_IMU", pdbAux.pin(7), imu.pin(1), { gauge: "24AWG", color: "red", length: 340, signal: "5V_SENS" , branch: "ctrl" }),
+    wire("W_GND_SENS_IMU", pdbAux.pin(8), imu.pin(2), { gauge: "24AWG", color: "black", length: 340, signal: "GND_SENS" , branch: "ctrl" }),
 
     // GPS UART.
-    wire("W_GPS_TX", mcu.pin(5), gps.pin(3), { gauge: "26AWG", color: "yellow", length: 360, signal: "GPS_TX" }),
-    wire("W_GPS_RX", mcu.pin(6), gps.pin(4), { gauge: "26AWG", color: "green", length: 360, signal: "GPS_RX" }),
+    wire("W_GPS_TX", mcu.pin(5), gps.pin(3), { gauge: "26AWG", color: "yellow", length: 360, signal: "GPS_TX" , branch: "sens" }),
+    wire("W_GPS_RX", mcu.pin(6), gps.pin(4), { gauge: "26AWG", color: "green", length: 360, signal: "GPS_RX" , branch: "sens" }),
 
     // Lidar power + Ethernet pair in shielded cable.
-    wire("W_12V_LIDAR", pdbAux.pin(3), lidar.pin(1), { gauge: "24AWG", color: "red", length: 420, signal: "12V_LIDAR" }),
-    wire("W_GND_LIDAR", pdbAux.pin(4), lidar.pin(2), { gauge: "24AWG", color: "black", length: 420, signal: "GND_LIDAR" }),
-    wire("W_ETH_P", mcu.pin(9), lidar.pin(3), { gauge: "26AWG", color: "white", length: 400, signal: "ETH_P", twistGroup: "TW_ETH", cable: "C_ETH", conductor: 1 }),
-    wire("W_ETH_N", mcu.pin(10), lidar.pin(4), { gauge: "26AWG", color: "blue", length: 400, signal: "ETH_N", twistGroup: "TW_ETH", cable: "C_ETH", conductor: 2 }),
+    wire("W_12V_LIDAR", pdbAux.pin(3), lidar.pin(1), { gauge: "24AWG", color: "red", length: 420, signal: "12V_LIDAR" , branch: "sens" }),
+    wire("W_GND_LIDAR", pdbAux.pin(4), lidar.pin(2), { gauge: "24AWG", color: "black", length: 420, signal: "GND_LIDAR" , branch: "sens" }),
+    wire("W_ETH_P", mcu.pin(9), lidar.pin(3), { gauge: "26AWG", color: "white", length: 400, signal: "ETH_P", twistGroup: "TW_ETH", cable: "C_ETH", conductor: 1 , branch: "sens" }),
+    wire("W_ETH_N", mcu.pin(10), lidar.pin(4), { gauge: "26AWG", color: "blue", length: 400, signal: "ETH_N", twistGroup: "TW_ETH", cable: "C_ETH", conductor: 2 , branch: "sens" }),
 
     // Fan, LED, e-stop sense, bumpers.
-    wire("W_12V_FAN", pdbAux.pin(5), fan.pin(1), { gauge: "24AWG", color: "red", length: 250, signal: "12V_FAN" }),
-    wire("W_GND_FAN", pdbAux.pin(6), fan.pin(2), { gauge: "24AWG", color: "black", length: 250, signal: "GND_FAN" }),
-    wire("W_LED_CTRL", mcu.pin(8), led.pin(1), { gauge: "26AWG", color: "violet", length: 280, signal: "LED_CTRL" }),
-    wire("W_LED_RTN", led.pin(2), mcu.pin(13), { gauge: "26AWG", color: "black", length: 280, signal: "GND_SIG" }),
-    wire("W_ESTOP_SENSE", mcu.pin(7), estop.pin(3), { gauge: "22AWG", color: "brown", length: 320, signal: "ESTOP_SENSE" }),
-    wire("W_ESTOP_RTN", estop.pin(4), mcu.pin(14), { gauge: "22AWG", color: "black", length: 320, signal: "GND_SIG" }),
-    wire("W_BUMP_L", mcu.pin(11), bumpL.pin(1), { gauge: "26AWG", color: "brown", length: 520, signal: "BUMP_L" }),
-    wire("W_BUMP_L_RTN", bumpL.pin(2), mcu.pin(13), { gauge: "26AWG", color: "black", length: 520, signal: "GND_SIG" }),
-    wire("W_BUMP_R", mcu.pin(12), bumpR.pin(1), { gauge: "26AWG", color: "brown", length: 520, signal: "BUMP_R" }),
-    wire("W_BUMP_R_RTN", bumpR.pin(2), mcu.pin(14), { gauge: "26AWG", color: "black", length: 520, signal: "GND_SIG" })
+    wire("W_12V_FAN", pdbAux.pin(5), fan.pin(1), { gauge: "24AWG", color: "red", length: 250, signal: "12V_FAN" , branch: "tail" }),
+    wire("W_GND_FAN", pdbAux.pin(6), fan.pin(2), { gauge: "24AWG", color: "black", length: 250, signal: "GND_FAN" , branch: "tail" }),
+    wire("W_LED_CTRL", mcu.pin(8), led.pin(1), { gauge: "26AWG", color: "violet", length: 280, signal: "LED_CTRL" , branch: "tail" }),
+    wire("W_LED_RTN", led.pin(2), mcu.pin(13), { gauge: "26AWG", color: "black", length: 280, signal: "GND_SIG" , branch: "tail" }),
+    wire("W_ESTOP_SENSE", mcu.pin(7), estop.pin(3), { gauge: "22AWG", color: "brown", length: 320, signal: "ESTOP_SENSE" , branch: "ctrl" }),
+    wire("W_ESTOP_RTN", estop.pin(4), mcu.pin(14), { gauge: "22AWG", color: "black", length: 320, signal: "GND_SIG" , branch: "ctrl" }),
+    wire("W_BUMP_L", mcu.pin(11), bumpL.pin(1), { gauge: "26AWG", color: "brown", length: 520, signal: "BUMP_L" , branch: "tail" }),
+    wire("W_BUMP_L_RTN", bumpL.pin(2), mcu.pin(13), { gauge: "26AWG", color: "black", length: 520, signal: "GND_SIG" , branch: "tail" }),
+    wire("W_BUMP_R", mcu.pin(12), bumpR.pin(1), { gauge: "26AWG", color: "brown", length: 520, signal: "BUMP_R" , branch: "tail" }),
+    wire("W_BUMP_R_RTN", bumpR.pin(2), mcu.pin(14), { gauge: "26AWG", color: "black", length: 520, signal: "GND_SIG" , branch: "tail" })
   ],
   branches: [
     branch("spine", { path: [battery, estop, pdbIn], sleeve: "braided-pet-12", nominalLength: 350 }),

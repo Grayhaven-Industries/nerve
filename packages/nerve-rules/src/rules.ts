@@ -1088,22 +1088,18 @@ export const bundleOverSleeveCapacityWith = (shop?: ShopProfile): Rule => rule(
   "bundleOverSleeveCapacity",
   (ctx) => {
     const odTable = { ...INSULATED_OD_MM_BY_AWG, ...shop?.insulatedOdMmByAwg }
-    // Member wires: both endpoints' nodes sit on the branch path (splices
-    // count via their branch assignment).
-    const spliceBranch = new Map(
-      ctx.hir.splices.flatMap((sp) => (sp.branch !== undefined ? [[sp.id, sp.branch] as const] : []))
-    )
     for (const b of ctx.hir.branches) {
       if (b.sleeve === undefined) continue
       const capacity = shop?.sleeveCapacityMm?.[b.sleeve] ?? sleeveCapacityMm(b.sleeve)
       if (capacity === undefined) continue
-      const onBranch = new Set(b.path)
-      const nodeOnBranch = (e: (typeof ctx.hir.wires)[number]["from"]): boolean =>
-        "connector" in e ? onBranch.has(e.connector) : spliceBranch.get(e.splice) === b.id || onBranch.has(e.splice)
+      // Membership comes from `wiresOnBranch`, which honours a wire's own
+      // `branch` before falling back to path adjacency. This rule used to
+      // inline the adjacency half, which meant a breakout listing only its
+      // destinations counted zero conductors — and zero conductors is a
+      // sleeve that always fits.
       const ods: Array<number> = []
       const memberWires: Array<string> = []
-      for (const w of ctx.hir.wires) {
-        if (!nodeOnBranch(w.from) || !nodeOnBranch(w.to)) continue
+      for (const w of wiresOnBranch(ctx.hir, b)) {
         const awg = w.gauge !== undefined ? parseAwg(w.gauge) : undefined
         const od = awg !== undefined ? odTable[awg] : undefined
         if (od !== undefined) {

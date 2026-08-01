@@ -341,12 +341,17 @@ describe("determinism", () => {
    * not move" is deliberate: a snapshot that is regenerated in the same commit
    * proves nothing.
    */
-  it("leaves examples/robot-platform byte-identical to its pre-change output", () => {
+  // Pins the compiled harness so an unintended change to the compiler fails
+  // loudly rather than regenerating a snapshot. The digest moved once, on
+  // purpose: robot-platform now declares each wire's branch (its breakouts
+  // previously counted zero conductors) and states the drives' continuous
+  // 1.5A draw rather than their 3A peak.
+  it("compiles examples/robot-platform to its pinned output", () => {
     const json = JSON.stringify(compileDesign(robotPlatform).hir)
 
     expect(createHash("sha256").update(json).digest("hex")).toBe(
-      "e35e41750c4847e5d1746feaaa3f9669705f4c435df50286c5d593b549b708c7"
+      "f00cb66948da63e1192434535fd4d9e81f570e7df925a3e85082d4c390cec7fc"
     )
-    expect(Buffer.byteLength(json)).toBe(34992)
+    expect(Buffer.byteLength(json)).toBe(36151)
   })
 })

@@ -253,6 +253,16 @@ export interface WireProps {
   readonly insulation?: string
   readonly voltageRating?: number
   readonly temperatureRating?: number
+  /**
+   * Expected **continuous** current, amps — not peak, not inrush, not stall.
+   *
+   * Every rule reading this is thermal: ampacity and bundle derating
+   * (HK-WIRE-004), contact rating (HK-CONN-016), source capacity
+   * (HK-ELEC-017). Conductor heating is I²R integrated over time, so a brief
+   * peak does not size a wire and putting one here over-sizes the harness or
+   * fails a design that is fine. Size for what the load draws continuously
+   * and handle inrush as a separate concern.
+   */
   readonly currentEstimate?: number
   /** Crosstalk role for EMC segregation: "aggressor" (noisy source),
    * "victim" (sensitive sink), or "neutral". */

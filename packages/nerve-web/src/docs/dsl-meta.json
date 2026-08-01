@@ -414,7 +414,7 @@
           "name": "currentEstimate",
           "type": "number",
           "optional": true,
-          "doc": ""
+          "doc": "Expected **continuous** current, amps — not peak, not inrush, not stall.\n\nEvery rule reading this is thermal: ampacity and bundle derating\n(HK-WIRE-004), contact rating (HK-CONN-016), source capacity\n(HK-ELEC-017). Conductor heating is I²R integrated over time, so a brief\npeak does not size a wire and putting one here over-sizes the harness or\nfails a design that is fine. Size for what the load draws continuously\nand handle inrush as a separate concern."
         },
         {
           "name": "emcClass",

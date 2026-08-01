@@ -192,7 +192,7 @@ defineConfig(config: NerveConfig)
 | `insulation` | `string` | no |  |
 | `voltageRating` | `number` | no |  |
 | `temperatureRating` | `number` | no |  |
-| `currentEstimate` | `number` | no |  |
+| `currentEstimate` | `number` | no | Expected **continuous** current, amps — not peak, not inrush, not stall.  Every rule reading this is thermal: ampacity and bundle derating (HK-WIRE-004), contact rating (HK-CONN-016), source capacity (HK-ELEC-017). Conductor heating is I²R integrated over time, so a brief peak does not size a wire and putting one here over-sizes the harness or fails a design that is fine. Size for what the load draws continuously and handle inrush as a separate concern. |
 | `emcClass` | `"aggressor" \| "victim" \| "neutral"` | no | Crosstalk role for EMC segregation: "aggressor" (noisy source), "victim" (sensitive sink), or "neutral". |
 | `twistGroup` | `string` | no |  |
 | `shieldGroup` | `string` | no |  |
