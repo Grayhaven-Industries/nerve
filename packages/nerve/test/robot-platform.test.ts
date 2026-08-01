@@ -15,8 +15,25 @@ describe("robot-platform harness (dogfood)", () => {
     expect(diagnostics).toEqual([])
   })
 
-  it("validates with zero errors AND zero warnings under all built-in rules", () => {
-    expect(runRules(hir, builtinRules)).toEqual([])
+  it("validates with zero errors under all built-in rules", () => {
+    const found = runRules(hir, builtinRules)
+    expect(found.filter((d) => d.severity === "error")).toEqual([])
+  })
+
+  // The CAN trunk is a splice pack: 6 bus wires meet at S_CANH and S_CANL.
+  // HK-ELEC-020 warns on that shape because degree alone cannot tell a
+  // splice pack from a harmful star — only stub length can, and that is
+  // HK-ELEC-021's job. The bus declares 500 kbit/s, so HK-ELEC-021 actually
+  // evaluates all 12 drops and clears them; the warnings are advisory, not
+  // unverified. If they ever become errors, or HK-ELEC-021 starts skipping,
+  // this test should fail.
+  it("carries only the two advisory splice-pack warnings, with stubs verified", () => {
+    const found = runRules(hir, builtinRules)
+    expect(found.filter((d) => d.severity === "warning").map((d) => d.code)).toEqual([
+      "HK-ELEC-020",
+      "HK-ELEC-020"
+    ])
+    expect(found.filter((d) => d.code === "HK-ELEC-021")).toEqual([])
   })
 
   it("has realistic scale", () => {

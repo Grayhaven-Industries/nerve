@@ -314,6 +314,18 @@
           "type": "DifferentialSemantics",
           "optional": true,
           "doc": ""
+        },
+        {
+          "name": "terminationOhms",
+          "type": "number",
+          "optional": true,
+          "doc": "Bus termination fitted at this pin, ohms. A high-speed CAN trunk carries\nexactly two (~120Ω), one at each end — the only thing that makes the line\nlook like its own characteristic impedance instead of a reflector\n(HK-ELEC-018/019)."
+        },
+        {
+          "name": "bitRateKbps",
+          "type": "number",
+          "optional": true,
+          "doc": "Bus bit rate, kbit/s. Sets the stub-length and total-length budgets:\nboth shrink as the bit time shrinks (HK-ELEC-021)."
         }
       ]
     },

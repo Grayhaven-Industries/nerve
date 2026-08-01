@@ -66,6 +66,15 @@ const mcu = connector("MCU1", microFit16, {
     5: "43030-0010", 6: "43030-0010", 7: "43030-0007", 8: "43030-0010",
     9: "43030-0010", 10: "43030-0010", 11: "43030-0010", 12: "43030-0010",
     13: "43030-0010", 14: "43030-0010"
+  },
+  // 500 kbit/s sets the stub budget every CAN drop is measured against
+  // (HK-ELEC-021). No `terminationOhms` anywhere on this harness is
+  // deliberate and correct: the two 120Ω terminators live in the end
+  // nodes, off-harness, so HK-ELEC-018 reports their absence for
+  // information rather than as a defect.
+  electrical: {
+    3: { bitRateKbps: 500 },
+    4: { bitRateKbps: 500 }
   }
 })
 const imu = connector("IMU1", jstPh4, {

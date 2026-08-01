@@ -30,8 +30,47 @@ import {
   signalNominalVolts,
   sleeveCapacityMm
 } from "./wire-data.js"
+import { busTopologyRules } from "./bus-topology.js"
+import { groundLoop, shieldTerminationScheme } from "./ground-shield.js"
 
 const { Error: Err, Warning: Warn, Info } = DiagnosticSeverity
+
+/**
+ * Baseline version for every rule in this pack.
+ *
+ * A rule's verdict is a claim about the physical world, so it has to be
+ * addressable independently of the toolchain release that shipped it: when a
+ * harness fails in the field, "which rule logic passed it" must be answerable
+ * without reconstructing a version of the CLI. Bump a rule's own `ruleVersion`
+ * off this baseline when its logic changes such that the same HIR can get a
+ * different verdict.
+ *
+ * @see docs/rule-coverage.md
+ */
+const RULE_VERSION = "1.0.0"
+
+/**
+ * On the absence of `standard` / `clause` in this file.
+ *
+ * Every rule below is annotated with `ruleVersion` and none with `standard`.
+ * That is a finding, not an oversight. These rules are structural and
+ * engineering-consistency invariants of Nerve's own model — a cavity count
+ * against a housing, a reserved pin put into service, a differential half with
+ * no partner — and they derive from the model, not from a governing document.
+ *
+ * The two candidates that look standards-shaped are not. The ampacity table in
+ * `wire-data.ts` documents itself as "conservative bundled-harness values
+ * (chassis-wiring tables derated for bundling)" with standards-informed data
+ * deferred to a future rule pack, so HK-WIRE-004 and HK-ELEC-010 implement that
+ * table, not a named standard. And PRD §38 names IPC/WHMA-A-620, IPC-D-620,
+ * NASA-STD-8739.4, and SAE-AS50881 as *intended* rule-pack inputs; a roadmap
+ * entry is not authority, and a PRD section is not a clause.
+ *
+ * The rule for adding one: cite `standard` only when this repository contains
+ * the evidence that the rule implements that document. A fabricated citation
+ * would destroy exactly the auditability the field exists to create, so an
+ * omitted citation is the correct answer whenever the basis is not established.
+ */
 
 const endpointKey = (e: HirEndpoint): string =>
   isPinEndpoint(e) ? `${e.connector}:${e.pin}` : `splice:${e.splice}`
@@ -75,7 +114,7 @@ export const missingRevision: Rule = rule(
       })
     }
   },
-  { code: "HK-DOC-001" }
+  { code: "HK-DOC-001", ruleVersion: RULE_VERSION }
 )
 
 export const branchMissingLabel: Rule = rule(
@@ -92,7 +131,7 @@ export const branchMissingLabel: Rule = rule(
       }
     }
   },
-  { code: "HK-DOC-002" }
+  { code: "HK-DOC-002", ruleVersion: RULE_VERSION }
 )
 
 export const spliceMissingNotes: Rule = rule(
@@ -108,7 +147,7 @@ export const spliceMissingNotes: Rule = rule(
       }
     }
   },
-  { code: "HK-DOC-003" }
+  { code: "HK-DOC-003", ruleVersion: RULE_VERSION }
 )
 
 // --- Manufacturing ----------------------------------------------------------
@@ -126,7 +165,7 @@ export const missingWireLength: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-001" }
+  { code: "HK-MFG-001", ruleVersion: RULE_VERSION }
 )
 
 export const missingWireColor: Rule = rule(
@@ -142,7 +181,7 @@ export const missingWireColor: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-002" }
+  { code: "HK-MFG-002", ruleVersion: RULE_VERSION }
 )
 
 export const missingWireGauge: Rule = rule(
@@ -158,7 +197,7 @@ export const missingWireGauge: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-003" }
+  { code: "HK-MFG-003", ruleVersion: RULE_VERSION }
 )
 
 export const gaugeOutsideConnectorRange: Rule = rule(
@@ -186,7 +225,7 @@ export const gaugeOutsideConnectorRange: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-004" }
+  { code: "HK-MFG-004", ruleVersion: RULE_VERSION }
 )
 
 /** Well-formed metric cross-section, e.g. "0.5mm2" / "16 mm²". */
@@ -216,7 +255,7 @@ export const unparseableGauge: Rule = rule(
       })
     }
   },
-  { code: "HK-MFG-007" }
+  { code: "HK-MFG-007", ruleVersion: RULE_VERSION }
 )
 
 // --- Electrical sanity ------------------------------------------------------
@@ -252,7 +291,7 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
       }
     }
   },
-  { code: "HK-WIRE-004" }
+  { code: "HK-WIRE-004", ruleVersion: RULE_VERSION }
 )
 
 export const gaugeCurrentMismatch: Rule = gaugeCurrentMismatchWith()
@@ -290,7 +329,7 @@ export const differentialPairNotTwisted: Rule = rule(
       }
     }
   },
-  { code: "HK-ELEC-001" }
+  { code: "HK-ELEC-001", ruleVersion: RULE_VERSION }
 )
 
 export const twistGroupTooSmall: Rule = rule(
@@ -310,7 +349,7 @@ export const twistGroupTooSmall: Rule = rule(
       }
     }
   },
-  { code: "HK-ELEC-002" }
+  { code: "HK-ELEC-002", ruleVersion: RULE_VERSION }
 )
 
 export const missingGroundReturn: Rule = rule(
@@ -328,7 +367,7 @@ export const missingGroundReturn: Rule = rule(
       })
     }
   },
-  { code: "HK-ELEC-003" }
+  { code: "HK-ELEC-003", ruleVersion: RULE_VERSION }
 )
 
 export const shieldDrainUnconnected: Rule = rule(
@@ -348,7 +387,7 @@ export const shieldDrainUnconnected: Rule = rule(
       }
     }
   },
-  { code: "HK-ELEC-004" }
+  { code: "HK-ELEC-004", ruleVersion: RULE_VERSION }
 )
 
 // --- Connectivity -----------------------------------------------------------
@@ -371,7 +410,7 @@ export const unconnectedAssignedPin: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-010" }
+  { code: "HK-CONN-010", ruleVersion: RULE_VERSION }
 )
 
 export const wireSignalMismatch: Rule = rule(
@@ -397,7 +436,7 @@ export const wireSignalMismatch: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-011" }
+  { code: "HK-CONN-011", ruleVersion: RULE_VERSION }
 )
 
 // --- Component compatibility (PRD §30) ---------------------------------------
@@ -418,7 +457,7 @@ export const terminalIncompatible: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-012" }
+  { code: "HK-CONN-012", ruleVersion: RULE_VERSION }
 )
 
 /** A connector that publishes a terminal allow-list models removable crimp
@@ -451,7 +490,7 @@ export const missingTerminal: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-021" }
+  { code: "HK-CONN-021", ruleVersion: RULE_VERSION }
 )
 
 export const missingSeal: Rule = rule(
@@ -471,7 +510,7 @@ export const missingSeal: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-013" }
+  { code: "HK-CONN-013", ruleVersion: RULE_VERSION }
 )
 
 export const sealIncompatible: Rule = rule(
@@ -490,7 +529,7 @@ export const sealIncompatible: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-014" }
+  { code: "HK-CONN-014", ruleVersion: RULE_VERSION }
 )
 
 export const connectorCurrentExceeded: Rule = rule(
@@ -515,7 +554,7 @@ export const connectorCurrentExceeded: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-016" }
+  { code: "HK-CONN-016", ruleVersion: RULE_VERSION }
 )
 
 export const connectorVoltageExceeded: Rule = rule(
@@ -547,7 +586,7 @@ export const connectorVoltageExceeded: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-017" }
+  { code: "HK-CONN-017", ruleVersion: RULE_VERSION }
 )
 
 /**
@@ -570,7 +609,7 @@ export const requireApprovedParts = (approvedMpns: ReadonlyArray<string>): Rule 
         }
       }
     },
-    { code: "HK-DOC-004" }
+    { code: "HK-DOC-004", ruleVersion: RULE_VERSION }
   )
 }
 
@@ -592,7 +631,7 @@ export const voltageRatingBelowSignal: Rule = rule(
       }
     }
   },
-  { code: "HK-ELEC-005" }
+  { code: "HK-ELEC-005", ruleVersion: RULE_VERSION }
 )
 
 export const reservedPinAssigned: Rule = rule(
@@ -625,7 +664,7 @@ export const reservedPinAssigned: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-015" }
+  { code: "HK-CONN-015", ruleVersion: RULE_VERSION }
 )
 
 /** Shop-parameterized variant: the profile's default bend radius applies
@@ -646,7 +685,7 @@ export const breakoutTighterThanBendRadiusWith = (shop?: ShopProfile): Rule => r
       }
     }
   },
-  { code: "HK-MFG-005" }
+  { code: "HK-MFG-005", ruleVersion: RULE_VERSION }
 )
 
 export const breakoutTighterThanBendRadius: Rule = breakoutTighterThanBendRadiusWith()
@@ -698,7 +737,7 @@ export const bundleOverSleeveCapacityWith = (shop?: ShopProfile): Rule => rule(
       }
     }
   },
-  { code: "HK-MFG-006" }
+  { code: "HK-MFG-006", ruleVersion: RULE_VERSION }
 )
 
 export const bundleOverSleeveCapacity: Rule = bundleOverSleeveCapacityWith()
@@ -748,7 +787,7 @@ export const multipleWiresIntoPin: Rule = rule(
       })
     }
   },
-  { code: "HK-CONN-018" }
+  { code: "HK-CONN-018", ruleVersion: RULE_VERSION }
 )
 
 /** A connector cannot have more populated cavities than the housing has. */
@@ -766,7 +805,7 @@ export const contactCountExceedsPinCount: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-019" }
+  { code: "HK-CONN-019", ruleVersion: RULE_VERSION }
 )
 
 /** A declared cavity grid must account for exactly the housing's cavities. */
@@ -786,7 +825,7 @@ export const cavityLayoutMismatch: Rule = rule(
       }
     }
   },
-  { code: "HK-CONN-020" }
+  { code: "HK-CONN-020", ruleVersion: RULE_VERSION }
 )
 
 /** A length of zero or below is a unit-entry error; cut lists need real mm. */
@@ -804,7 +843,7 @@ export const nonPositiveWireLength: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-008" }
+  { code: "HK-MFG-008", ruleVersion: RULE_VERSION }
 )
 
 /** Branch `parent` is carried into HIR but not validated by the compiler:
@@ -843,7 +882,7 @@ export const branchParentInvalid: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-009" }
+  { code: "HK-MFG-009", ruleVersion: RULE_VERSION }
 )
 
 /** A cable cannot carry more member wires than it has conductors. (Under-fill
@@ -864,7 +903,7 @@ export const cableConductorOverflow: Rule = rule(
       }
     }
   },
-  { code: "HK-MFG-010" }
+  { code: "HK-MFG-010", ruleVersion: RULE_VERSION }
 )
 
 /** Cable membership without a conductor identity is valid as an early design
@@ -882,7 +921,7 @@ export const missingCableConductor: Rule = rule(
       })
     }
   },
-  { code: "HK-MFG-011" }
+  { code: "HK-MFG-011", ruleVersion: RULE_VERSION }
 )
 
 /** A named bus differential half (CAN/RS-485/USB) whose partner appears on no
@@ -914,7 +953,7 @@ export const orphanedDifferentialHalf: Rule = rule(
       })
     }
   },
-  { code: "HK-ELEC-006" }
+  { code: "HK-ELEC-006", ruleVersion: RULE_VERSION }
 )
 
 /** Wires sharing a twist group should share a gauge — a gauge mismatch within
@@ -940,7 +979,7 @@ export const twistGroupGaugeMismatch: Rule = rule(
       })
     }
   },
-  { code: "HK-ELEC-007" }
+  { code: "HK-ELEC-007", ruleVersion: RULE_VERSION }
 )
 
 // --- EMC / environment / protection (HIR §tier-2 fields) --------------------
@@ -965,7 +1004,7 @@ export const emcAggressorVictimShareBranch: Rule = rule(
       })
     }
   },
-  { code: "HK-ELEC-008" }
+  { code: "HK-ELEC-008", ruleVersion: RULE_VERSION }
 )
 
 /** A wire routed through a branch hotter than its insulation rating will
@@ -990,7 +1029,7 @@ export const wireTempBelowAmbient: Rule = rule(
       }
     }
   },
-  { code: "HK-ELEC-009" }
+  { code: "HK-ELEC-009", ruleVersion: RULE_VERSION }
 )
 
 /** The cardinal protection rule: an overcurrent device must trip before the
@@ -1029,7 +1068,7 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
       }
     }
   },
-  { code: "HK-ELEC-010" }
+  { code: "HK-ELEC-010", ruleVersion: RULE_VERSION }
 )
 
 export const overcurrentExceedsConductor: Rule = overcurrentExceedsConductorWith()
@@ -1069,7 +1108,7 @@ export const uncoveredNet: Rule = rule(
       })
     }
   },
-  { code: "HK-ELEC-011" }
+  { code: "HK-ELEC-011", ruleVersion: RULE_VERSION }
 )
 
 /** Adapt one core electrical-analysis finding kind into an independently
@@ -1095,7 +1134,7 @@ const electricalFindingRule = (
       })
     }
   },
-  { code }
+  { code, ruleVersion: RULE_VERSION }
 )
 
 export const multipleElectricalSources: Rule = electricalFindingRule(
@@ -1203,5 +1242,10 @@ export const builtinRules: ReadonlyArray<Rule> = [
   voltageDomainMismatch,
   protocolMismatch,
   differentialSemanticConflict,
-  sourceCurrentExceeded
+  sourceCurrentExceeded,
+  // Bus and return-path topology (ISO 11898-2 / grounding convention).
+  // Pure graph analysis over HIR — no part data or geometry required.
+  ...busTopologyRules,
+  groundLoop,
+  shieldTerminationScheme
 ]

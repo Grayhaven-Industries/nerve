@@ -242,6 +242,35 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         } else currentA = electrical.currentA
       }
 
+      // Bus topology inputs (HK-ELEC-018..021). Same positive-finite gate as
+      // currentA: a zero/negative terminator or bit rate is a data-entry
+      // error, and the topology rules must never reason from one.
+      let terminationOhms: number | undefined
+      if (electrical.terminationOhms !== undefined) {
+        if (!isPositiveFinite(electrical.terminationOhms)) {
+          report(
+            Codes.InvalidPinElectrical,
+            `Pin ${connectorRef}.${pin} has termination ${electrical.terminationOhms}Ω; terminationOhms must be positive and finite.`,
+            target,
+            DiagnosticSeverity.Error,
+            { data: { field: "terminationOhms" } }
+          )
+        } else terminationOhms = electrical.terminationOhms
+      }
+
+      let bitRateKbps: number | undefined
+      if (electrical.bitRateKbps !== undefined) {
+        if (!isPositiveFinite(electrical.bitRateKbps)) {
+          report(
+            Codes.InvalidPinElectrical,
+            `Pin ${connectorRef}.${pin} has bit rate ${electrical.bitRateKbps}kbit/s; bitRateKbps must be positive and finite.`,
+            target,
+            DiagnosticSeverity.Error,
+            { data: { field: "bitRateKbps" } }
+          )
+        } else bitRateKbps = electrical.bitRateKbps
+      }
+
       let protocol: string | undefined
       if (electrical.protocol !== undefined) {
         protocol = electrical.protocol.trim()
@@ -289,7 +318,9 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         ...(voltage !== undefined ? { voltage } : {}),
         ...(currentA !== undefined ? { currentA } : {}),
         ...(protocol !== undefined ? { protocol } : {}),
-        ...(differential !== undefined ? { differential } : {})
+        ...(differential !== undefined ? { differential } : {}),
+        ...(terminationOhms !== undefined ? { terminationOhms } : {}),
+        ...(bitRateKbps !== undefined ? { bitRateKbps } : {})
       }
     }
     return normalized

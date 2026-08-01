@@ -257,6 +257,12 @@
                           }
                         },
                         "additionalProperties": false
+                      },
+                      "terminationOhms": {
+                        "type": "number"
+                      },
+                      "bitRateKbps": {
+                        "type": "number"
                       }
                     },
                     "additionalProperties": false

@@ -296,6 +296,21 @@ export const createCorpusReport = (
   }
 })
 
+/**
+ * What one rule claimed, and on whose authority.
+ *
+ * A reviewer auditing a report needs to separate "the tool ran a check" from
+ * "a standard requires this check". `standard` is present only where the rule
+ * pack could establish the governing document; its absence means the basis was
+ * not established, never that the check is unaudited-but-fine.
+ */
+export interface ReviewRuleProvenance {
+  readonly code: string
+  readonly ruleVersion?: string
+  readonly standard?: string
+  readonly clause?: string
+}
+
 export interface ReviewReportOptions {
   readonly source: {
     readonly name: string
@@ -307,6 +322,12 @@ export interface ReviewReportOptions {
     readonly package: string
     readonly version: string
     readonly codes: ReadonlyArray<string>
+    /**
+     * Per-code provenance, sorted by code. Codes with no established governing
+     * standard appear with only `ruleVersion`. Optional so a report produced
+     * without it stays byte-identical to reports predating this field.
+     */
+    readonly provenance?: ReadonlyArray<ReviewRuleProvenance>
   }
   readonly limitations?: ReadonlyArray<string>
 }
@@ -337,11 +358,37 @@ export interface ReviewReport {
   readonly disclaimer: string
 }
 
+/**
+ * Canonicalize per-code provenance: deduped by code (first wins), sorted with
+ * the same plain lexicographic order as `codes` so the two arrays line up, and
+ * rebuilt in a fixed key order with absent fields omitted rather than null.
+ * Two runs over the same rule set must produce identical bytes.
+ */
+const sortedProvenance = (
+  entries: ReadonlyArray<ReviewRuleProvenance>
+): ReadonlyArray<ReviewRuleProvenance> => {
+  const byCode = new Map<string, ReviewRuleProvenance>()
+  for (const entry of entries) {
+    if (!byCode.has(entry.code)) byCode.set(entry.code, entry)
+  }
+  return [...byCode.values()]
+    .sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
+    .map((entry) => ({
+      code: entry.code,
+      ...(entry.ruleVersion !== undefined ? { ruleVersion: entry.ruleVersion } : {}),
+      ...(entry.standard !== undefined ? { standard: entry.standard } : {}),
+      ...(entry.clause !== undefined ? { clause: entry.clause } : {})
+    }))
+}
+
 export const createReviewReport = (
   hir: Hir,
   diagnostics: ReadonlyArray<Diagnostic>,
   options: ReviewReportOptions
 ): ReviewReport => {
+  // Split provenance off so an unsupplied field never reaches the output at
+  // all — reports made without it stay byte-identical to pre-provenance ones.
+  const { provenance: ruleProvenance, ...ruleIdentity } = options.rules
   const findings = [...diagnostics].sort(
     (a, b) =>
       (a.target ?? "").localeCompare(b.target ?? "") ||
@@ -362,8 +409,11 @@ export const createReviewReport = (
       tool: "@grayhaven/nerve-cli",
       version: options.toolVersion,
       rules: {
-        ...options.rules,
-        codes: [...new Set(options.rules.codes)].sort()
+        ...ruleIdentity,
+        codes: [...new Set(options.rules.codes)].sort(),
+        ...(ruleProvenance !== undefined
+          ? { provenance: sortedProvenance(ruleProvenance) }
+          : {})
       }
     },
     summary: {

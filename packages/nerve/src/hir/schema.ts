@@ -46,7 +46,11 @@ export const HirPinElectrical = Schema.Struct({
   voltage: Schema.optional(HirVoltageRange),
   currentA: Schema.optional(Schema.Number),
   protocol: Schema.optional(Schema.String),
-  differential: Schema.optional(HirDifferentialSemantics)
+  differential: Schema.optional(HirDifferentialSemantics),
+  /** Bus termination fitted at this pin, ohms (HK-ELEC-018/019). */
+  terminationOhms: Schema.optional(Schema.Number),
+  /** Bus bit rate, kbit/s — sets the stub-length budget (HK-ELEC-021). */
+  bitRateKbps: Schema.optional(Schema.Number)
 })
 
 export const HirPin = Schema.Struct({
