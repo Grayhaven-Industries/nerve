@@ -1,6 +1,10 @@
 /**
- * JST PH family (2.00mm pitch, 2A). Crimp contacts: SPH-002T-P0.5S
- * (32-28 AWG) and SPH-004T-P0.5S (28-24 AWG).
+ * JST PH family (2.00mm pitch, 2A). Crimp contacts: SPH-004T-P0.5S
+ * (#32-#28) and SPH-002T-P0.5S (#30-#24), per the contact table in JST's
+ * ePH.pdf. These two were previously documented the other way round; the
+ * housing range below is their union and was unaffected. The per-contact
+ * ranges now live on the terminal records in `terminals.ts`, which is what
+ * the gauge rules read when a design fits a specific contact.
  * Provenance: JST catalog data, inspired-by tier.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"

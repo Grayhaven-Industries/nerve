@@ -1,6 +1,8 @@
 /**
  * JST XH family (2.50mm pitch, 3A). Crimp contact: SXH-001T-P0.6
- * (30-22 AWG). Provenance: JST catalog data, inspired-by tier.
+ * (#28-#22), per the contact table in JST's eXH.pdf. Previously recorded as
+ * 30-22; #30 belongs to SXH-002T-P0.6 (#30-#26), which these housings do not
+ * list as compatible. Provenance: JST catalog data, inspired-by tier.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"
 
@@ -21,7 +23,7 @@ const housing = (circuits: number): ConnectorPart => ({
   cavityLayout: { rows: 1, columns: circuits },
   matingMpn: `B${circuits}B-XH-A`,
   compatibleTerminals: ["SXH-001T-P0.6"],
-  wireGaugeRange: { min: "30AWG", max: "22AWG" },
+  wireGaugeRange: { min: "28AWG", max: "22AWG" },
   currentLimitA: 3,
   voltageLimitV: 250,
   provenance
