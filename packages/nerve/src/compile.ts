@@ -349,8 +349,30 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
   }
 
   // --- Connectors ---------------------------------------------------------
+  /**
+   * Fields the type system guarantees but a foreign build may not supply.
+   *
+   * `connector()` always populates these, so a connector missing one did not
+   * come from the same library this compiler is part of. That happens when a
+   * harness authored outside the workspace resolves `@grayhaven/nerve` to a
+   * published build in the package cache while the compiler runs from source.
+   * Reporting it is the whole point: previously the first `Object.entries` on
+   * an absent field threw a bare TypeError from inside normalization, which
+   * named neither the connector nor the real cause.
+   */
+  const REQUIRED_CONNECTOR_FIELDS = ["pins", "terminals", "seals", "electrical"] as const
+
   const connectorByRef = new Map<string, (typeof design.connectors)[number]>()
   for (const c of design.connectors) {
+    const missing = REQUIRED_CONNECTOR_FIELDS.filter((f) => c[f] === undefined)
+    if (missing.length > 0 || c.part === undefined) {
+      report(
+        Codes.ForeignDesignObject,
+        `Connector ${c.ref ?? "(unnamed)"} is missing ${missing.length > 0 ? missing.join(", ") : "part"}, which connector() always sets. The harness was almost certainly built against a different copy of @grayhaven/nerve than this compiler — check that the project depends on the same version the compiler runs, rather than resolving one from a package cache.`,
+        c.ref !== undefined ? refs.connector(c.ref) : undefined
+      )
+      continue
+    }
     if (connectorByRef.has(c.ref)) {
       report(
         Codes.DuplicateConnectorRef,
