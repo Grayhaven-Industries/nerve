@@ -68,7 +68,9 @@ describe("golden fixture under built-in rules", () => {
 
   it("warns about known incompleteness, deterministically", () => {
     // ENC_A/ENC_B/MOTOR_TEMP assigned but unwired (×2 connectors),
-    // SHIELD_DRAIN unconnected (×2), W3/W4 missing length.
+    // SHIELD_DRAIN unconnected (×2), W3/W4 missing length, and the CAN pair
+    // declares no termination — info, not a defect, because the 120Ω
+    // resistors legitimately live off-harness in the end nodes.
     const counts = diagnostics.reduce<Record<string, number>>((acc, d) => {
       acc[d.code] = (acc[d.code] ?? 0) + 1
       return acc
@@ -76,6 +78,7 @@ describe("golden fixture under built-in rules", () => {
     expect(counts).toEqual({
       "HK-CONN-010": 6,
       "HK-ELEC-004": 2,
+      "HK-ELEC-018": 1,
       "HK-MFG-001": 2
     })
     expect(runRules(hir, builtinRules)).toEqual(diagnostics)

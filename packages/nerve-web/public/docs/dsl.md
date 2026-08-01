@@ -120,6 +120,8 @@ defineConfig(config: NerveConfig)
 | `currentA` | `number` | no | Role-relative: source capacity or sink demand. |
 | `protocol` | `string` | no |  |
 | `differential` | `DifferentialSemantics` | no |  |
+| `terminationOhms` | `number` | no | Bus termination fitted at this pin, ohms. A high-speed CAN trunk carries exactly two (~120Ω), one at each end — the only thing that makes the line look like its own characteristic impedance instead of a reflector (HK-ELEC-018/019). |
+| `bitRateKbps` | `number` | no | Bus bit rate, kbit/s. Sets the stub-length and total-length budgets: both shrink as the bit time shrinks (HK-ELEC-021). |
 
 ### WireProps
 

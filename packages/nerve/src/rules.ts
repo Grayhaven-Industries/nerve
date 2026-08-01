@@ -37,14 +37,35 @@ export interface RuleContext {
   report(report: RuleReport): void
 }
 
-export interface Rule {
+/**
+ * What a rule claims, and on whose authority.
+ *
+ * A rule is a claim about the physical world that can be wrong — unlike a
+ * type check, which *defines* its own correctness. `HK-MFG-005` does not
+ * determine whether a bundle survives a bend, it models it. Recording the
+ * governing standard and clause per rule is what lets a reviewer audit the
+ * claim instead of trusting it, and lets a field failure be attributed to a
+ * rule-set state rather than a toolchain release.
+ */
+export interface RuleProvenance {
+  /** Governing document, e.g. "ISO 11898-2:2016". Omitted when the rule is
+   * a structural invariant of the model rather than a standards claim. */
+  readonly standard?: string
+  /** Clause or section within the standard, e.g. "§5.4". */
+  readonly clause?: string
+  /** Semver for this rule's logic, bumped when its verdict can change.
+   * Addressable independently of the toolchain release. */
+  readonly ruleVersion?: string
+}
+
+export interface Rule extends RuleProvenance {
   readonly name: string
   /** Stable diagnostic code attached to this rule's reports. */
   readonly code: string
   run(ctx: RuleContext): void
 }
 
-export interface RuleOptions {
+export interface RuleOptions extends RuleProvenance {
   readonly code?: string
 }
 
@@ -56,6 +77,9 @@ export const rule = (
 ): Rule => ({
   name,
   code: options.code ?? `HK-RULE-${name.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+  ...(options.standard !== undefined ? { standard: options.standard } : {}),
+  ...(options.clause !== undefined ? { clause: options.clause } : {}),
+  ...(options.ruleVersion !== undefined ? { ruleVersion: options.ruleVersion } : {}),
   run
 })
 

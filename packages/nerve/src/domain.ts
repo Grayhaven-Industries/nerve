@@ -140,6 +140,18 @@ export interface PinElectrical {
   readonly currentA?: number
   readonly protocol?: string
   readonly differential?: DifferentialSemantics
+  /**
+   * Bus termination fitted at this pin, ohms. A high-speed CAN trunk carries
+   * exactly two (~120Ω), one at each end — the only thing that makes the line
+   * look like its own characteristic impedance instead of a reflector
+   * (HK-ELEC-018/019).
+   */
+  readonly terminationOhms?: number
+  /**
+   * Bus bit rate, kbit/s. Sets the stub-length and total-length budgets:
+   * both shrink as the bit time shrinks (HK-ELEC-021).
+   */
+  readonly bitRateKbps?: number
 }
 
 export type PinElectricalAssignments = Readonly<

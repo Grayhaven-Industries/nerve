@@ -46,5 +46,11 @@ export const RULE_SUMMARIES: Record<string, string> = {
   emcAggressorVictimShareBranch: "Aggressor and victim wires shouldn't share a bundle.",
   wireTempBelowAmbient: "A wire's temperature rating must meet its branch's ambient.",
   overcurrentExceedsConductor: "A fuse/breaker rating can't exceed the ampacity of the thinnest wire it protects.",
-  uncoveredNet: "Every electrical net needs at least two accessible connector pins for continuity testing."
+  uncoveredNet: "Every electrical net needs at least two accessible connector pins for continuity testing.",
+  canTerminationCountWrong: "A high-speed CAN bus needs exactly two ~120Ω terminations; declaring one or three is a defect, declaring none is only reported for information.",
+  canTerminationNotAtBusEnd: "A CAN termination belongs at an end of the trunk, on a node with a single bus wire.",
+  canBusNotLinear: "A CAN trunk is linear; junctions are reported so their drops can be checked against the stub budget.",
+  canStubTooLong: "A CAN drop must stay inside the stub budget for the bus's declared bit rate.",
+  groundLoop: "A ground net offering more than one return path between the same points forms a circulating-current loop.",
+  shieldTerminationScheme: "A cable shield should be terminated deliberately: one end normally, both only by intent, neither never."
 }

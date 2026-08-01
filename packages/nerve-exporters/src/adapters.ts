@@ -18,7 +18,8 @@ import {
   type Hir
 } from "@grayhaven/nerve"
 import { toCsv } from "./csv.js"
-import { generateTestPlan } from "./test-plan.js"
+import { hirFingerprint } from "./release.js"
+import { generateTestPlan, type HarnessTest, type TestPoint } from "./test-plan.js"
 
 export type AdapterKind =
   | "wire-cut"
@@ -38,6 +39,12 @@ export interface MachineAdapter {
   readonly description: string
   /** HIR schema versions this adapter understands (PRD §40 plugin contract). */
   readonly hirSchemaVersions: ReadonlyArray<string>
+  /**
+   * What this adapter does not promise. An adapter aimed at a proprietary
+   * machine format we cannot test against says so here, in the artifact, so
+   * nobody mistakes "it imports" for "it is certified".
+   */
+  readonly limitations?: ReadonlyArray<string>
   generate(hir: Hir): AdapterResult
 }
 
@@ -168,10 +175,132 @@ export const genericTesterJson: MachineAdapter = {
   }
 }
 
+/** Verdict thresholds the exported program declares, in ohms. Same numbers
+ * `createBuildRecord` judges the returned measurements against (PRD §36), so
+ * the tester and the record never disagree about what "pass" means. */
+const CONTINUITY_MAX_OHMS = 2
+const ISOLATION_MIN_OHMS = 100_000
+
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+/** Test-point label as a technician reads it off the fixture: `J1-3`. */
+const pointLabel = (p: TestPoint): string => `${p.connector}-${p.pin}`
+
+/** Net a closed-circuit test proves. Falls back to the implicated object when
+ * the net carries no signal name, matching how the test plan names nets. */
+const netOf = (t: HarnessTest): string =>
+  t.net ??
+  (t.type === "continuity"
+    ? refs.wire(t.wire)
+    : t.type === "splice"
+      ? refs.splice(t.splice)
+      : t.id)
+
+/** Every HIR object a test implicates, so a failed step stays traceable. */
+const hirRefsOf = (t: HarnessTest): string =>
+  t.type === "continuity"
+    ? refs.wire(t.wire)
+    : t.type === "splice"
+      ? refs.splice(t.splice)
+      : t.type === "net-continuity"
+        ? [...t.wires.map(refs.wire), ...t.splices.map(refs.splice)].join(" + ")
+        : ""
+
+/**
+ * Cirris Easy-Wire net list — best effort, unvalidated (PRD §31).
+ *
+ * Cirris 8100/8250 testers run Easy-Wire, which imports test data from a
+ * delimited text file and connectors from ASCII text, and whose recommended
+ * workflow for a large assembly is importing a known-good electronic file
+ * rather than learning the harness from a golden sample. A compiled harness
+ * is exactly that known-good file, so the derivation Nerve already performs
+ * for `test-plan.csv` should reach the tester instead of a clipboard.
+ *
+ * Honest scope: Easy-Wire's import schema is proprietary and we do not have
+ * it. This emits a deterministic net list in the documented SHAPE — test
+ * points, expected connections, expected isolation — with Nerve's own section
+ * markers and column names. It is a mapping target, not a certified format:
+ * the adapter says so in its `limitations`, in the file header, and in a
+ * diagnostic on every run. Validate the import against a real tester before
+ * it gates production.
+ */
+export const cirrisEasyWireNetlist: MachineAdapter = {
+  id: "cirris-easywire-netlist",
+  kind: "continuity-tester",
+  description: "Cirris Easy-Wire style net list (test points, connections, isolation).",
+  hirSchemaVersions: [HIR_SCHEMA_VERSION],
+  limitations: [
+    "The file layout is a best-effort target modeled on Easy-Wire's documented delimited-text import. It is NOT validated against real Cirris hardware — verify it on a tester before production use.",
+    "Section markers and column names are Nerve's own convention and will likely need remapping in Easy-Wire's import utility.",
+    "Connector graphic files, which ship alongside a real Easy-Wire export package, are not generated.",
+    "CTL (Cirris Test Language) serial/USB control is out of scope; this is a file handoff only."
+  ],
+  generate(hir) {
+    const schemaIssue = checkSchema(hir, this)
+    if (schemaIssue !== undefined) return { files: new Map(), diagnostics: [schemaIssue] }
+    const plan = generateTestPlan(hir)
+
+    const points = new Map<string, TestPoint>()
+    for (const t of plan.tests) {
+      for (const p of [t.from, t.to]) points.set(pointLabel(p), p)
+    }
+    const pointRows = [...points.values()]
+      .sort((a, b) => cmp(a.connector, b.connector) || cmp(a.pin, b.pin))
+      .map((p) => [pointLabel(p), p.connector, p.pin, refs.pin(p.connector, p.pin)])
+
+    const connectRows = plan.tests
+      .filter((t) => t.expected === "closed")
+      .map((t) => [
+        netOf(t),
+        pointLabel(t.from),
+        pointLabel(t.to),
+        t.id,
+        CONTINUITY_MAX_OHMS,
+        hirRefsOf(t)
+      ])
+
+    const isolateRows = plan.tests
+      .filter((t) => t.expected === "open")
+      .map((t) => [
+        netOf(t),
+        pointLabel(t.from),
+        pointLabel(t.to),
+        t.id,
+        ISOLATION_MIN_OHMS
+      ])
+
+    const text =
+      metadataHeader(hir, this) +
+      `# hir-fingerprint: ${hirFingerprint(hir)}\n` +
+      "# format: best-effort Easy-Wire-style net list. The real import schema\n" +
+      "# is proprietary and this file is unvalidated against Cirris hardware.\n" +
+      "[POINTS]\n" +
+      toCsv([["Point", "Connector", "Pin", "HIR ref"], ...pointRows]) +
+      "[CONNECT]\n" +
+      toCsv([["Net", "Point A", "Point B", "Test ID", "Max ohms", "HIR ref"], ...connectRows]) +
+      "[ISOLATE]\n" +
+      toCsv([["Nets", "Point A", "Point B", "Test ID", "Min ohms"], ...isolateRows])
+
+    return {
+      files: new Map([["cirris-easywire.netlist.txt", text]]),
+      diagnostics: [
+        {
+          code: "HK-ADAPT-003",
+          severity: DiagnosticSeverity.Info,
+          message:
+            "cirris-easywire-netlist emits a best-effort net list modeled on Easy-Wire's documented delimited-text import; the exact schema is proprietary and unverified. Validate the import on a real tester before letting it gate production.",
+          data: { adapter: this.id, tests: plan.tests.length }
+        }
+      ]
+    }
+  }
+}
+
 export const builtinAdapters: ReadonlyArray<MachineAdapter> = [
   genericCutStripCsv,
   genericLabelPrinterCsv,
-  genericTesterJson
+  genericTesterJson,
+  cirrisEasyWireNetlist
 ]
 
 export const findAdapter = (id: string): MachineAdapter | undefined =>

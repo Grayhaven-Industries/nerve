@@ -96,6 +96,17 @@ export {
 export { canonicalGauge, parseAwg, type KnownGauge } from "./gauge.js"
 
 export { computeNets, endpointRefKey, type HarnessNets, type NetSource } from "./nets.js"
+export {
+  bendRadiusAt,
+  cumulativeLengths,
+  distance,
+  lengthBetween,
+  minBendRadius,
+  pointAtDistance,
+  polylineLength,
+  segmentLengths,
+  type Point3
+} from "./geometry.js"
 
 export {
   defineConfig,
@@ -136,6 +147,7 @@ export {
   type RuleConfig,
   type RuleContext,
   type RuleOptions,
+  type RuleProvenance,
   type RuleReport
 } from "./rules.js"
 export { resolvePart, resolvePartWithCoverage, staticProvider } from "./providers.js"
