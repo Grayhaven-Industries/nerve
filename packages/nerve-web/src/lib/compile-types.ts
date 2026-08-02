@@ -1,4 +1,5 @@
-import type { Hir } from "@grayhaven/nerve"
+import type { Hir, Margin } from "@grayhaven/nerve"
+import type { ProvenanceAudit } from "@grayhaven/nerve-eval"
 import type { TestPlan } from "@grayhaven/nerve-exporters"
 
 export interface CompileRequest {
@@ -19,6 +20,11 @@ export interface CompileResult {
   readonly boardSvg: string
   readonly facesSvg: string
   readonly testPlan: TestPlan
+  /** How close each passing check came to its limit. Sparse: only rules over
+   * a continuous quantity contribute, so an empty array is normal. */
+  readonly margins: ReadonlyArray<Margin>
+  /** What the verdict rests on — the evidence behind each part it used. */
+  readonly provenance: ProvenanceAudit
 }
 
 export interface CompileResponse {

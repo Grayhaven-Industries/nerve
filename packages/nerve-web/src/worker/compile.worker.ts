@@ -33,6 +33,7 @@ import {
   refs,
   rule,
   runRules,
+  runRulesWithMargins,
   splice,
   variant,
   wire,
@@ -40,6 +41,7 @@ import {
 } from "@grayhaven/nerve"
 import * as connectorsModule from "@grayhaven/nerve-connectors"
 import { builtinRules } from "@grayhaven/nerve-rules"
+import { auditProvenance } from "@grayhaven/nerve-eval"
 import { boardSvg, connectorFacesSvg, generateTestPlan, schematicSvg } from "@grayhaven/nerve-exporters"
 import motorController from "@grayhaven/example-motor-controller"
 import sensorSplice from "@grayhaven/example-sensor-splice"
@@ -133,7 +135,10 @@ self.onmessage = async (event: MessageEvent<CompileRequest>) => {
     return
   }
   const { hir, diagnostics: structural } = compileDesign(design)
-  const ruleDiagnostics = runRules(hir, builtinRules)
+  // Margins come from the same pass as the findings so the two can never
+  // disagree about a number. A design with no errors still has margins, which
+  // is the point of collecting them.
+  const { diagnostics: ruleDiagnostics, margins } = runRulesWithMargins(hir, builtinRules)
   const diagnostics = [...structural, ...ruleDiagnostics]
   const fullHir = { ...hir, diagnostics }
   if (kind === "export") {
@@ -158,7 +163,9 @@ self.onmessage = async (event: MessageEvent<CompileRequest>) => {
       svg: schematicSvg(fullHir),
       boardSvg: boardSvg(fullHir),
       facesSvg: connectorFacesSvg(fullHir),
-      testPlan: generateTestPlan(fullHir)
+      testPlan: generateTestPlan(fullHir),
+      margins,
+      provenance: auditProvenance(fullHir)
     }
   } satisfies CompileResponse)
 }

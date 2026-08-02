@@ -76,7 +76,11 @@ const TABS = [
   { to: "/projects/$projectId/bom", label: "BOM" },
   { to: "/projects/$projectId/cut-list", label: "Cut list" },
   { to: "/projects/$projectId/labels", label: "Labels" },
-  { to: "/projects/$projectId/tests", label: "Tests" }
+  { to: "/projects/$projectId/tests", label: "Tests" },
+  // Not artifacts like the tabs above: these two say how close the design came
+  // to failing, and what the verdict rests on.
+  { to: "/projects/$projectId/margins", label: "Margins" },
+  { to: "/projects/$projectId/provenance", label: "Provenance" }
 ] as const
 
 function ExportButton({ projectId }: { projectId: string }) {

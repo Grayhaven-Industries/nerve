@@ -32,6 +32,8 @@ import { Route as ProjectsProjectIdConnectorsRouteImport } from './routes/projec
 import { Route as ProjectsProjectIdCutListRouteImport } from './routes/projects.$projectId.cut-list'
 import { Route as ProjectsProjectIdDiagramRouteImport } from './routes/projects.$projectId.diagram'
 import { Route as ProjectsProjectIdLabelsRouteImport } from './routes/projects.$projectId.labels'
+import { Route as ProjectsProjectIdMarginsRouteImport } from './routes/projects.$projectId.margins'
+import { Route as ProjectsProjectIdProvenanceRouteImport } from './routes/projects.$projectId.provenance'
 import { Route as ProjectsProjectIdTestsRouteImport } from './routes/projects.$projectId.tests'
 
 const IndexRoute = IndexRouteImport.update({
@@ -152,6 +154,18 @@ const ProjectsProjectIdLabelsRoute = ProjectsProjectIdLabelsRouteImport.update({
   path: '/labels',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
+const ProjectsProjectIdMarginsRoute =
+  ProjectsProjectIdMarginsRouteImport.update({
+    id: '/margins',
+    path: '/margins',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdProvenanceRoute =
+  ProjectsProjectIdProvenanceRouteImport.update({
+    id: '/provenance',
+    path: '/provenance',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdTestsRoute = ProjectsProjectIdTestsRouteImport.update({
   id: '/tests',
   path: '/tests',
@@ -181,6 +195,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/cut-list': typeof ProjectsProjectIdCutListRoute
   '/projects/$projectId/diagram': typeof ProjectsProjectIdDiagramRoute
   '/projects/$projectId/labels': typeof ProjectsProjectIdLabelsRoute
+  '/projects/$projectId/margins': typeof ProjectsProjectIdMarginsRoute
+  '/projects/$projectId/provenance': typeof ProjectsProjectIdProvenanceRoute
   '/projects/$projectId/tests': typeof ProjectsProjectIdTestsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
 }
@@ -205,6 +221,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/cut-list': typeof ProjectsProjectIdCutListRoute
   '/projects/$projectId/diagram': typeof ProjectsProjectIdDiagramRoute
   '/projects/$projectId/labels': typeof ProjectsProjectIdLabelsRoute
+  '/projects/$projectId/margins': typeof ProjectsProjectIdMarginsRoute
+  '/projects/$projectId/provenance': typeof ProjectsProjectIdProvenanceRoute
   '/projects/$projectId/tests': typeof ProjectsProjectIdTestsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
 }
@@ -232,6 +250,8 @@ export interface FileRoutesById {
   '/projects/$projectId/cut-list': typeof ProjectsProjectIdCutListRoute
   '/projects/$projectId/diagram': typeof ProjectsProjectIdDiagramRoute
   '/projects/$projectId/labels': typeof ProjectsProjectIdLabelsRoute
+  '/projects/$projectId/margins': typeof ProjectsProjectIdMarginsRoute
+  '/projects/$projectId/provenance': typeof ProjectsProjectIdProvenanceRoute
   '/projects/$projectId/tests': typeof ProjectsProjectIdTestsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
 }
@@ -260,6 +280,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/cut-list'
     | '/projects/$projectId/diagram'
     | '/projects/$projectId/labels'
+    | '/projects/$projectId/margins'
+    | '/projects/$projectId/provenance'
     | '/projects/$projectId/tests'
     | '/projects/$projectId/'
   fileRoutesByTo: FileRoutesByTo
@@ -284,6 +306,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/cut-list'
     | '/projects/$projectId/diagram'
     | '/projects/$projectId/labels'
+    | '/projects/$projectId/margins'
+    | '/projects/$projectId/provenance'
     | '/projects/$projectId/tests'
     | '/projects/$projectId'
   id:
@@ -310,6 +334,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/cut-list'
     | '/projects/$projectId/diagram'
     | '/projects/$projectId/labels'
+    | '/projects/$projectId/margins'
+    | '/projects/$projectId/provenance'
     | '/projects/$projectId/tests'
     | '/projects/$projectId/'
   fileRoutesById: FileRoutesById
@@ -486,6 +512,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdLabelsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/margins': {
+      id: '/projects/$projectId/margins'
+      path: '/margins'
+      fullPath: '/projects/$projectId/margins'
+      preLoaderRoute: typeof ProjectsProjectIdMarginsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/provenance': {
+      id: '/projects/$projectId/provenance'
+      path: '/provenance'
+      fullPath: '/projects/$projectId/provenance'
+      preLoaderRoute: typeof ProjectsProjectIdProvenanceRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/tests': {
       id: '/projects/$projectId/tests'
       path: '/tests'
@@ -531,6 +571,8 @@ interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdCutListRoute: typeof ProjectsProjectIdCutListRoute
   ProjectsProjectIdDiagramRoute: typeof ProjectsProjectIdDiagramRoute
   ProjectsProjectIdLabelsRoute: typeof ProjectsProjectIdLabelsRoute
+  ProjectsProjectIdMarginsRoute: typeof ProjectsProjectIdMarginsRoute
+  ProjectsProjectIdProvenanceRoute: typeof ProjectsProjectIdProvenanceRoute
   ProjectsProjectIdTestsRoute: typeof ProjectsProjectIdTestsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
 }
@@ -542,6 +584,8 @@ const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
   ProjectsProjectIdCutListRoute: ProjectsProjectIdCutListRoute,
   ProjectsProjectIdDiagramRoute: ProjectsProjectIdDiagramRoute,
   ProjectsProjectIdLabelsRoute: ProjectsProjectIdLabelsRoute,
+  ProjectsProjectIdMarginsRoute: ProjectsProjectIdMarginsRoute,
+  ProjectsProjectIdProvenanceRoute: ProjectsProjectIdProvenanceRoute,
   ProjectsProjectIdTestsRoute: ProjectsProjectIdTestsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
 }

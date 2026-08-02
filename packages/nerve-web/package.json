@@ -25,6 +25,7 @@
     "@grayhaven/example-sensor-splice": "workspace:*",
     "@grayhaven/nerve": "workspace:*",
     "@grayhaven/nerve-connectors": "workspace:*",
+    "@grayhaven/nerve-eval": "workspace:*",
     "@grayhaven/nerve-exporters": "workspace:*",
     "@grayhaven/nerve-rules": "workspace:*",
     "@grayhaven/nerve-wireviz": "workspace:*",

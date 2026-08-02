@@ -1560,3 +1560,25 @@ table.data th.sortable:hover { color: var(--text); }
     @apply font-sans;
   }
 }
+/* Margins and provenance: the two views that report how close the design came
+   and what the verdict rests on, rather than what is wrong with it. Both reuse
+   the existing severity tokens so a reader already knows what the colour
+   means. */
+.view-note {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.empty {
+  margin: 0;
+  padding: 24px 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  max-width: 62ch;
+}
+/* Over budget is a failure the findings already report; here it only has to
+   be findable in a sorted column. */
+.over-budget { color: var(--error); font-weight: 600; }
+/* Not an error. A part nobody verified is a normal state of a real library,
+   so this reads as a caution, never as a defect. */
+.unverified { color: var(--warning); }
