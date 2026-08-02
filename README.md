@@ -15,32 +15,37 @@ existing data or Nerve source
   → review report, diffs, drawings, test plans, and manufacturing artifacts
 ```
 
-![Nerve reviewing a 22-connector harness: zero errors, a sleeve at 95% fill, a self-consistent pinout swap caught against the part, and what the verdict rests on](./docs/assets/nerve-demo.gif)
+![Nerve reviews a 22-connector harness: no errors, a sleeve at 95% fill, and a pinout swap caught against the part](./docs/assets/nerve-demo.gif)
 
-Recorded against the bundled `examples/robot-platform`. The tape is
-[`docs/assets/nerve.tape`](./docs/assets/nerve.tape) — the demo runs the real
-CLI, so it fails to record if the output ever stops matching.
+The demo runs against the bundled `examples/robot-platform`. It calls the real
+CLI, so the recording fails when the output no longer matches. The tape is
+[`docs/assets/nerve.tape`](./docs/assets/nerve.tape).
 
-The TypeScript API is one input format, not an adoption requirement. Nerve can import WireViz, mapped CSV and Excel wire lists, and connector contracts from KiCad boards, pinout CSV, tscircuit, or its own JSON format.
+The TypeScript API is one input format, not an adoption requirement. Nerve
+imports WireViz, mapped CSV wire lists, and mapped Excel wire lists. It also
+imports connector contracts from KiCad boards, pinout CSV, tscircuit, and its
+own JSON format.
 
-Nerve does not certify a harness or claim compliance with an industry or customer standard. Its reports record the deterministic checks performed on the facts supplied.
+Nerve does not certify a harness. It does not claim compliance with an industry
+standard or a customer standard. A Nerve report records the checks that ran
+against the facts the design supplied.
 
-The domain boundaries and validation ownership are documented in
-[Harness modeling principles](./docs/modeling-principles.md).
+[Harness modeling principles](./docs/modeling-principles.md) explains the domain
+boundaries and the owner of each check.
 
 ## What it does
 
 - Runs 53 built-in consistency, electrical, component, and manufacturing checks with stable `HK-*` diagnostic codes.
-- Reports how close a passing design sits to each limit, not only whether it passed. A wire at 99% of its derated ampacity and one at 40% both pass, and are not the same design.
-- Judges a wire against the contact that crimps it and a pin against the pinout its part fixes, rather than against the housing or against the design's own restatement of itself.
-- Measures a routed branch instead of trusting a typed length, where the design supplies a centerline.
-- Produces a versioned machine-readable review report with HIR fingerprint, built-in rule coverage, findings, and explicit limitations.
-- Accounts for every mapped CSV or Excel row as accepted or rejected, then emits editable Nerve source and HIR.
-- Compares harness connector assignments with a KiCad 6+ board footprint's pad nets or another interface contract.
-- Emits reproducible HIR, drawings, BOM, cut list, labels, continuity tests, assembly instructions, PDF packet, and release records.
-- Evaluates rules against a provenance-aware public corpus without presenting synthetic regressions as field evidence.
+- Reports how close a passing design came to each limit, not only that it passed. A wire at 99% of its derated ampacity and a wire at 40% both pass. They are not the same design.
+- Judges a wire against the contact that crimps it, not against the housing. Judges a pin against the pinout its part fixes, not against what the design says about itself.
+- Measures the length of a routed branch from its centerline, rather than from a number somebody typed.
+- Writes a versioned machine-readable review report with the HIR fingerprint, the rule coverage, the findings, and the limitations.
+- Accounts for every mapped CSV or Excel row as accepted or rejected. Then writes editable Nerve source and HIR.
+- Compares harness connector assignments against the pad nets of a KiCad 6+ board footprint, or against another interface contract.
+- Writes reproducible HIR, drawings, BOM, cut list, labels, continuity tests, assembly instructions, PDF packet, and release records.
+- Evaluates rules against a provenance-aware public corpus. It does not present synthetic regressions as field evidence.
 
-The browser workspace remains available at [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com) for inspecting examples and the authoring API.
+The browser workspace at [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com) shows the examples and the authoring API.
 
 ## Review a harness
 
