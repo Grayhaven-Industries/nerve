@@ -15,6 +15,12 @@ existing data or Nerve source
   → review report, diffs, drawings, test plans, and manufacturing artifacts
 ```
 
+![Nerve reviewing a 22-connector harness: zero errors, a sleeve at 95% fill, a self-consistent pinout swap caught against the part, and what the verdict rests on](./docs/assets/nerve-demo.gif)
+
+Recorded against the bundled `examples/robot-platform`. The tape is
+[`docs/assets/nerve.tape`](./docs/assets/nerve.tape) — the demo runs the real
+CLI, so it fails to record if the output ever stops matching.
+
 The TypeScript API is one input format, not an adoption requirement. Nerve can import WireViz, mapped CSV and Excel wire lists, and connector contracts from KiCad boards, pinout CSV, tscircuit, or its own JSON format.
 
 Nerve does not certify a harness or claim compliance with an industry or customer standard. Its reports record the deterministic checks performed on the facts supplied.

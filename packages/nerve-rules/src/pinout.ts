@@ -155,9 +155,15 @@ const pinoutEntries = (c: HirConnector): ReadonlyArray<PinoutEntry> => {
     .sort((a, b) => comparePins(a.pin, b.pin))
 }
 
-/** How the part is named in a message: MPN, and family when it adds anything. */
+/**
+ * How the part is named in a message: MPN, and family only when it adds
+ * anything. A family that prefixes its own MPN reads as a stutter —
+ * "part GH-R1 GH-R1-IMU-01" — so `startsWith` covers that and the equal case
+ * together. A family like "Micro-Fit 3.0" bears no relation to 43025-0800 and
+ * is worth saying.
+ */
 const partLabel = (c: HirConnector): string =>
-  c.family !== undefined && c.family !== c.mpn ? `${c.family} ${c.mpn}` : c.mpn
+  c.family !== undefined && !c.mpn.startsWith(c.family) ? `${c.family} ${c.mpn}` : c.mpn
 
 // --- HK-CONN-023: assignment contradicts the part ---------------------------
 
