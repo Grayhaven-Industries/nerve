@@ -132,7 +132,10 @@ describe("manufacturing rules", () => {
     expect(diags.map((d) => d.code)).toEqual(["HK-MFG-007"])
     expect(diags[0]?.severity).toBe("warning")
     expect(diags[0]?.message).toContain('"18AGW"')
+    // The codes are the point of this warning: they name which checks the
+    // unreadable gauge silenced. A wire that skips them still passes the run.
     expect(diags[0]?.message).toContain("HK-MFG-004")
+    expect(diags[0]?.message).toContain("do not run on this wire")
   })
 
   it("HK-MFG-007: a well-formed metric gauge is Info, not a forever-Warning", () => {

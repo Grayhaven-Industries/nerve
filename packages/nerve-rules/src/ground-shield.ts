@@ -183,7 +183,7 @@ export const groundLoop: Rule = rule(
       const net = ctx.nets.nameOf(w.from) ?? w.signal ?? "ground"
       ctx.report({
         severity: Warn,
-        message: `Ground net ${net} forms a loop: wires ${[...loop].sort(cmp).join(", ")} provide more than one return path between ${endpointLabel(w.from)} and ${endpointLabel(w.to)}.`,
+        message: `Ground net ${net} forms a loop between ${endpointLabel(w.from)} and ${endpointLabel(w.to)}. Wires ${[...loop].sort(cmp).join(", ")} provide more than one return path.`,
         target: refs.wire(w.id),
         targets: [
           ...loop.filter((id) => id !== w.id).map(refs.wire),
@@ -255,14 +255,14 @@ export const shieldTerminationScheme: Rule = rule(
         ctx.report({
           ...common,
           severity: Warn,
-          message: `Shield group ${group} (wires ${members.map((w) => w.id).join(", ")}) is terminated at neither end; a floating shield attenuates nothing. Ground it at one end.`
+          message: `Shield group ${group} (wires ${members.map((w) => w.id).join(", ")}) has no ground termination and attenuates nothing. Ground it at one end.`
         })
         continue
       }
       ctx.report({
         ...common,
         severity: Info,
-        message: `Shield group ${group} (wires ${members.map((w) => w.id).join(", ")}) is terminated at ${terminated.length} points (${terminated.join(", ")}); terminating both ends closes a ground loop through the shield. Single-end termination is the usual scheme; keep this only if it is a deliberate high-frequency choice.`
+        message: `Shield group ${group} (wires ${members.map((w) => w.id).join(", ")}) has ${terminated.length} ground terminations (${terminated.join(", ")}). A shield tied at both ends closes a ground loop, so ground it at one end.`
       })
     }
   },

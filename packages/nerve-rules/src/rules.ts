@@ -232,7 +232,7 @@ export const missingWireLength: Rule = rule(
       if (w.length === undefined) {
         ctx.report({
           severity: Warn,
-          message: `Wire ${w.id} has no length; the cut list cannot include it.`,
+          message: `Wire ${w.id} has no length. The cut list cannot include it.`,
           target: refs.wire(w.id)
         })
       }
@@ -461,14 +461,17 @@ export const unparseableGauge: Rule = rule(
       if (isMetricGauge(w.gauge)) {
         ctx.report({
           severity: Info,
-          message: `Wire ${w.id} uses metric gauge "${w.gauge}"; the AWG-based checks (HK-MFG-004, HK-WIRE-004, HK-MFG-006) don't apply.`,
+          message: `Wire ${w.id} has metric gauge "${w.gauge}". The gauge checks do not run on this wire.`,
           target: refs.wire(w.id)
         })
         continue
       }
       ctx.report({
         severity: Warn,
-        message: `Wire ${w.id} gauge "${w.gauge}" is not recognized as AWG; gauge-based checks (HK-MFG-004, HK-WIRE-004, HK-MFG-006) cannot verify this wire.`,
+        // The codes stay in the message on purpose. A reader needs to know
+        // which checks went dark, not just that some did — a wire that skips
+        // HK-MFG-004 and HK-WIRE-004 passes the run looking checked.
+        message: `Wire ${w.id} has gauge "${w.gauge}", which is not AWG. HK-MFG-004, HK-WIRE-004 and HK-MFG-006 do not run on this wire.`,
         target: refs.wire(w.id)
       })
     }
@@ -566,11 +569,11 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
         // message has to stay what it has always been.
         const bundleNote =
           factor < 1 && conductors !== undefined && w.branch !== undefined
-            ? ` when derated ${factor}× for the ${conductors} conductors bundled on branch ${w.branch}`
+            ? ` Branch ${w.branch} bundles ${conductors} conductors, so the limit derates ${factor}×.`
             : ""
         ctx.report({
           severity: Err,
-          message: `Wire ${w.id} uses ${w.gauge} but its ${w.currentEstimate}A estimate${suffix}${bundleNote}.`,
+          message: `Wire ${w.id} uses ${w.gauge} but its ${w.currentEstimate}A estimate${suffix}.${bundleNote}`,
           target: refs.wire(w.id),
           data: {
             gauge: w.gauge,
@@ -638,7 +641,7 @@ export const twistGroupTooSmall: Rule = rule(
       if (count < 2) {
         ctx.report({
           severity: Err,
-          message: `Twist group ${group} contains only ${count} wire; twisting requires at least 2.`
+          message: `Twist group ${group} contains only ${count} wire. A twisted pair needs at least two wires.`
         })
       }
     }
@@ -777,7 +780,7 @@ export const missingTerminal: Rule = rule(
         if (pin?.terminal !== undefined) continue
         ctx.report({
           severity: Err,
-          message: `Wired pin ${end.connector}.${end.pin} has no terminal; ${connector.mpn} requires one of: ${connector.compatibleTerminals.join(", ")}.`,
+          message: `Wired pin ${end.connector}.${end.pin} has no terminal. ${connector.mpn} accepts one of: ${connector.compatibleTerminals.join(", ")}.`,
           target: refs.pin(end.connector, end.pin),
           targets: [refs.wire(w.id)]
         })
@@ -1179,7 +1182,7 @@ export const multipleWiresIntoPin: Rule = rule(
       if (e.wires.length < 2 || e.gauges.size < 2) continue
       ctx.report({
         severity: Err,
-        message: `Pin ${e.connector}.${e.pin} has ${e.wires.length} wires of differing gauge crimped into one contact (${[...e.gauges].sort().join(", ")}).`,
+        message: `Pin ${e.connector}.${e.pin} has ${e.wires.length} wires of different gauges crimped into one contact (${[...e.gauges].sort().join(", ")}).`,
         target: refs.pin(e.connector, e.pin),
         targets: e.wires.sort().map(refs.wire),
         data: { wireCount: e.wires.length, gauges: [...e.gauges].sort().join(", ") }
@@ -1235,7 +1238,7 @@ export const nonPositiveWireLength: Rule = rule(
       if (w.length !== undefined && w.length <= 0) {
         ctx.report({
           severity: Err,
-          message: `Wire ${w.id} has a non-positive length (${w.length}); the cut list and routing need a real length.`,
+          message: `Wire ${w.id} has a non-positive length (${w.length}). Set a length above zero.`,
           target: refs.wire(w.id),
           data: { length: w.length }
         })
@@ -1270,7 +1273,7 @@ export const branchParentInvalid: Rule = rule(
         if (seen.has(cur)) {
           ctx.report({
             severity: Err,
-            message: `Branch ${b.id} sits in a parent cycle (reaches ${cur} again); the branch tree must be acyclic.`,
+            message: `Branch ${b.id} sits in a parent cycle and reaches ${cur} again. The branch tree must be acyclic.`,
             target: refs.branch(b.id),
             data: { parent: b.parent }
           })
@@ -1346,7 +1349,7 @@ export const orphanedDifferentialHalf: Rule = rule(
       reported.add(sig)
       ctx.report({
         severity: Err,
-        message: `Differential signal ${w.signal} has no partner ${partner} anywhere in the harness; a bus pair needs both halves.`,
+        message: `Differential signal ${w.signal} has no partner ${partner} in the harness. A bus pair needs both halves.`,
         target: refs.wire(w.id),
         data: { signal: w.signal, missingPartner: partner }
       })
@@ -1372,7 +1375,7 @@ export const twistGroupGaugeMismatch: Rule = rule(
       if (e.gauges.size <= 1) continue
       ctx.report({
         severity: Warn,
-        message: `Twist group ${group} mixes gauges (${[...e.gauges].sort().join(", ")}); a twisted pair should be a matched gauge to limit skew.`,
+        message: `Twist group ${group} mixes gauges (${[...e.gauges].sort().join(", ")}). A twisted pair must use one gauge to limit skew.`,
         targets: [...e.wires].sort().map(refs.wire),
         data: { group, gauges: [...e.gauges].sort().join(", ") }
       })
@@ -1396,7 +1399,7 @@ export const emcAggressorVictimShareBranch: Rule = rule(
       if (aggressors.length === 0 || victims.length === 0) continue
       ctx.report({
         severity: Warn,
-        message: `Branch ${b.id} bundles aggressor wire(s) (${aggressors.map((w) => w.id).sort().join(", ")}) with victim wire(s) (${victims.map((w) => w.id).sort().join(", ")}); separate them to limit crosstalk.`,
+        message: `Branch ${b.id} bundles aggressor wire(s) (${aggressors.map((w) => w.id).sort().join(", ")}) with victim wire(s) (${victims.map((w) => w.id).sort().join(", ")}). Separate them to limit crosstalk.`,
         target: refs.branch(b.id),
         targets: [...aggressors, ...victims].map((w) => refs.wire(w.id)).sort(),
         data: { aggressors: aggressors.length, victims: victims.length }
@@ -1580,8 +1583,8 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
         ctx.report({
           severity: Err,
           message: governing.declared
-            ? `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A; the wire would fail before the device trips.`
-            : `${p.kind} ${p.id} is rated ${p.ratingA}A but wire ${governing.wireId}, reached by walking splices downstream of its protected run, carries only ${governing.ampacity}A; the wire would fail before the device trips.`,
+            ? `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A. The wire fails before the device trips.`
+            : `${p.kind} ${p.id} is rated ${p.ratingA}A but wire ${governing.wireId} downstream of its protected run carries only ${governing.ampacity}A. The wire fails before the device trips.`,
           target: `protection:${p.id}`,
           targets: [refs.wire(governing.wireId)],
           data: {
@@ -1627,7 +1630,7 @@ export const uncoveredNet: Rule = rule(
       const wires = [...entry.wires].sort()
       ctx.report({
         severity: Err,
-        message: `Net ${entry.name} reaches ${entry.pins.size} accessible connector pin${entry.pins.size === 1 ? "" : "s"}; continuity coverage requires at least 2.`,
+        message: `Net ${entry.name} reaches ${entry.pins.size} accessible connector pin${entry.pins.size === 1 ? "" : "s"}. A continuity test needs at least two.`,
         target: refs.wire(wires[0]!),
         targets: wires.slice(1).map(refs.wire),
         data: { accessiblePins: entry.pins.size, wireCount: wires.length }

@@ -199,8 +199,8 @@ export const pinoutSignalContradiction: Rule = rule(
         ctx.report({
           severity: Err,
           message: noConnect
-            ? `Pin ${c.ref}.${e.pin} is assigned ${e.assigned}, but part ${partLabel(c)} declares pin ${e.pin} as no-connect (${e.declared}); a wire crimped there lands in a cavity the device does not connect to.`
-            : `Pin ${c.ref}.${e.pin} is assigned ${e.assigned}, but part ${partLabel(c)} fixes pin ${e.pin} as ${e.declared}. The part's pinout is the authority here, not the harness.`,
+            ? `Part ${partLabel(c)} declares pin ${e.pin} as no-connect (${e.declared}), but the design assigns ${e.assigned} to pin ${c.ref}.${e.pin}. Move ${e.assigned} to a pin the device connects.`
+            : `Part ${partLabel(c)} fixes pin ${e.pin} as ${e.declared}, but the design assigns ${e.assigned} to pin ${c.ref}.${e.pin}. The part is the authority, so assign ${e.declared} to that pin.`,
           target: refs.pin(c.ref, e.pin),
           targets: [refs.connector(c.ref)],
           data: {
@@ -258,7 +258,7 @@ export const pinoutPinUnassigned: Rule = rule(
         if (isNoConnect(e.declared)) continue
         ctx.report({
           severity: Warn,
-          message: `Part ${partLabel(c)} fixes pin ${e.pin} of ${c.ref} as ${e.declared}, but the design assigns nothing to it. Assign the signal, or confirm the pin is deliberately unused.`,
+          message: `Part ${partLabel(c)} fixes pin ${e.pin} of ${c.ref} as ${e.declared}, but the design assigns nothing to it. Assign ${e.declared} to that pin, or accept the pin as unused.`,
           target: refs.pin(c.ref, e.pin),
           targets: [refs.connector(c.ref)],
           data: { mpn: c.mpn, pin: e.pin, partSignal: e.declared }

@@ -300,8 +300,8 @@ export const canTerminationCountWrong: Rule = rule(
         ctx.report({
           severity: undeclared ? Info : Err,
           message: undeclared
-            ? `CAN bus ${bus.key} declares no terminations. A high-speed bus needs exactly two ~${CAN_TERMINATION_OHMS}Ω terminations, one at each end of the trunk; declare them with \`terminationOhms\` if this harness carries them, or confirm they live off-harness in the end nodes.`
-            : `CAN bus ${bus.key} has ${sites.length} termination${sites.length === 1 ? "" : "s"} (${where}); a high-speed bus needs exactly two ~${CAN_TERMINATION_OHMS}Ω terminations, one at each end of the trunk. Powered down, the pair should measure ~60Ω across CAN_H/CAN_L.`,
+            ? `CAN bus ${bus.key} declares no terminations. If this harness carries the two ~${CAN_TERMINATION_OHMS}Ω resistors, set \`terminationOhms\` on the pin at each end of the trunk.`
+            : `CAN bus ${bus.key} has ${sites.length} termination${sites.length === 1 ? "" : "s"} (${where}). Fit exactly two ~${CAN_TERMINATION_OHMS}Ω terminations, one at each end of the trunk.`,
           target: anchor,
           targets: sites.flatMap((s) =>
             s.terminators.map((t) => refs.pin(t.connector, t.pin))
@@ -322,7 +322,7 @@ export const canTerminationCountWrong: Rule = rule(
         }
         ctx.report({
           severity: Warn,
-          message: `Termination at ${t.connector}.${t.pin} on CAN bus ${bus.key} is ${t.ohms}Ω; a high-speed CAN terminator is nominally ${CAN_TERMINATION_OHMS}Ω (${CAN_TERMINATION_BAND_OHMS.min}-${CAN_TERMINATION_BAND_OHMS.max}Ω here).`,
+          message: `Termination at ${t.connector}.${t.pin} on CAN bus ${bus.key} is ${t.ohms}Ω. Set it between ${CAN_TERMINATION_BAND_OHMS.min}Ω and ${CAN_TERMINATION_BAND_OHMS.max}Ω, nominally ${CAN_TERMINATION_OHMS}Ω.`,
           target: refs.pin(t.connector, t.pin),
           data: {
             bus: bus.key,
@@ -357,7 +357,7 @@ export const canTerminationNotAtBusEnd: Rule = rule(
         if (degree <= 1) continue
         ctx.report({
           severity: Err,
-          message: `Termination at ${t.connector}.${t.pin} on CAN bus ${bus.key} sits on a node with ${degree} bus wires, so it is not an end of the trunk; the two terminations belong at the two ends, where exactly one bus wire lands.`,
+          message: `Termination at ${t.connector}.${t.pin} on CAN bus ${bus.key} sits on a node with ${degree} bus wires. Move it to an end of the trunk, where exactly one bus wire lands.`,
           target: refs.pin(t.connector, t.pin),
           targets: (bus.adjacency.get(t.node) ?? []).map((e) => refs.wire(e.wireId)),
           data: { bus: bus.key, busWiresOnNode: degree, expected: 1 }
@@ -420,8 +420,8 @@ export const canBusNotLinear: Rule = rule(
           severity: Warn,
           message:
             degree >= 4
-              ? `CAN bus ${bus.key} stars at ${label}: ${degree} bus wires meet there. A trunk passes through two of them, so the rest are drops from a single point. This is legitimate as a splice pack only while every drop stays inside the HK-ELEC-021 stub budget.`
-              : `CAN bus ${bus.key} branches at ${label}: ${degree} bus wires meet there. A trunk is linear, so the third leg is a stub and must stay inside the HK-ELEC-021 budget.`,
+              ? `CAN bus ${bus.key} stars at ${label}, where ${degree} bus wires meet. A trunk passes through two of them, so keep every other drop inside the HK-ELEC-021 stub budget.`
+              : `CAN bus ${bus.key} branches at ${label}, where ${degree} bus wires meet. A trunk is linear, so keep the third leg inside the HK-ELEC-021 stub budget.`,
           target: nodeRef(endpoint),
           targets: (bus.adjacency.get(node) ?? []).map((e) => refs.wire(e.wireId)),
           data: { bus: bus.key, busWiresOnNode: degree }
@@ -446,7 +446,7 @@ export const canBusNotLinear: Rule = rule(
         }
         ctx.report({
           severity: Err,
-          message: `CAN bus ${bus.key} closes a ring at wire ${e.wireId} (${nodeLabel(bus.nodes.get(e.a)!)} to ${nodeLabel(bus.nodes.get(e.b)!)}); a ring has no ends to terminate and reflects at every junction.`,
+          message: `CAN bus ${bus.key} closes a ring at wire ${e.wireId} (${nodeLabel(bus.nodes.get(e.a)!)} to ${nodeLabel(bus.nodes.get(e.b)!)}). A ring has no ends to terminate, so remove one bus wire.`,
           target: refs.wire(e.wireId),
           targets: [nodeRef(bus.nodes.get(e.a)!), nodeRef(bus.nodes.get(e.b)!)],
           data: { bus: bus.key, closingWire: e.wireId }
@@ -586,7 +586,7 @@ const longestRunM = (bus: CanBus, units: Hir["harness"]["units"]): number | unde
  *
  * BIT RATE UNSPECIFIED: this rule does NOT silently assume the strictest
  * case. A bus with stubs but no declared `bitRateKbps` gets one `info`
- * saying the budget could not be evaluated; buses with no stubs say nothing.
+ * saying the stub check does not run; buses with no stubs say nothing.
  * Declaring a rate on any pin of the bus turns the check on. When several
  * rates are declared on one bus the highest wins, because it is the
  * strictest, and all declared rates go into the finding's data.
@@ -634,7 +634,7 @@ export const canStubTooLong: Rule = rule(
       if (budget === undefined) {
         ctx.report({
           severity: Info,
-          message: `CAN bus ${bus.key} has ${stubs.length} stub${stubs.length === 1 ? "" : "s"} but declares no bit rate, so the stub-length budget could not be evaluated; set bitRateKbps on a pin of this bus.`,
+          message: `CAN bus ${bus.key} declares no bit rate, so the stub check does not run on its ${stubs.length} stub${stubs.length === 1 ? "" : "s"}. Set bitRateKbps on a pin of this bus.`,
           target: refs.wire(bus.edges[0]!.wireId),
           data: { bus: bus.key, stubs: stubs.length }
         })
@@ -658,7 +658,7 @@ export const canStubTooLong: Rule = rule(
         if (lengthM <= stubM) continue
         ctx.report({
           severity: Err,
-          message: `Stub to ${nodeLabel(leaf)} on CAN bus ${bus.key} is ${round(lengthM)}m; at ${kbps}kbit/s a drop off the trunk must stay under ${stubM}m or it rings as an unterminated line.`,
+          message: `Stub to ${nodeLabel(leaf)} on CAN bus ${bus.key} is ${round(lengthM)}m. At ${kbps}kbit/s a drop off the trunk must stay under ${stubM}m.`,
           target: nodeRef(leaf),
           targets: stub.wires.map(refs.wire),
           data: {

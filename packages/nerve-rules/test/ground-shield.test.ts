@@ -84,7 +84,7 @@ describe("HK-ELEC-022 groundLoop", () => {
         code: "HK-ELEC-022",
         severity: "warning",
         message:
-          "Ground net GND forms a loop: wires W1, W2, W4 provide more than one return path between J1.2 and J2.2.",
+          "Ground net GND forms a loop between J1.2 and J2.2. Wires W1, W2, W4 provide more than one return path.",
         target: "wire:W4",
         targets: [
           "connector:J1.pin:2",
@@ -192,7 +192,7 @@ describe("HK-ELEC-023 shieldTerminationScheme", () => {
         code: "HK-ELEC-023",
         severity: "info",
         message:
-          "Shield group CBL1 (wires W10) is terminated at 2 points (splice:S2, splice:S3); terminating both ends closes a ground loop through the shield. Single-end termination is the usual scheme; keep this only if it is a deliberate high-frequency choice.",
+          "Shield group CBL1 (wires W10) has 2 ground terminations (splice:S2, splice:S3). A shield tied at both ends closes a ground loop, so ground it at one end.",
         target: "wire:W10",
         targets: ["splice:S2", "splice:S3"],
         data: { shieldGroup: "CBL1", terminations: 2, wires: "W10" }
@@ -207,7 +207,7 @@ describe("HK-ELEC-023 shieldTerminationScheme", () => {
         code: "HK-ELEC-023",
         severity: "warning",
         message:
-          "Shield group CBL1 (wires W10) is terminated at neither end; a floating shield attenuates nothing. Ground it at one end.",
+          "Shield group CBL1 (wires W10) has no ground termination and attenuates nothing. Ground it at one end.",
         target: "wire:W10",
         data: { shieldGroup: "CBL1", terminations: 0, wires: "W10" }
       }

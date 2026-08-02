@@ -302,7 +302,7 @@ describe("HK-ELEC-021 stub length", () => {
     const found = codesFor(teeBus(5000, undefined), "HK-ELEC-021")
     expect(found).toHaveLength(1)
     expect(found[0]?.severity).toBe("info")
-    expect(found[0]?.message).toContain("could not be evaluated")
+    expect(found[0]?.message).toContain("the stub check does not run")
     expect(found[0]?.data).toMatchObject({ bus: "CAN", stubs: 1 })
   })
 

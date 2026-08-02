@@ -91,8 +91,8 @@ describe("HK-ELEC-010 walks past the declared protects list", () => {
         code: "HK-ELEC-010",
         severity: "error",
         message:
-          `fuse F1 is rated 5A but its thinnest protected wire W1 carries only ${AMP_22}A; ` +
-          `the wire would fail before the device trips.`,
+          `fuse F1 is rated 5A but its thinnest protected wire W1 carries only ${AMP_22}A. ` +
+          `The wire fails before the device trips.`,
         target: "protection:F1",
         targets: ["wire:W1"],
         data: { ratingA: 5, conductorAmpacityA: AMP_22, governingWire: "W1" }
@@ -130,8 +130,8 @@ describe("HK-ELEC-010 walks past the declared protects list", () => {
     // The message has to say the conductor was reached, not declared: they are
     // different claims and a reviewer audits them differently.
     expect(diags[0]?.message).toBe(
-      `fuse F1 is rated 30A but wire W3, reached by walking splices downstream of its ` +
-        `protected run, carries only ${AMP_20}A; the wire would fail before the device trips.`
+      `fuse F1 is rated 30A but wire W3 downstream of its protected run carries only ` +
+        `${AMP_20}A. The wire fails before the device trips.`
     )
     // The declared 10AWG feed alone would have passed a 30A fuse.
     expect(AMP_10).toBeGreaterThan(30)
@@ -258,8 +258,8 @@ describe("HK-WIRE-004 derates ampacity by bundle conductor count", () => {
     // The message names the derating, because "20AWG cannot carry 3A" is false
     // in isolation and only true of this conductor in this bundle.
     expect(first?.message).toBe(
-      "Wire W01 uses 20AWG but its 3A estimate requires at least 16AWG when derated " +
-        "0.5× for the 30 conductors bundled on branch main."
+      "Wire W01 uses 20AWG but its 3A estimate requires at least 16AWG. " +
+        "Branch main bundles 30 conductors, so the limit derates 0.5×."
     )
   })
 
