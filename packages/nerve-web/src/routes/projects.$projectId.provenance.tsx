@@ -38,7 +38,12 @@ const columns: ColumnDef<AuditedPart, string | number>[] = [
     header: "Limits it supplies",
     accessorFn: (p) => p.decisiveFields.join(", ")
   },
-  { header: "Used by", accessorFn: (p) => p.usedBy.join(", ") }
+  // A count, not the list. Naming all six connectors that use a part crowds
+  // out the column that matters, and the full list is in the audit JSON.
+  {
+    header: "Uses",
+    accessorFn: (p) => p.usedBy.length
+  }
 ]
 
 function ProvenanceView() {

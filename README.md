@@ -21,6 +21,12 @@ The demo runs against the bundled `examples/robot-platform`. It calls the real
 CLI, so the recording fails when the output no longer matches. The tape is
 [`docs/assets/nerve.tape`](./docs/assets/nerve.tape).
 
+The same harness in the browser workspace. The Margins tab reports how close
+each passing check came to its limit. The Provenance tab reports what the
+verdict rests on.
+
+![The Nerve workspace on the Margins tab: 53 measurements, none over budget, the spine sleeve at 95.2% fill](./docs/assets/nerve-web-demo.gif)
+
 The TypeScript API is one input format, not an adoption requirement. Nerve
 imports WireViz, mapped CSV wire lists, and mapped Excel wire lists. It also
 imports connector contracts from KiCad boards, pinout CSV, tscircuit, and its

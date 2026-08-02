@@ -33,8 +33,12 @@ const columns: ColumnDef<Margin, string | number>[] = [
   },
   { header: "Quantity", accessorKey: "quantity" },
   { header: "Object", accessorKey: "target" },
-  { header: "Measured", accessorFn: (m) => `${round3(m.measured)}${m.unit}` },
-  { header: "Limit", accessorFn: (m) => `${round3(m.limit)}${m.unit}` },
+  // One column, not two. The right pane is narrow and a limit means nothing
+  // without the measurement beside it, so they are never read apart.
+  {
+    header: "Measured / limit",
+    accessorFn: (m) => `${round3(m.measured)} / ${round3(m.limit)}${m.unit}`
+  },
   { header: "Rule", accessorKey: "code" }
 ]
 
