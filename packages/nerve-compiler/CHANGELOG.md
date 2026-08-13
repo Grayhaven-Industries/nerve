@@ -1,5 +1,12 @@
 # @grayhaven/nerve-compiler
 
+## 7.1.0
+
+### Patch Changes
+
+- @grayhaven/nerve@7.1.0
+- @grayhaven/nerve-rules@7.1.0
+
 ## 7.0.0
 
 ### Major Changes

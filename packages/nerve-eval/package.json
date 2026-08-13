@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-eval",
-  "version": "7.0.0",
+  "version": "7.1.0",
   "type": "module",
   "sideEffects": false,
   "description": "Provenance-aware evaluation and review-report primitives for Grayhaven Nerve.",

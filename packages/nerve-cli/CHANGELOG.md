@@ -1,5 +1,18 @@
 # @grayhaven/nerve-cli
 
+## 7.1.0
+
+### Patch Changes
+
+- @grayhaven/nerve@7.1.0
+- @grayhaven/nerve-compiler@7.1.0
+- @grayhaven/nerve-connectors@7.1.0
+- @grayhaven/nerve-eval@7.1.0
+- @grayhaven/nerve-exporters@7.1.0
+- @grayhaven/nerve-importers@7.1.0
+- @grayhaven/nerve-rules@7.1.0
+- @grayhaven/nerve-wireviz@7.1.0
+
 ## 7.0.0
 
 ### Major Changes
