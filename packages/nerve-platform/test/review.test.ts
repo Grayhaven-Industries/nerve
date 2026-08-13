@@ -288,6 +288,27 @@ describe("evaluateReadyForApproval (§10.2)", () => {
     ])
   })
 
+  /**
+   * One rule commonly fires on several objects at once — running the repo's own
+   * example harness produced three `HK-CONN-010` findings on different pins. If
+   * the blocker does not name the target, a reviewer reads the same sentence
+   * three times with nothing to tell the pins apart (§7.2).
+   */
+  it("names the affected object so repeated findings of one rule stay distinguishable", () => {
+    const result = evaluateReadyForApproval(
+      passingInput({
+        findings: [
+          finding({ id: "f-a", target: "connector:J1.pin:5" }),
+          finding({ id: "f-b", target: "connector:J1.pin:6" })
+        ]
+      })
+    )
+    expect(result.blockers.map((b) => b.message)).toEqual([
+      "Error finding HK-WIRE-001 on connector:J1.pin:5 has no disposition.",
+      "Error finding HK-WIRE-001 on connector:J1.pin:6 has no disposition."
+    ])
+  })
+
   it("clears an error finding with a complete, in-scope disposition", () => {
     const result = evaluateReadyForApproval(
       passingInput({ findings: [finding()], dispositions: [disposition()] })

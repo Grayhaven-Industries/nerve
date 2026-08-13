@@ -421,7 +421,15 @@ export const evaluateReadyForApproval = (input: GateInput): GateResult => {
       if (applied === undefined) {
         blockers.push({
           code: GateCodes.ErrorFindingUndispositioned,
-          message: `Error finding ${finding.code} has no disposition.`,
+          // The target is named because one rule usually fires on several
+          // objects at once, and §7.2 asks every finding to point at the
+          // connector, pin, or wire it concerns. Without it a reviewer reads
+          // the same sentence three times and cannot tell which pin is which;
+          // `subject` carries the finding id for the UI, but the message is
+          // what a human sees in a pull-request check.
+          message: `Error finding ${finding.code}${
+            finding.target === undefined ? "" : ` on ${finding.target}`
+          } has no disposition.`,
           subject: finding.id
         })
         continue
