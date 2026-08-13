@@ -29,7 +29,7 @@ import type {
 import { normalizeWireListColumnMap } from "@grayhaven/nerve-importers"
 import { PLATFORM_SCHEMA_VERSION, SourceSet } from "./objects.js"
 import type { SourceFile, SourceKind } from "./objects.js"
-import { fingerprint, fingerprintBytes } from "./fingerprint.js"
+import { canonicalize, fingerprint, fingerprintBytes } from "./fingerprint.js"
 import type { Canonical, Fingerprint } from "./fingerprint.js"
 
 // ---------------------------------------------------------------------------
@@ -284,12 +284,23 @@ export const resolveContentStorage = (
 // ---------------------------------------------------------------------------
 
 /**
- * Order files by filename, then content hash.
+ * Order files by filename, then content hash, then the rest of their hashed
+ * identity.
  *
  * Upload order is an accident of how the browser queued the files; it must not
- * fork the identity of the submission. Comparison is by code unit rather than
- * `localeCompare` because the collation available at runtime is not part of
- * the contract, and the fingerprint has to be reproducible on any host.
+ * fork the identity of the submission (ING-006, §9.1 step 5). Filename and
+ * content hash alone are not enough to keep that promise: two files can share
+ * both and still differ in a field the fingerprint covers — the same bytes
+ * re-read under a new `mappingVersion` or `importAdapterVersion`, for instance
+ * — and a comparator that called those equal would leave them in upload order,
+ * so the same submission uploaded the other way round would hash differently.
+ * The tie is therefore broken on the canonical encoding of `fileIdentity`,
+ * which is by construction exactly what `sourceSetFingerprint` hashes and so
+ * cannot drift away from it as fields are added.
+ *
+ * Comparison is by code unit rather than `localeCompare` because the collation
+ * available at runtime is not part of the contract, and the fingerprint has to
+ * be reproducible on any host.
  */
 export const sortSourceFiles = (
   files: ReadonlyArray<SourceFile>
@@ -297,6 +308,9 @@ export const sortSourceFiles = (
   [...files].sort((a, b) => {
     if (a.filename !== b.filename) return a.filename < b.filename ? -1 : 1
     if (a.contentHash !== b.contentHash) return a.contentHash < b.contentHash ? -1 : 1
+    const identityA = canonicalize(fileIdentity(a))
+    const identityB = canonicalize(fileIdentity(b))
+    if (identityA !== identityB) return identityA < identityB ? -1 : 1
     return 0
   })
 

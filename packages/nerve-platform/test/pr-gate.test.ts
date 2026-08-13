@@ -102,14 +102,25 @@ describe("pull-request gate (§9.5)", () => {
   })
 
   it("names blocking findings it cannot anchor instead of dropping them", () => {
+    // The set is mixed on purpose. §9.5 step 4 promises an annotation only for
+    // blocking findings, so only their absence is reported. An unanchored
+    // warning listed here would be counted by the summary line "N blocking
+    // finding(s) have no source line", overstating the blocking count in the
+    // one place a PR reviewer reads the verdict.
     const plan = checkRunForReview({
       ...base,
       gate: blocked,
-      findings: [finding("f-nowhere", undefined, "error")]
+      findings: [
+        finding("f-nowhere", undefined, "error"),
+        finding("w-nowhere", undefined, "warning")
+      ]
     })
     expect(plan.checkRun.output.annotations).toEqual([])
     expect(plan.unanchoredFindingIds).toEqual(["f-nowhere"])
     expect(plan.checkRun.output.summary).toContain("f-nowhere")
+    // `toContain` is the substring matcher for strings, and `.not` negates it
+    // (vitest 4.1.10, docs/api/expect.md, confirmed via Context7).
+    expect(plan.checkRun.output.summary).not.toContain("w-nowhere")
   })
 
   it("batches past the API ceiling without losing an annotation", () => {

@@ -166,16 +166,94 @@ describe("policyFingerprint (§10.2)", () => {
     expect(policyFingerprint(reordered)).toBe(policyFingerprint(basePolicy))
   })
 
-  it("moves when a severity override changes, so §10.2 can invalidate approvals", () => {
-    const relaxed: Omit<Policy, "fingerprint"> = {
-      ...basePolicy,
-      severityOverrides: { ...basePolicy.severityOverrides, "HK-WIRE-001": "warning" }
+  /**
+   * Every field the fingerprint hashes, each relaxed the way an administrator
+   * would relax it.
+   *
+   * §10.2 invalidates an approval by comparing the pinned policy fingerprint
+   * with the current one, so a field that changes a verdict but leaves the
+   * digest unmoved silently keeps approvals given under the stricter policy
+   * (`invalidateApprovals`, PL-APPR-012). Pinning one field is not enough:
+   * the digest has to move for all of them, so the table is exhaustive over
+   * what `policyFingerprint` reads.
+   *
+   * `sourceStalenessToleranceDays` is the case that made this table
+   * exhaustive: it changed the gate's verdict (§10.2, last bullet) while the
+   * digest stood still, so an administrator could widen the tolerance after
+   * approval and release a candidate the strict rule had blocked.
+   *
+   * The table is driven by a plain loop around `it`, as the role table above
+   * is, rather than by `it.each` (vitest 4.1.10, the version the suite runs on).
+   */
+  const relaxations: ReadonlyArray<{
+    readonly field: string
+    readonly relax: (policy: Policy) => Policy
+  }> = [
+    { field: "id", relax: (p) => ({ ...p, id: "pol2" }) },
+    { field: "organizationId", relax: (p) => ({ ...p, organizationId: "org2" }) },
+    { field: "requiredRulePacks", relax: (p) => ({ ...p, requiredRulePacks: ["core"] }) },
+    {
+      field: "requiredInterfaceContracts",
+      relax: (p) => ({ ...p, requiredInterfaceContracts: [] })
+    },
+    {
+      field: "severityOverrides",
+      relax: (p) => ({
+        ...p,
+        severityOverrides: { ...p.severityOverrides, "HK-WIRE-001": "warning" }
+      })
+    },
+    {
+      field: "requireWarningAcknowledgement",
+      relax: (p) => ({ ...p, requireWarningAcknowledgement: !p.requireWarningAcknowledgement })
+    },
+    {
+      field: "waiverRequirements",
+      relax: (p) => ({
+        ...p,
+        waiverRequirements: { ...p.waiverRequirements, requireExpiry: !p.waiverRequirements.requireExpiry }
+      })
+    },
+    {
+      field: "requiredApproverIds",
+      relax: (p) => ({ ...p, requiredApproverIds: [...p.requiredApproverIds, "u10"] })
+    },
+    {
+      field: "allowSingleApprover",
+      relax: (p) => ({ ...p, allowSingleApprover: !p.allowSingleApprover })
+    },
+    { field: "allowEvidenceReuse", relax: (p) => ({ ...p, allowEvidenceReuse: !p.allowEvidenceReuse }) },
+    { field: "retentionDays", relax: (p) => ({ ...p, retentionDays: 30 }) },
+    {
+      field: "sourceStalenessToleranceDays",
+      relax: (p) => ({ ...p, sourceStalenessToleranceDays: 3650 })
     }
-    expect(policyFingerprint(relaxed)).not.toBe(policyFingerprint(basePolicy))
-  })
+  ]
+
+  for (const { field, relax } of relaxations) {
+    it(`moves when ${field} changes, so §10.2 can invalidate approvals`, () => {
+      expect(policyFingerprint(relax(basePolicy))).not.toBe(policyFingerprint(basePolicy))
+    })
+  }
 
   it("ignores the stored fingerprint field", () => {
     const restamped: Policy = { ...basePolicy, fingerprint: "sha256:something-else" }
     expect(policyFingerprint(restamped)).toBe(policyFingerprint(basePolicy))
+  })
+
+  it("is stable when the set-valued lists are reordered", () => {
+    const shuffled: Omit<Policy, "fingerprint"> = {
+      ...basePolicy,
+      requiredRulePacks: ["shop", "core"],
+      requiredInterfaceContracts: ["ic2", "ic1"],
+      requiredApproverIds: ["u10", "u9"]
+    }
+    const sorted: Omit<Policy, "fingerprint"> = {
+      ...basePolicy,
+      requiredRulePacks: ["core", "shop"],
+      requiredInterfaceContracts: ["ic1", "ic2"],
+      requiredApproverIds: ["u9", "u10"]
+    }
+    expect(policyFingerprint(shuffled)).toBe(policyFingerprint(sorted))
   })
 })

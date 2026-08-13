@@ -280,6 +280,33 @@ describe("buildEvidenceBundle (§10.2, §10.3)", () => {
     expect(bundle.exceptions[0]).toContain("prj_pilot")
   })
 
+  /**
+   * §10.3 asks for the exception to be *visible* in the bundle, which only
+   * holds if deleting the sentence changes what the bundle is. Two bundles
+   * over the same candidate and the same entries — one signed under the
+   * exception, one signed by a second person — must therefore not share a
+   * fingerprint, and the recomputation must agree with the stored value in
+   * the non-empty case as well as the empty one.
+   */
+  it("counts a recorded exception as part of the bundle identity", () => {
+    const withException = buildEvidenceBundle({
+      candidate,
+      project: pilotProject,
+      approvals: [exceptionApproval],
+      entries
+    })
+    const withoutException = buildEvidenceBundle({
+      candidate,
+      project: pilotProject,
+      approvals: [approval],
+      entries
+    })
+    expect(withoutException.exceptions).toEqual([])
+    expect(withException.entries).toEqual(withoutException.entries)
+    expect(withException.fingerprint).not.toBe(withoutException.fingerprint)
+    expect(evidenceBundleFingerprint(withException)).toBe(withException.fingerprint)
+  })
+
   it("records no exception when two people signed", () => {
     const bundle = buildEvidenceBundle({
       candidate,
@@ -375,6 +402,31 @@ describe("validateRelease (§10.2)", () => {
         })
       )
     ).toEqual([ReleaseCodes.ExceptionNotRecorded])
+  })
+
+  /**
+   * Striking the exception sentence out of a bundle that already shipped is
+   * the failure §10.3 is written against: the auditor would read a release
+   * that looks doubly signed. It has to be caught twice — the bundle no
+   * longer hashes to its stored fingerprint (§10.2), and the used exception
+   * is no longer stated (§10.3).
+   */
+  it("refuses when the recorded exception was struck from the bundle", () => {
+    const bundle = bundleFor([exceptionApproval], pilotProject)
+    expect(
+      codesOf(
+        validateRelease({
+          candidate,
+          policy: { ...basePolicy, allowSingleApprover: true },
+          approvals: [exceptionApproval],
+          bundle: { ...bundle, exceptions: [] },
+          gatePassed: true
+        })
+      )
+    ).toEqual([
+      ReleaseCodes.BundleFingerprintMismatch,
+      ReleaseCodes.ExceptionNotRecorded
+    ])
   })
 
   it("refuses when an approval records no identity or timestamp", () => {

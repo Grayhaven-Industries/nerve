@@ -295,6 +295,66 @@ describe("dispositionApplies (§9.3 step 5)", () => {
     ).toBe(false)
   })
 
+  /**
+   * A timestamp with no offset names a different instant on every host, so
+   * `Date.parse` would let the gate's verdict follow the server's timezone.
+   * §9.3 step 5 must read the record, not the machine, so a zone-less deadline
+   * is unreadable and the waiver expires with it.
+   */
+  it("does not apply when its expiration date states no offset", () => {
+    expect(
+      dispositionApplies(
+        { ...completeWaiver, expiresAt: "2026-06-01T00:00:00" },
+        finding,
+        "sha256:source-a",
+        "2026-06-01T03:00:00Z"
+      )
+    ).toBe(false)
+  })
+
+  it("does not apply when the clock it is judged against states no offset", () => {
+    expect(
+      dispositionApplies(
+        completeWaiver,
+        finding,
+        "sha256:source-a",
+        "2026-09-01T00:00:00"
+      )
+    ).toBe(false)
+  })
+
+  it("reads an offset other than Z", () => {
+    // 2026-09-13T09:59:00-01:00 is 10:59Z, one minute after the deadline.
+    expect(
+      dispositionApplies(
+        completeWaiver,
+        finding,
+        "sha256:source-a",
+        "2026-09-13T09:59:00-01:00"
+      )
+    ).toBe(false)
+    // 2026-09-13T09:59:00+01:00 is 08:59Z, still inside the waiver.
+    expect(
+      dispositionApplies(
+        completeWaiver,
+        finding,
+        "sha256:source-a",
+        "2026-09-13T09:59:00+01:00"
+      )
+    ).toBe(true)
+  })
+
+  it("does not apply when its expiration date names no real month", () => {
+    expect(
+      dispositionApplies(
+        { ...completeWaiver, expiresAt: "2026-13-01T00:00:00Z" },
+        finding,
+        "sha256:source-a",
+        "2026-01-01T00:00:00Z"
+      )
+    ).toBe(false)
+  })
+
   it("applies forever when the waiver states no expiration date", () => {
     const { expiresAt: _expiresAt, ...withoutExpiry } = completeWaiver
     expect(

@@ -85,6 +85,19 @@ describe("source-set identity (ING-006, §9.1 step 5)", () => {
     )
   })
 
+  it("is unchanged when files sharing a name and bytes are uploaded in a different order", () => {
+    // Same file re-read under a second saved mapping: filename and contentHash
+    // tie, so only a comparator covering the rest of the hashed identity keeps
+    // upload order out of the fingerprint.
+    const remapped: UploadedFile = { ...csvUpload, mappingVersion: "map-2026-02" }
+    const forward = assembleSourceSet(assembly([csvUpload, remapped]))
+    const reversed = assembleSourceSet(assembly([remapped, csvUpload]))
+    expect(reversed.sourceSet.fingerprint).toBe(forward.sourceSet.fingerprint)
+    expect(reversed.sourceSet.files.map((file) => file.mappingVersion)).toEqual(
+      forward.sourceSet.files.map((file) => file.mappingVersion)
+    )
+  })
+
   it("is unchanged when interface contracts are listed in a different order", () => {
     const a = assembleSourceSet(assembly([csvUpload]))
     const b = assembleSourceSet(
@@ -108,6 +121,64 @@ describe("source-set identity (ING-006, §9.1 step 5)", () => {
       assembly([{ ...csvUpload, bytes: bytes(csvText + "\nJ3,1,J4,1,extra") }])
     )
     expect(edited.sourceSet.fingerprint).not.toBe(original.sourceSet.fingerprint)
+  })
+
+  /**
+   * The other four inputs `sourceSetFingerprint` claims to cover (ING-006,
+   * §9.1 step 5), one case each.
+   *
+   * §10.2 invalidates an approval when the reviewed content moves, and the
+   * bytes are only one of the five things that can move: a compiler or
+   * rule-pack bump, a re-parented harness, a changed interface claim, or a
+   * re-mapped column all change what was reviewed without touching a byte. If
+   * any of them fell out of the hash, the platform would hand a changed
+   * submission the old identity and keep stale approvals alive — so each one
+   * has to be able to fork the fingerprint on its own, not merely alongside
+   * the bytes.
+   *
+   * The `harnessId` case carries a second load. `dispositionApplies`
+   * (src/dispositions.ts, §9.3 step 5) deliberately does not compare
+   * `scope.harnessId`, on the grounds that fingerprint equality already binds
+   * a waiver to one harness's submission. That reasoning holds only while
+   * `harnessId` is inside this hash, which is what this case pins.
+   *
+   * Table-driven with `it.each` and `$input` name interpolation, confirmed
+   * against **vitest 4.1.10** (the version the workspace runs; this package
+   * declares `^3.2.4`, where `it.each` has the same signature).
+   */
+  const movedIdentityInputs: ReadonlyArray<{
+    readonly input: string
+    readonly moved: SourceSetAssemblyInput
+  }> = [
+    {
+      input: "a dependency version",
+      moved: assembly([csvUpload], {
+        dependencyVersions: { compiler: "7.0.1", "rules-automotive": "2.1.0" }
+      })
+    },
+    {
+      input: "the harness the submission belongs to",
+      moved: assembly([csvUpload], { harnessId: "harness-2" })
+    },
+    {
+      input: "the claimed interface contracts",
+      moved: assembly([csvUpload], { interfaceContracts: ["contract:ecu-a"] })
+    },
+    {
+      input: "a file's saved column map version",
+      moved: assembly([{ ...csvUpload, mappingVersion: "map-2026-02" }])
+    },
+    {
+      input: "a file's import adapter version",
+      moved: assembly([{ ...csvUpload, importAdapterVersion: "wire-list@7.0.1" }])
+    }
+  ]
+
+  it.each(movedIdentityInputs)("moves the fingerprint when $input moves", ({ moved }) => {
+    const original = assembleSourceSet(assembly([csvUpload]))
+    expect(assembleSourceSet(moved).sourceSet.fingerprint).not.toBe(
+      original.sourceSet.fingerprint
+    )
   })
 
   it("records the ING-006 provenance fields on every file", () => {

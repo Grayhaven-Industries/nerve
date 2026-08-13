@@ -128,15 +128,40 @@ export const validateDisposition = (
 }
 
 /**
+ * An RFC 3339 date-time that states its own offset: `Z` or `±HH:MM`, with an
+ * optional fractional second. This is also exactly the subset of the
+ * ECMAScript Date Time String Format that every host parses the same way.
+ *
+ * `Timestamp` in `objects.ts` is a bare `Schema.String`, so the codec at the
+ * boundary lets a zone-less string such as `2026-06-01T00:00:00` through. Such
+ * a string is read as *host-local* time by `Date.parse`, and a string that is
+ * not ISO at all is read in an implementation-defined way. Either one makes the
+ * gate's verdict depend on the server's timezone: the same evidence bundle
+ * would clear an Error finding with an expired waiver on a US-West host and
+ * block it in UTC. §9.3 step 5 is a property of the record, not of the machine
+ * replaying it, so the deadline is only read when it carries its own offset.
+ */
+const rfc3339WithOffset = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * The instant a timestamp names, or `NaN` when it names none unambiguously.
+ * `Date.parse` still rejects a value the format cannot hold (`2026-13-01`), so
+ * both failures arrive as `NaN` and are handled together.
+ */
+const instantOf = (timestamp: string): number =>
+  rfc3339WithOffset.test(timestamp) ? Date.parse(timestamp) : Number.NaN
+
+/**
  * Has the disposition run out at `now`?
  *
- * A timestamp neither side can parse counts as expired. The alternative is to
+ * A timestamp neither side can read counts as expired, and a zone-less or
+ * non-RFC-3339 timestamp is one neither side can read. The alternative is to
  * ignore an unreadable expiration date, which would turn a data problem into
  * a silently permanent waiver.
  */
 const hasExpired = (expiresAt: string, now: string): boolean => {
-  const deadline = Date.parse(expiresAt)
-  const instant = Date.parse(now)
+  const deadline = instantOf(expiresAt)
+  const instant = instantOf(now)
   if (Number.isNaN(deadline) || Number.isNaN(instant)) return true
   return instant > deadline
 }

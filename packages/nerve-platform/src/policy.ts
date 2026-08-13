@@ -34,13 +34,26 @@ export const effectiveSeverity = (
  * the shared canonical encoder, so two policies that differ only in key order
  * or in how they were assembled are recognized as the same policy and do not
  * spuriously invalidate approvals.
+ *
+ * Every field the gate reads has to appear here, `sourceStalenessToleranceDays`
+ * included: a field that changes a verdict but not the digest would let an
+ * administrator loosen a release rule while `invalidateApprovals` reports no
+ * policy change, and a candidate approved under the strict rule would release
+ * under the loose one. The `satisfies` clause below is what keeps that true —
+ * a field added to the Policy schema fails to compile until it is hashed.
+ *
+ * The three set-valued lists are sorted first because every consumer treats
+ * them as sets (membership tests, not sequences), so a reordered list is the
+ * same policy; hashing caller order would invalidate outstanding approvals for
+ * a UI drag or a changed database row order. `sourceSetFingerprint` sorts its
+ * interface contracts for the same reason.
  */
 export const policyFingerprint = (policy: Omit<Policy, "fingerprint">): Fingerprint =>
   fingerprint({
     id: policy.id,
     organizationId: policy.organizationId,
-    requiredRulePacks: policy.requiredRulePacks,
-    requiredInterfaceContracts: policy.requiredInterfaceContracts,
+    requiredRulePacks: [...policy.requiredRulePacks].sort(),
+    requiredInterfaceContracts: [...policy.requiredInterfaceContracts].sort(),
     severityOverrides: policy.severityOverrides,
     requireWarningAcknowledgement: policy.requireWarningAcknowledgement,
     waiverRequirements: {
@@ -49,8 +62,9 @@ export const policyFingerprint = (policy: Omit<Policy, "fingerprint">): Fingerpr
       requireExpiry: policy.waiverRequirements.requireExpiry,
       requireIssueLink: policy.waiverRequirements.requireIssueLink
     },
-    requiredApproverIds: policy.requiredApproverIds,
+    requiredApproverIds: [...policy.requiredApproverIds].sort(),
     allowSingleApprover: policy.allowSingleApprover,
     allowEvidenceReuse: policy.allowEvidenceReuse,
-    retentionDays: policy.retentionDays
-  })
+    retentionDays: policy.retentionDays,
+    sourceStalenessToleranceDays: policy.sourceStalenessToleranceDays
+  } satisfies Record<keyof Omit<Policy, "fingerprint">, unknown>)
