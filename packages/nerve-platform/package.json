@@ -1,0 +1,44 @@
+{
+  "name": "@grayhaven/nerve-platform",
+  "version": "7.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Grayhaven Nerve platform core: organizations, source sets, review runs, dispositions, approvals, releases, and evidence bundles.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@grayhaven/nerve": "workspace:*",
+    "@grayhaven/nerve-importers": "workspace:*",
+    "effect": "^3.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tylergibbs1/nerve.git",
+    "directory": "packages/nerve-platform"
+  },
+  "homepage": "https://github.com/tylergibbs1/nerve#readme"
+}
