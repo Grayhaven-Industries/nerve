@@ -26,7 +26,14 @@ const actions: ReadonlyArray<Action> = [
 const held: { readonly [R in Role]: ReadonlyArray<Action> } = {
   viewer: ["project:read"],
   reviewer: ["project:read", "review:disposition", "review:approve"],
-  engineer: ["project:read", "project:write", "review:create", "review:disposition", "release:publish"],
+  engineer: [
+    "project:read",
+    "project:write",
+    "review:create",
+    "review:disposition",
+    "review:approve",
+    "release:publish"
+  ],
   admin: actions
 }
 
@@ -79,8 +86,15 @@ describe("can — role action sets (ORG-002, ORG-004, §10.3)", () => {
     expect(can(reviewer, "member:invite", { organizationId: "org1" })).toBe(false)
   })
 
-  it("refuses approval to an engineer even though engineer outranks reviewer", () => {
-    expect(can(membership("engineer"), "review:approve", { organizationId: "org1" })).toBe(false)
+  /**
+   * §10.3 asks for "one different authorized user", not for a different role.
+   * A second engineer is an admissible approver — the separation that actually
+   * protects the release is preparer-versus-approver, and `proposeApproval`
+   * enforces it. Withholding the permission here would instead impose a
+   * staffing rule on the two-engineer teams §6.1 names as target customers.
+   */
+  it("lets an engineer approve, since §10.3 separates people and not roles", () => {
+    expect(can(membership("engineer"), "review:approve", { organizationId: "org1" })).toBe(true)
     expect(roleRank.engineer).toBeGreaterThan(roleRank.reviewer)
   })
 
@@ -109,6 +123,7 @@ const basePolicy: Policy = {
   allowSingleApprover: false,
   allowEvidenceReuse: true,
   retentionDays: 365,
+  sourceStalenessToleranceDays: 30,
   fingerprint: "sha256:unused"
 }
 
@@ -127,6 +142,7 @@ describe("policyFingerprint (§10.2)", () => {
   it("is stable under key reordering of the policy and its nested records", () => {
     const reordered = {
       retentionDays: basePolicy.retentionDays,
+      sourceStalenessToleranceDays: basePolicy.sourceStalenessToleranceDays,
       allowEvidenceReuse: basePolicy.allowEvidenceReuse,
       allowSingleApprover: basePolicy.allowSingleApprover,
       requiredApproverIds: basePolicy.requiredApproverIds,

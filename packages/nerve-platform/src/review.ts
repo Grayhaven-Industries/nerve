@@ -279,15 +279,13 @@ export interface GateInput {
   readonly coverageDisclosure?: CoverageDisclosure | undefined
   /** Bullet 8. */
   readonly regeneratedArtifacts: RegeneratedArtifacts
-  /** Bullet 9. */
-  readonly sources: ReadonlyArray<SourceFreshness>
   /**
-   * Bullet 9's tolerance, in days. It is an input rather than a `Policy`
-   * field because the MVP policy schema (ORG-004) carries no staleness
-   * setting; the caller supplies the organization's configured value so the
-   * gate does not invent one.
+   * Bullet 9. The tolerance these are judged against is
+   * `policy.sourceStalenessToleranceDays`, not a per-call argument: ORG-004
+   * makes it an administrator's setting, and the policy is what an approval
+   * is attested against.
    */
-  readonly sourceStalenessToleranceDays: number
+  readonly sources: ReadonlyArray<SourceFreshness>
 }
 
 /**
@@ -541,11 +539,11 @@ export const evaluateReadyForApproval = (input: GateInput): GateResult => {
   for (const source of input.sources) {
     if (!source.required) continue
     if (source.status === "verified") continue
-    if (source.staleForDays <= input.sourceStalenessToleranceDays) continue
+    if (source.staleForDays <= policy.sourceStalenessToleranceDays) continue
     blockers.push({
       code:
         source.status === "stale" ? GateCodes.SourceStale : GateCodes.SourceUnverified,
-      message: `Required source ${source.filename} is ${source.status} for ${source.staleForDays} days, beyond the tolerance of ${input.sourceStalenessToleranceDays} days.`,
+      message: `Required source ${source.filename} is ${source.status} for ${source.staleForDays} days, beyond the tolerance of ${policy.sourceStalenessToleranceDays} days.`,
       subject: source.filename
     })
   }

@@ -48,6 +48,7 @@ const policy: Policy = {
   allowSingleApprover: false,
   allowEvidenceReuse: false,
   retentionDays: 365,
+  sourceStalenessToleranceDays: 30,
   fingerprint: fingerprint({ policy: "pol-1" })
 }
 
@@ -111,7 +112,6 @@ const passingGate = (overrides: Partial<GateInput> = {}): GateInput => ({
     hashes: candidate.artifactHashes
   },
   sources: [{ filename: "wires.csv", required: true, status: "verified", staleForDays: 0 }],
-  sourceStalenessToleranceDays: 30,
   ...overrides
 })
 
@@ -157,16 +157,33 @@ describe("approval and release seam (§10.2, §10.3)", () => {
   }
   const reviewer: Membership = { userId: "reviewer-1", organizationId: "org-1", role: "reviewer" }
 
+  /**
+   * The engineer role now holds `review:approve` (§10.3 separates people, not
+   * roles), which makes this the case that matters: the preparer is an
+   * engineer, and being authorized to approve in general must not let them
+   * approve the candidate they themselves prepared.
+   */
   it("refuses the preparer as their own approver, then admits a different reviewer", () => {
     const selfApproval = proposeApproval({
       candidate,
       approverId: candidate.proposedBy,
-      membership: { userId: candidate.proposedBy, organizationId: "org-1", role: "reviewer" },
+      membership: { userId: candidate.proposedBy, organizationId: "org-1", role: "engineer" },
       project,
       policy,
       approvedAt: "2026-03-02T00:00:00Z"
     })
     expect(selfApproval.admissible).toBe(false)
+
+    // A *different* engineer is admissible — the point of the ruling.
+    const secondEngineer = proposeApproval({
+      candidate,
+      approverId: "engineer-2",
+      membership: { userId: "engineer-2", organizationId: "org-1", role: "engineer" },
+      project,
+      policy,
+      approvedAt: "2026-03-02T00:00:00Z"
+    })
+    expect(secondEngineer.admissible).toBe(true)
 
     const other = proposeApproval({
       candidate,

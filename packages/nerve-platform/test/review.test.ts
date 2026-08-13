@@ -47,6 +47,7 @@ const policy = (overrides: Partial<Policy> = {}): Policy => ({
   allowSingleApprover: false,
   allowEvidenceReuse: false,
   retentionDays: 365,
+  sourceStalenessToleranceDays: 7,
   fingerprint: "sha256:policy",
   ...overrides
 })
@@ -110,7 +111,6 @@ const passingInput = (overrides: Partial<GateInput> = {}): GateInput => ({
     hashes: { "drawing.pdf": "sha256:drawing" }
   },
   sources: [{ filename: "harness.csv", required: true, status: "verified", staleForDays: 0 }],
-  sourceStalenessToleranceDays: 7,
   ...overrides
 })
 

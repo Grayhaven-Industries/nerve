@@ -33,6 +33,7 @@ const policy: Policy = {
   allowSingleApprover: false,
   allowEvidenceReuse: false,
   retentionDays: 365,
+  sourceStalenessToleranceDays: 30,
   fingerprint: fingerprint({ policy: "pol-1" })
 }
 

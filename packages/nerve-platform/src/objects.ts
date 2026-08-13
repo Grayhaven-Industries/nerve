@@ -330,6 +330,16 @@ export const Policy = Schema.Struct({
   allowEvidenceReuse: Schema.Boolean,
   /** How long findings and bundles are retained, days (ORG-004). */
   retentionDays: Schema.Number,
+  /**
+   * How stale a required source may be before §10.2's last bullet blocks the
+   * candidate, in days.
+   *
+   * It belongs to the policy rather than to each gate call because ORG-004
+   * makes the release rules an administrator's setting: a tolerance supplied
+   * per invocation could differ between two runs of the same organization,
+   * and the fingerprinted policy is what an approval is attested against.
+   */
+  sourceStalenessToleranceDays: Schema.Number,
   fingerprint: FingerprintValue
 })
 export type Policy = Schema.Schema.Type<typeof Policy>

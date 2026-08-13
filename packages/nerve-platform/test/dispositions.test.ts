@@ -37,6 +37,7 @@ const policyWith = (waiverRequirements: WaiverRequirements): Policy => ({
   allowSingleApprover: false,
   allowEvidenceReuse: false,
   retentionDays: 365,
+  sourceStalenessToleranceDays: 30,
   fingerprint: "sha256:policy"
 })
 

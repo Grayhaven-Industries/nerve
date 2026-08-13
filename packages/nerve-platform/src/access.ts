@@ -64,11 +64,19 @@ const actionRoles: { readonly [A in Action]: ReadonlyArray<Role> } = {
   /** §9.3: resolving a finding is a review decision, open to both the engineer
    * who can fix it and the reviewer who judges the risk. */
   "review:disposition": ["reviewer", "engineer", "admin"],
-  /** §10.3: approval is a reviewer's act. Engineer is absent on purpose — the
-   * preparer must not be able to satisfy the reviewer requirement, and giving
-   * the whole engineer role the power would make that rule a convention
-   * rather than a boundary. */
-  "review:approve": ["reviewer", "admin"],
+  /**
+   * §10.3 requires "one different authorized user", and states the separation
+   * as preparer-versus-approver rather than as a division between roles. A
+   * second engineer is therefore an admissible approver.
+   *
+   * The separation is not weakened by this, because it is not enforced here.
+   * `proposeApproval` refuses any approver equal to the candidate's
+   * `proposedBy`, so an engineer still cannot approve their own candidate.
+   * Withholding the permission from the whole role would instead impose a
+   * staffing rule the requirement never asked for — fatal on a two-engineer
+   * team with no dedicated reviewer, which §6.1 lists as a target customer.
+   */
+  "review:approve": ["reviewer", "engineer", "admin"],
   "release:publish": ["engineer", "admin"]
 }
 
