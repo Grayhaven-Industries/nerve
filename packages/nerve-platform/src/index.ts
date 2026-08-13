@@ -124,6 +124,18 @@ export type {
   TransitionCode
 } from "./review.js"
 
+// Pull-request gate (§9.5).
+export { checkRunForReview, MAX_ANNOTATIONS_PER_REQUEST } from "./pr-gate.js"
+export type {
+  AnnotationLevel,
+  CheckAnnotation,
+  CheckConclusion,
+  CheckRun,
+  CheckRunInput,
+  CheckRunOutput,
+  CheckRunPlan
+} from "./pr-gate.js"
+
 // Dispositions and waivers (§9.3).
 export { dispositionApplies, DispositionCodes, validateDisposition } from "./dispositions.js"
 export type { DispositionProblem } from "./dispositions.js"
