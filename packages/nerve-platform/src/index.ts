@@ -124,6 +124,10 @@ export type {
   TransitionCode
 } from "./review.js"
 
+// Object store (§8, §9.4 step 6).
+export { memoryStore, StoreCodes, StoreError } from "./store.js"
+export type { ObjectKind, PlatformStore, PutOutcome, StoreCode } from "./store.js"
+
 // Pull-request gate (§9.5).
 export { checkRunForReview, MAX_ANNOTATIONS_PER_REQUEST } from "./pr-gate.js"
 export type {
