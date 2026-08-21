@@ -6,6 +6,7 @@ import {
   JPL_HARNESSES,
   JPL_SHOWCASE_SUMMARY,
   JPL_SOURCE,
+  PACKET_MANIFEST,
   type JplHarnessProof
 } from "../showcase/jpl-rover.js"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,47 @@ const endpoint = (value: HirEndpoint): string =>
 const diagnosticCount = (diagnostics: ReadonlyArray<Diagnostic>, severity: string): number =>
   diagnostics.filter((diagnostic) => diagnostic.severity === severity).length
 
+const sum = (pick: (proof: JplHarnessProof) => number): number =>
+  JPL_HARNESSES.reduce((total, proof) => total + pick(proof), 0)
+
+/* The corpus totals, derived rather than written down, so the page cannot
+   claim a number the imported data does not support. */
+const CORPUS = {
+  designs: JPL_SHOWCASE_SUMMARY.designs,
+  conductors: JPL_SHOWCASE_SUMMARY.conductors,
+  importErrors: sum((proof) => diagnosticCount(proof.importDiagnostics, "error")),
+  checks: JPL_SHOWCASE_SUMMARY.ruleCount,
+  findings: sum((proof) => proof.reviewDiagnostics.length),
+  blocked: JPL_HARNESSES.filter((proof) => !proof.releaseReady).length
+}
+
+/** Number over label, hairline above: the page opens with measurements. */
+function Fact({ value, label, flagged }: { value: string; label: string; flagged?: boolean }) {
+  return (
+    <div className={flagged === true ? "showcase-fact showcase-fact-flagged" : "showcase-fact"}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+/**
+ * Figure head: a number, a name, and one line saying where the content came
+ * from. The note sits to the right of the name so the head spans the page
+ * instead of leaving the right half empty.
+ */
+function FigureHead({ index, name, note }: { index: string; name: string; note: string }) {
+  return (
+    <div className="showcase-fig-head">
+      <h2>
+        <span>{index}</span>
+        {name}
+      </h2>
+      <p>{note}</p>
+    </div>
+  )
+}
+
 function Finding({ diagnostic }: { diagnostic: Diagnostic }) {
   return (
     <li className={`showcase-finding finding-${diagnostic.severity}`}>
@@ -49,14 +91,15 @@ function ProofStage({ proof }: { proof: JplHarnessProof }) {
   const importErrors = diagnosticCount(proof.importDiagnostics, "error")
   const importWarnings = diagnosticCount(proof.importDiagnostics, "warning")
   const reviewErrors = diagnosticCount(proof.reviewDiagnostics, "error")
+  const sourceLines = proof.source.split("\n").length
 
   return (
-    <section className="showcase-stage" aria-label="WireViz to Nerve comparison">
+    <section className="showcase-stage" aria-label="WireViz source and Nerve review">
       <div className="showcase-source">
         <div className="showcase-panel-head">
           <div>
-            <span className="showcase-kicker">WireViz source</span>
             <h2>{proof.title}</h2>
+            <span className="showcase-kicker">WireViz source, {sourceLines} lines</span>
           </div>
           <span className="showcase-file">{proof.slug.replaceAll("-", "_")}.yml</span>
         </div>
@@ -64,16 +107,18 @@ function ProofStage({ proof }: { proof: JplHarnessProof }) {
           <code>{proof.source}</code>
         </pre>
         <div className="showcase-source-foot">
-          <span>+ shared templates.yml</span>
-          <span>{proof.source.split("\n").length} source lines</span>
+          <span>Plus the shared templates.yml</span>
+          <span>{JPL_SOURCE.license}</span>
         </div>
       </div>
 
       <div className="showcase-evidence">
         <div className="showcase-panel-head">
           <div>
-            <span className="showcase-kicker">Nerve review</span>
-            <h2>What the review found</h2>
+            <h2>Nerve review</h2>
+            <span className="showcase-kicker">
+              {JPL_SHOWCASE_SUMMARY.ruleCount} checks run against the imported model
+            </span>
           </div>
           <span className={`showcase-gate ${proof.releaseReady ? "gate-clear" : "gate-blocked"}`}>
             {proof.releaseReady ? "No blockers" : "Release blocked"}
@@ -82,19 +127,16 @@ function ProofStage({ proof }: { proof: JplHarnessProof }) {
 
         <div className="showcase-ledger">
           <div>
-            <span>Import</span>
             <strong>{importErrors} errors</strong>
-            <small>{proof.hir.wires.length} wires imported</small>
+            <span>on import, {proof.hir.wires.length} wires read</span>
           </div>
           <div>
-            <span>Checks</span>
             <strong>{reviewErrors} findings</strong>
-            <small>{JPL_SHOWCASE_SUMMARY.ruleCount} checks run</small>
+            <span>from {JPL_SHOWCASE_SUMMARY.ruleCount} checks</span>
           </div>
           <div>
-            <span>Fingerprint</span>
             <strong>{proof.fingerprint.slice(0, 8)}</strong>
-            <small>stable ID for this exact design</small>
+            <span>fingerprint of this exact design</span>
           </div>
         </div>
 
@@ -164,7 +206,12 @@ function ConductorTable({ proof }: { proof: JplHarnessProof }) {
   )
 }
 
-function ArtifactRail({ proof }: { proof: JplHarnessProof }) {
+/**
+ * The packet, shown as its actual file list. A four-column rail of capability
+ * words ("Inspect · Build · Test · Communicate") said less than the manifest
+ * does, and the manifest cannot be written to flatter the product.
+ */
+function PacketFigure({ proof }: { proof: JplHarnessProof }) {
   const [exportState, setExportState] = useState<"idle" | "building" | "done" | "error">("idle")
 
   const downloadPacket = async () => {
@@ -186,47 +233,83 @@ function ArtifactRail({ proof }: { proof: JplHarnessProof }) {
   }
 
   return (
-    <section className="showcase-artifacts">
-      <div className="showcase-section-head">
-        <h2>One source file becomes a review page and a build packet.</h2>
-        <p>
-          Everything here is generated from the imported design, not prepared by hand. The packet
-          carries the findings with it, even when release is blocked.
-        </p>
-      </div>
-      <div className="showcase-artifact-rail">
-        <div>
-          <span>Inspect</span>
-          <strong>design data · findings · graph</strong>
-        </div>
-        <div>
-          <span>Build</span>
-          <strong>BOM · cut list · labels · instructions</strong>
-        </div>
-        <div>
-          <span>Test</span>
-          <strong>{proof.testPlan.tests.length} continuity + isolation steps</strong>
-        </div>
-        <div>
-          <span>Communicate</span>
-          <strong>SVG · HTML · PDF · machine-readable JSON</strong>
-        </div>
-      </div>
+    <section className="showcase-fig">
+      <FigureHead
+        index="03"
+        name="Packet"
+        note={`Every file the exporter writes for this harness, including ${proof.testPlan.tests.length} continuity and isolation steps.`}
+      />
+      <ul className="showcase-manifest">
+        {PACKET_MANIFEST.map((file) => (
+          <li key={file}>{file}</li>
+        ))}
+      </ul>
       <div className="showcase-export">
         <Button onClick={() => void downloadPacket()} disabled={exportState === "building"}>
           {exportState === "building"
             ? "Building packet…"
             : exportState === "done"
-              ? "Packet downloaded ✓"
-              : "Download the packet (22 files)"}
+              ? "Packet downloaded"
+              : `Download the packet (${JPL_SHOWCASE_SUMMARY.packetFiles} files)`}
         </Button>
         <span>
           {exportState === "error"
             ? "Packet generation failed. Try again."
-            : "Generated locally in your browser. Nothing is uploaded."}
+            : "Built in your browser from the imported design. Nothing is uploaded."}
         </span>
       </div>
     </section>
+  )
+}
+
+/**
+ * Closing notes as a spec sheet: term on the left, prose on the right. This
+ * was three separate marketing sections (a comparison, a bullet list of what
+ * Nerve adds, and a disclaimer). They are all the same kind of statement, so
+ * they read better as rows of one list, and the honest one is not buried last.
+ */
+function Notes() {
+  return (
+    <footer className="showcase-notes">
+      <dl>
+        <div>
+          <dt>Relationship to WireViz</dt>
+          <dd>
+            WireViz is the input here, not the competition. It gives engineers concise wiring docs
+            and diagrams, and it is what these six designs were written in. Nerve reads those files
+            and adds the step after: a typed model with a stable fingerprint,{" "}
+            {JPL_SHOWCASE_SUMMARY.ruleCount} repeatable checks that can block a release, and the
+            build and test artifacts a shop needs.
+          </dd>
+        </div>
+        <div>
+          <dt>What a finding means</dt>
+          <dd>
+            Findings are prompts for an engineer to review, not defects. <code>G</code> versus{" "}
+            <code>GND</code> may well be an intentional alias, and the point of the check is that
+            somebody confirms it and records the answer.
+          </dd>
+        </div>
+        <div>
+          <dt>Limits of this page</dt>
+          <dd>
+            Nerve imported the published files exactly as they are and checked what they state.
+            Nothing here is a claim that the physical rover harness is unsafe, a certification, or
+            an endorsement by NASA or JPL.
+          </dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>
+            <a href={sourceUrl} target="_blank" rel="noreferrer">
+              nasa-jpl/open-source-rover
+            </a>
+            , {JPL_SOURCE.path}, {JPL_SOURCE.license}, commit{" "}
+            <code>{JPL_SOURCE.commit.slice(0, 8)}</code>.
+          </dd>
+        </div>
+      </dl>
+    </footer>
   )
 }
 
@@ -236,25 +319,34 @@ function RoverShowcase() {
 
   return (
     <article className="showcase">
+      {/* One statement, then the sentence that qualifies it, in the same
+          display size. The old hero split a slogan across two lines and greyed
+          the second half, which reads as a landing page rather than a report. */}
       <header className="showcase-hero">
-        <span className="spec-tag">Real harnesses from the NASA JPL open-source rover</span>
         <h1>
-          WireViz describes it.
-          <br />
-          <span>Nerve makes it reviewable.</span>
+          Six harnesses from the NASA JPL Open Source Rover.{" "}
+          <span>
+            Imported from their published WireViz YAML, compiled to a typed model, and run through
+            Nerve&rsquo;s release checks. Nothing retyped, no cleaned-up demo data.
+          </span>
         </h1>
-        <p>
-          Six real harness designs from the NASA/JPL Open Source Rover, imported from their original
-          WireViz YAML. Nothing retyped. No cleaned-up demo data. Every finding remains visible.
-        </p>
-        <div className="showcase-provenance">
-          <a href={sourceUrl} target="_blank" rel="noreferrer">
-            View the original files ↗
-          </a>
-          <span>{JPL_SHOWCASE_SUMMARY.conductors} wires across six harnesses</span>
+        <div className="showcase-facts">
+          <Fact value={String(CORPUS.designs)} label="harnesses imported" />
+          <Fact value={String(CORPUS.conductors)} label="conductors" />
+          <Fact value={String(CORPUS.importErrors)} label="import errors" />
+          <Fact value={String(CORPUS.checks)} label="checks per harness" />
+          <Fact value={String(CORPUS.findings)} label="findings raised" />
+          <Fact
+            value={`${CORPUS.blocked} of ${CORPUS.designs}`}
+            label="release blocked"
+            flagged={CORPUS.blocked > 0}
+          />
         </div>
       </header>
 
+      {/* Picker, source, review, schematic, table, and packet are all the one
+          selected harness. They stay in a tight rhythm so they read as a
+          single inspection surface; the page break comes after them. */}
       <nav className="showcase-picker" aria-label="Choose a rover harness">
         {JPL_HARNESSES.map((candidate) => (
           <button
@@ -265,7 +357,7 @@ function RoverShowcase() {
           >
             <span>{candidate.name}</span>
             <small>
-              {candidate.hir.wires.length} wires · {candidate.reviewDiagnostics.length} findings
+              {candidate.hir.wires.length} wires, {candidate.reviewDiagnostics.length} findings
             </small>
           </button>
         ))}
@@ -273,11 +365,12 @@ function RoverShowcase() {
 
       <ProofStage proof={proof} />
 
-      <section className="showcase-drawing">
-        <div className="showcase-subhead">
-          <h2>The same facts, now traceable.</h2>
-          <p>Hover a wire to follow it. The SVG is generated straight from the imported design data.</p>
-        </div>
+      <section className="showcase-fig showcase-drawing">
+        <FigureHead
+          index="01"
+          name="Schematic"
+          note="Drawn from the imported design data. Hover a wire to follow it."
+        />
         <SchematicSheet
           svg={proof.schematic}
           filename={`${proof.hir.harness.id}-schematic.svg`}
@@ -286,49 +379,18 @@ function RoverShowcase() {
         />
       </section>
 
-      <section className="showcase-conductors">
-        <div className="showcase-subhead">
-          <h2>Pin by pin. Wire by wire.</h2>
-          <p>
-            The importer keeps endpoints, signals, gauges, colors, and lengths so everything can be
-            checked against the original YAML.
-          </p>
-        </div>
+      <section className="showcase-fig">
+        <FigureHead
+          index="02"
+          name="Conductors"
+          note="Endpoints, signals, gauges, colors, and lengths, as the importer read them."
+        />
         <ConductorTable proof={proof} />
       </section>
 
-      <ArtifactRail proof={proof} />
+      <PacketFigure proof={proof} />
 
-      <section className="showcase-difference">
-        <div className="showcase-section-head">
-          <h2>WireViz is the source. Nerve is the review step after it.</h2>
-          <p>
-            This is not a replacement pitch. WireViz gives engineers concise wiring docs and
-            diagrams, and it is the input here. Nerve reads those files and adds what a release
-            review needs.
-          </p>
-        </div>
-        {/* Stated as what Nerve adds, not as a column-by-column scoreboard
-            against WireViz — the source deserves better than being the losing
-            half of a comparison table. */}
-        <ul className="showcase-adds">
-          <li>A typed model of the design with a stable fingerprint</li>
-          <li>{JPL_SHOWCASE_SUMMARY.ruleCount} repeatable checks that can block a release</li>
-          <li>BOM, cut list, labels, test plan, PDF, and machine-readable files</li>
-          <li>A review record that says what was checked and what remains unknown</li>
-        </ul>
-      </section>
-
-      <footer className="showcase-caveat">
-        <strong>What this does and does not say.</strong>
-        <p>
-          Nerve imported the original open-source files exactly as published and checked what they
-          state. Findings are prompts for an engineer to review, not a claim that the physical rover
-          harness is unsafe, not a certification, and not an endorsement by NASA or JPL. For example,{" "}
-          <code>G</code> versus <code>GND</code> may be an intentional alias that an engineer should
-          confirm and record. Source: {JPL_SOURCE.license}, commit {JPL_SOURCE.commit.slice(0, 8)}.
-        </p>
-      </footer>
+      <Notes />
     </article>
   )
 }

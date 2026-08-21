@@ -15,7 +15,7 @@ test("landing -> projects -> workspace compiles and renders the schematic", asyn
 
 test("rover proof imports real WireViz data and exposes Nerve's review delta", async ({ page }) => {
   await page.goto("/showcase")
-  await expect(page.getByRole("heading", { name: /WireViz describes it/i })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /Six harnesses from the NASA JPL/i })).toBeVisible()
   await expect(page.locator(".showcase-ledger")).toContainText("0 errors")
   await expect(page.locator(".showcase-findings .showcase-finding")).toHaveCount(2)
   await expect(page.locator(".showcase-wire-table tbody tr")).toHaveCount(6)

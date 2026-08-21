@@ -3,7 +3,8 @@ import { buildPacket } from "@grayhaven/nerve-exporters"
 import {
   JPL_HARNESSES,
   JPL_SHOWCASE_SUMMARY,
-  JPL_SOURCE
+  JPL_SOURCE,
+  PACKET_MANIFEST
 } from "../src/showcase/jpl-rover.js"
 
 describe("NASA/JPL rover showcase", () => {
@@ -35,9 +36,12 @@ describe("NASA/JPL rover showcase", () => {
     expect(front.schematic).toContain("<svg")
   })
 
-  it("keeps the advertised evidence-packet count tied to the real exporter", async () => {
+  it("keeps the packet manifest the page renders tied to the real exporter", async () => {
     const front = JPL_HARNESSES.find((proof) => proof.slug === "front-encoder")!
     const packet = await buildPacket(front.hir)
     expect(packet.files.size).toBe(JPL_SHOWCASE_SUMMARY.packetFiles)
+    // The page lists the filenames without importing the exporters, so the
+    // list has to be checked against what buildPacket actually writes.
+    expect([...packet.files.keys()]).toEqual([...PACKET_MANIFEST])
   })
 })
