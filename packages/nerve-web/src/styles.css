@@ -558,72 +558,97 @@ textarea:focus-visible, select:focus-visible {
   color: hsl(0 0% 32%);
 }
 
-/* NASA/JPL rover corpus proof — source and evidence share one inspection surface. */
+/* NASA/JPL rover corpus proof.
+   The page is an inspector, not a landing page: a lede, the measurements, then
+   one selected harness examined from its source down to its packet. Structure
+   comes from hairlines and a numbered figure spine (Linear), and the only
+   framed surfaces are the ones holding real output (Vercel). Nothing here is a
+   slogan; every heading is a label and every number is derived from the
+   imported data. */
 .showcase {
   flex: 1;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: clamp(52px, 7vw, 96px) clamp(24px, 5vw, 72px) 96px;
+  padding: clamp(52px, 7vw, 96px) clamp(24px, 5vw, 72px) 112px;
   overflow: auto;
 }
-.showcase-hero { max-width: 1120px; }
+
+/* Lede, not a headline: one statement and the sentence that qualifies it, set
+   in the same display size so it reads as an opening paragraph. The muted run
+   is a continuation, not the second half of a split slogan. */
 .showcase-hero h1 {
-  margin: 22px 0 0;
-  font-size: clamp(36px, 4.8vw, 64px);
-  font-weight: 600;
-  line-height: 1.02;
-  letter-spacing: -0.03em;
-  text-wrap: balance;
-}
-.showcase-hero h1 span { color: hsl(0 0% 56%); }
-.showcase-hero > p {
-  max-width: 740px;
-  margin: 28px 0 0;
-  color: var(--fg-muted);
-  font-size: clamp(15px, 1.5vw, 18px);
-  line-height: 1.65;
+  max-width: 1180px;
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 46px);
+  font-weight: 500;
+  line-height: 1.14;
+  letter-spacing: -0.024em;
   text-wrap: pretty;
 }
-.showcase-provenance {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin-top: 34px;
+.showcase-hero h1 span { color: var(--fg-muted); }
+
+/* Measurements under a single rule. The counts carry the claim the old hero
+   paragraph made in prose, and one of them is deliberately unflattering. */
+.showcase-facts {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0 24px;
+  margin-top: clamp(44px, 5vw, 68px);
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.showcase-fact strong {
+  display: block;
+  font-family: var(--mono);
+  font-size: clamp(19px, 1.9vw, 24px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.showcase-fact span {
+  display: block;
+  margin-top: 7px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--fg-muted);
 }
-.showcase-provenance a {
-  color: var(--text);
-  border-bottom: 1px solid var(--text);
-}
-.showcase-provenance a:hover { color: var(--accent-hover); border-color: var(--accent-hover); }
+.showcase-fact-flagged strong { color: var(--error); }
 
-/* Nine border edges used to draw this strip (an outer frame plus five inner
-   rules). The panel fill already separates the buttons — a small gap lets the
-   canvas do the dividing, so the chrome is the background, not a cage. */
+/* Tabs on a rail: the active harness lights its own segment of the hairline
+   the picker hangs from. No fills, no pills, no rounded strip — the rail is
+   also the top edge of the stage below it, so picker and evidence read as one
+   surface rather than two stacked cards. */
 .showcase-picker {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 2px;
-  margin-top: clamp(60px, 8vw, 104px);
+  margin-top: clamp(64px, 8vw, 104px);
+  border-top: 1px solid var(--border);
 }
 .showcase-picker button {
   min-width: 0;
-  padding: 16px 14px 15px;
-  background: var(--panel);
+  margin-top: -1px;
+  padding: 15px 20px 16px 0;
+  background: none;
   color: var(--fg-muted);
   border: 0;
-  border-radius: 4px;
+  border-top: 1px solid transparent;
   text-align: left;
   cursor: pointer;
-  transition: background-color 180ms var(--ease-default), color 180ms var(--ease-default);
+  /* Matches the .tabs convention: fast, ease-out, and a press that scales.
+     A tab is pressed dozens of times a session, so the feedback has to be
+     instant rather than merely present. */
+  transition: color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    scale 100ms var(--ease-out);
 }
-.showcase-picker button:first-child { border-start-start-radius: var(--radius-card); border-end-start-radius: var(--radius-card); }
-.showcase-picker button:last-child { border-start-end-radius: var(--radius-card); border-end-end-radius: var(--radius-card); }
-.showcase-picker button:hover { color: var(--text); background: var(--muted-bg); }
-.showcase-picker button[aria-pressed="true"] { color: var(--bg); background: var(--text); }
+.showcase-picker button:active { scale: 0.98; }
+/* Gated: a tap on a touch device leaves :hover stuck on the old tab, which
+   would light a second segment of the rail and read as two selections. */
+@media (hover: hover) and (pointer: fine) {
+  .showcase-picker button:hover { color: var(--text); border-top-color: color-mix(in srgb, var(--text) 40%, transparent); }
+}
+.showcase-picker button[aria-pressed="true"] { color: var(--text); border-top-color: var(--text); }
 .showcase-picker button span {
   display: block;
   overflow: hidden;
@@ -634,41 +659,45 @@ textarea:focus-visible, select:focus-visible {
 }
 .showcase-picker button small {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
 }
-.showcase-picker button[aria-pressed="true"] small { color: hsl(0 0% 30%); }
 
+/* Frameless: source and review are divided by one vertical hairline and
+   bounded top and bottom. The rounded filled slab this used to be was the
+   heaviest object on the page and made the YAML look like a screenshot
+   instead of a file. */
 .showcase-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  min-height: 620px;
-  margin-top: 16px;
-  background: var(--panel);
-  border-radius: var(--radius-card);
-  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 .showcase-source, .showcase-evidence { min-width: 0; }
 .showcase-source { display: flex; flex-direction: column; }
+.showcase-evidence { border-left: 1px solid var(--border); }
 .showcase-panel-head {
-  min-height: 88px;
+  min-height: 82px;
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 20px;
-  padding: 20px 22px;
+  padding: 22px 24px 20px 0;
   border-bottom: 1px solid var(--border);
 }
+.showcase-evidence .showcase-panel-head { padding-left: 24px; }
 .showcase-panel-head h2 {
-  margin: 6px 0 0;
-  font-size: 17px;
+  margin: 0;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: -0.01em;
 }
 .showcase-kicker {
+  display: block;
+  margin-top: 5px;
   font-size: 12px;
   line-height: 1.5;
   color: var(--fg-muted);
@@ -676,7 +705,6 @@ textarea:focus-visible, select:focus-visible {
 /* Filenames are code — the mono voice. */
 .showcase-file {
   flex: 0 0 auto;
-  padding-top: 2px;
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.5;
@@ -684,37 +712,31 @@ textarea:focus-visible, select:focus-visible {
 }
 .showcase-source pre {
   flex: 1;
-  max-height: 500px;
+  /* Sized to the file, not to a fixed stage height: a 20-line harness used to
+     leave the review column half empty beside a stretched source pane. */
+  min-height: 300px;
+  max-height: 520px;
   margin: 0;
-  padding: 22px;
+  padding: 22px 24px 22px 0;
   overflow: auto;
-  background: var(--bg);
-  color: hsl(0 0% 76%);
+  color: var(--fg-muted);
   font-family: var(--mono);
   font-size: 11px;
-  line-height: 1.65;
+  line-height: 1.7;
   white-space: pre;
 }
 .showcase-source-foot {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  padding: 12px 22px;
+  padding: 12px 24px 12px 0;
   border-top: 1px solid var(--border);
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
 }
-/* The source and the review sit side by side; a labelled arrow between them
-   was the page describing its own layout. The two panel heads already say
-   "WireViz source" and "Nerve review". */
-.showcase-evidence { background: var(--panel); border-left: 1px solid var(--border); }
-/* Status reads through color and weight alone; no box. The page's only
-   pill-shaped chrome was here and it made every other mono label read as
-   a badge too. */
+/* Status reads through color and weight alone; no box. */
 .showcase-gate {
   flex: 0 0 auto;
-  padding-top: 2px;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -723,25 +745,15 @@ textarea:focus-visible, select:focus-visible {
 .gate-clear { color: var(--ok); }
 .showcase-ledger {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 20px;
+  padding: 20px 24px 22px;
   border-bottom: 1px solid var(--border);
 }
-.showcase-ledger > div {
-  min-width: 0;
-  padding: 18px 20px 20px;
-  border-right: 1px solid var(--border);
-}
-.showcase-ledger > div:last-child { border-right: 0; }
-.showcase-ledger span, .showcase-ledger small {
-  display: block;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--fg-muted);
-}
+.showcase-ledger > div { min-width: 0; }
 /* Ledger values are counts and IDs — mono, tabular. */
 .showcase-ledger strong {
   display: block;
-  margin: 8px 0 6px;
   overflow: hidden;
   font-family: var(--mono);
   font-size: 15px;
@@ -750,9 +762,16 @@ textarea:focus-visible, select:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.showcase-ledger span {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
 .showcase-findings { margin: 0; padding: 0; list-style: none; }
 .showcase-finding {
-  padding: 19px 22px 20px;
+  padding: 19px 24px 20px;
   border-bottom: 1px solid var(--border);
 }
 /* Rule codes and targets are IDs (mono); the severity word is plain text. */
@@ -764,7 +783,7 @@ textarea:focus-visible, select:focus-visible {
 }
 .showcase-finding-code span:first-child { font-family: var(--mono); }
 .showcase-finding-code span:last-child { color: var(--error); }
-.showcase-finding p { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--text); }
+.showcase-finding p { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--text); text-wrap: pretty; }
 .showcase-finding > code {
   display: block;
   margin-top: 9px;
@@ -772,10 +791,10 @@ textarea:focus-visible, select:focus-visible {
   font-size: 11px;
   color: var(--fg-muted);
 }
-.showcase-no-findings { padding: 30px 22px; border-bottom: 1px solid var(--border); }
+.showcase-no-findings { padding: 30px 24px; border-bottom: 1px solid var(--border); }
 .showcase-no-findings strong { font-size: 14px; }
 .showcase-no-findings p { max-width: 440px; margin: 8px 0 0; color: var(--fg-muted); line-height: 1.55; text-wrap: pretty; }
-.showcase-import-notes { padding: 16px 22px; }
+.showcase-import-notes { padding: 16px 24px; }
 .showcase-import-notes summary {
   font-size: 12px;
   color: var(--fg-muted);
@@ -783,56 +802,53 @@ textarea:focus-visible, select:focus-visible {
 }
 .showcase-import-notes ul { margin: 14px 0 0; padding: 0 0 0 18px; color: var(--fg-muted); font-size: 12px; line-height: 1.6; }
 
-.showcase-section-head { max-width: 760px; }
-.showcase-section-head h2 {
-  margin: 10px 0 0;
-  font-size: clamp(22px, 2.6vw, 32px);
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
+/* Numbered figures. The number is an ID (mono) and the name is a plain label,
+   so the page gets a spine without a slogan in it. The note sits on the same
+   line, right-aligned, which is what stops these heads leaving the right half
+   of the page empty the way the old section heads did. */
+.showcase-fig { margin-top: clamp(52px, 6vw, 76px); }
+.showcase-fig-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px 40px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
-.showcase-section-head p {
-  max-width: 670px;
-  margin: 16px 0 0;
-  color: var(--fg-muted);
-  font-size: 14px;
-  line-height: 1.65;
-  text-wrap: pretty;
-}
-/* The stage, drawing, and wire table all belong to the picked harness:
-   they read as one region (tight rhythm, quiet sub-headers). The page-level
-   story sections below keep the big editorial gaps. */
-.showcase-drawing, .showcase-conductors { margin-top: 28px; }
-.showcase-artifacts, .showcase-difference {
-  margin-top: clamp(76px, 9vw, 128px);
-}
-.showcase-subhead h2 {
+.showcase-fig-head h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
-.showcase-subhead p {
-  max-width: 670px;
-  margin: 4px 0 0;
+.showcase-fig-head h2 span {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
+}
+.showcase-fig-head p {
+  max-width: 620px;
+  margin: 0;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.55;
+  color: var(--fg-muted);
+  text-align: right;
   text-wrap: pretty;
 }
-.showcase-drawing .sheet-wrap { margin-top: 14px; }
+.showcase-drawing .sheet-wrap { margin-top: 16px; }
 .showcase-drawing .diagram-pane { max-height: 640px; }
 .showcase-drawing .diagram-pane svg { min-width: 760px; height: auto; }
 
-.showcase-table-wrap {
-  margin-top: 14px;
-  overflow: auto;
-  border-block: 1px solid var(--border);
-}
+.showcase-table-wrap { overflow: auto; }
 .showcase-wire-table { width: 100%; min-width: 860px; border-collapse: collapse; }
 .showcase-wire-table th {
-  padding: 11px 18px 11px 0;
+  padding: 13px 18px 13px 0;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
   font-weight: 500;
@@ -841,74 +857,65 @@ textarea:focus-visible, select:focus-visible {
 }
 .showcase-wire-table td {
   padding: 14px 18px 14px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   font-family: var(--mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: hsl(0 0% 74%);
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 .showcase-wire-table tbody tr:last-child td { border-bottom: 0; }
-.showcase-wire-table th:first-child, .showcase-wire-table td:first-child { padding-left: 16px; color: var(--text); }
+.showcase-wire-table td:first-child { color: var(--text); }
 .showcase-color { display: inline-flex; align-items: center; gap: 8px; }
-.showcase-color i { width: 9px; height: 9px; border: 1px solid hsl(0 0% 36%); }
+.showcase-color i { width: 9px; height: 9px; border: 1px solid var(--fg-muted); }
 
-/* Four capability groups, not a table — the column rules and the top/bottom
-   frame were drawing a grid around content that reads fine on the canvas.
-   Spacing separates them now. */
-.showcase-artifact-rail {
+/* The packet as its manifest. Real filenames in the mono voice say what the
+   exporter produces; the four capability words that used to sit here said
+   what a brochure produces. */
+.showcase-manifest {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 32px;
-  margin-top: 34px;
-}
-.showcase-artifact-rail > div { padding: 0; }
-.showcase-artifact-rail span {
-  display: block;
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-.showcase-artifact-rail strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-}
-.showcase-export { display: flex; align-items: center; gap: 18px; margin-top: 24px; }
-.showcase-export > span { font-size: 12px; color: var(--fg-muted); }
-
-/* What Nerve adds, as a list. This was a two-column table scoring Nerve
-   against WireViz; a comparison grid argues with the thing it depends on. */
-.showcase-adds {
-  max-width: 640px;
-  margin: 30px 0 0;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 10px 32px;
+  margin: 20px 0 0;
   padding: 0;
   list-style: none;
 }
-.showcase-adds li {
-  padding: 13px 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text);
-  text-wrap: pretty;
+.showcase-manifest li {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-muted);
 }
-.showcase-adds li + li { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
-.showcase-caveat {
+.showcase-export { display: flex; align-items: center; gap: 18px; margin-top: 30px; }
+.showcase-export > span { font-size: 12px; color: var(--fg-muted); }
+
+/* Closing notes as a spec sheet: term left, prose right, one row per claim.
+   The comparison table, the bullet list of what Nerve adds, and the
+   disclaimer were three sections making the same kind of statement, and the
+   honest one was buried at the bottom in the smallest type on the page. */
+.showcase-notes { margin-top: clamp(80px, 9vw, 116px); }
+.showcase-notes dl { margin: 0; border-top: 1px solid var(--border); }
+.showcase-notes dl > div {
   display: grid;
-  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
   gap: 40px;
-  margin-top: clamp(76px, 9vw, 128px);
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
+  padding: 26px 0 28px;
+  border-bottom: 1px solid var(--border);
 }
-.showcase-caveat strong {
+.showcase-notes dt {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
 }
-.showcase-caveat p { max-width: 760px; margin: 0; color: var(--fg-muted); line-height: 1.65; }
-.showcase-caveat code { color: var(--text); font-family: var(--mono); font-size: 12px; }
+.showcase-notes dd {
+  max-width: 760px;
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.showcase-notes code { color: var(--text); font-family: var(--mono); font-size: 12px; }
+.showcase-notes a { color: var(--text); border-bottom: 1px solid var(--border); }
+.showcase-notes a:hover { border-bottom-color: var(--text); }
 
 .workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
@@ -1378,14 +1385,21 @@ table.data th.sortable:hover { color: var(--text); }
 ::view-transition-new(render-pane) { animation: vt-in 210ms var(--ease-out) 150ms both; }
 
 @media (max-width: 1080px) {
+  .showcase-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 26px; }
   .showcase-picker { grid-template-columns: repeat(3, 1fr); }
-  .showcase-picker button { border-radius: 4px !important; }
   .showcase-stage { grid-template-columns: 1fr; }
-  /* Stacked: the divider between source and review becomes a horizontal one. */
+  /* Stacked: the divider between source and review becomes a horizontal one,
+     and the review's left padding is no longer indenting a second column. */
   .showcase-evidence { border-left: 0; border-top: 1px solid var(--border); }
+  .showcase-evidence .showcase-panel-head,
+  .showcase-ledger,
+  .showcase-finding,
+  .showcase-no-findings,
+  .showcase-import-notes { padding-inline: 0; }
   .showcase-source pre { min-height: 420px; }
-  .showcase-artifact-rail { grid-template-columns: repeat(2, 1fr); gap: 28px 32px; }
-  .showcase-artifact-rail > div:nth-child(3) { padding-left: 0; }
+  /* The note can no longer sit beside the figure name without crowding it. */
+  .showcase-fig-head { display: block; }
+  .showcase-fig-head p { max-width: none; margin-top: 8px; text-align: left; }
 }
 
 @media (max-width: 680px) {
@@ -1417,33 +1431,28 @@ table.data th.sortable:hover { color: var(--text); }
   .workspace-header .search-results { width: min(280px, calc(100vw - 32px)); }
 
   .showcase { padding: 44px 20px 72px; }
-  .showcase-hero h1 { font-size: clamp(39px, 13vw, 60px); }
-  .showcase-provenance { flex-direction: column; gap: 7px; }
+  .showcase-hero h1 { font-size: clamp(26px, 7.2vw, 34px); }
+  .showcase-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 24px; }
   .showcase-picker {
     display: flex;
     overflow-x: auto;
     overscroll-behavior-x: contain;
   }
-  .showcase-picker button { flex: 0 0 160px; }
-  .showcase-stage { margin-top: 10px; }
-  .showcase-panel-head { min-height: 80px; padding: 18px; }
-  .showcase-source pre { min-height: 360px; padding: 18px; font-size: 11px; }
-  .showcase-source-foot { padding-inline: 18px; }
-  .showcase-ledger { grid-template-columns: 1fr; }
-  .showcase-ledger > div { border-right: 0; border-bottom: 1px solid var(--border); }
-  .showcase-ledger > div:last-child { border-bottom: 0; }
-  .showcase-finding, .showcase-import-notes { padding-inline: 18px; }
+  .showcase-picker button { flex: 0 0 160px; padding-right: 16px; }
+  .showcase-panel-head { min-height: 0; padding: 18px 0; }
+  .showcase-source pre { min-height: 360px; padding: 18px 0; }
+  .showcase-source-foot { padding-inline: 0; }
+  .showcase-ledger { grid-template-columns: 1fr; gap: 18px; padding-block: 18px; }
+  .showcase-manifest { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
   .showcase-drawing .diagram-pane svg { min-width: 680px; }
-  .showcase-artifact-rail { grid-template-columns: 1fr; gap: 24px; }
-  .showcase-export { align-items: flex-start; flex-direction: column; }
-  .showcase-caveat { grid-template-columns: 1fr; gap: 14px; }
+  .showcase-export { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .showcase-notes dl > div { grid-template-columns: 1fr; gap: 10px; }
 }
 
 /* Higher contrast: luminance-step surfaces normally have no border — give
    them a defined hairline edge when the viewer asks for more contrast. */
 @media (prefers-contrast: more) {
   .project-card,
-  .showcase-stage,
   .search-results,
   .inspector,
   .table-empty,
@@ -1464,7 +1473,7 @@ table.data th.sortable:hover { color: var(--text); }
   }
   .ai-step.running { animation: none; opacity: 0.7; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-  .tabs a:active { scale: none; }
+  .tabs a:active, .showcase-picker button:active { scale: none; }
 }
 
 @theme inline {

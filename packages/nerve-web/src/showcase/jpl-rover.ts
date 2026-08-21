@@ -58,3 +58,34 @@ export const JPL_HARNESSES: ReadonlyArray<JplHarnessProof> = stored.map((proof) 
 }))
 
 export const JPL_SHOWCASE_SUMMARY = proofs.summary
+
+/**
+ * The packet's file list, in archive order. Declared here so the page can show
+ * what a packet actually contains without pulling the exporters into the
+ * showcase chunk; jpl-showcase.test.ts asserts it against buildPacket so the
+ * two cannot drift.
+ */
+export const PACKET_MANIFEST = [
+  "COVER.txt",
+  "manufacturing-packet.pdf",
+  "harness.json",
+  "graph.json",
+  "render-layout.json",
+  "diagnostics.json",
+  "schematic.svg",
+  "schematic.html",
+  "board.svg",
+  "connector-faces.svg",
+  "pinout.svg",
+  "bom.csv",
+  "cut-list.csv",
+  "labels.csv",
+  "bom.json",
+  "cut-list.json",
+  "label-schedule.json",
+  "bop.csv",
+  "bop.json",
+  "tests.csv",
+  "test-plan.json",
+  "assembly-instructions.txt"
+] as const
