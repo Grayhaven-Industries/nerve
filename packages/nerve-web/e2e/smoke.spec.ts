@@ -15,22 +15,29 @@ test("landing -> projects -> workspace compiles and renders the schematic", asyn
 
 test("rover proof imports real WireViz data and exposes Nerve's review delta", async ({ page }) => {
   await page.goto("/showcase")
-  await expect(page.getByRole("heading", { name: /Six harnesses from the NASA JPL/i })).toBeVisible()
-  await expect(page.locator(".showcase-ledger")).toContainText("0 errors")
+  await expect(page.getByRole("heading", { name: /Rover harness review/i })).toBeVisible()
+  await expect(page.locator(".showcase-review-head")).toContainText("6 conductors · 53 checks")
+  await expect(page.locator(".showcase-review-head")).toContainText("Blocked")
   await expect(page.locator(".showcase-findings .showcase-finding")).toHaveCount(2)
+  await page.getByText("Inspect design", { exact: true }).click()
   await expect(page.locator(".showcase-wire-table tbody tr")).toHaveCount(6)
   await expect(page.locator(".showcase-wire-table")).toContainText("540 mm")
   await expect(page.locator(".showcase-wire-table")).toContainText("530 mm")
 
-  await page.locator(".showcase-picker button", { hasText: "Front servo" }).click()
-  await expect(page.locator(".showcase-gate")).toHaveText("No blockers")
+  await page.getByLabel("Harness").selectOption({ label: "Front servo" })
+  await expect(page.getByLabel("Harness")).toHaveValue("front-servo")
+  await expect(page.locator(".showcase-review-head")).toContainText("Clear")
   await expect(page.locator(".showcase-wire-table tbody tr")).toHaveCount(3)
+
+  await page.getByLabel("Harness").selectOption({ label: "Middle encoder" })
+  await expect(page.locator(".showcase-review-head")).toContainText("Blocked")
 })
 
 test("rover showcase downloads a generated packet", async ({ page }) => {
   await page.goto("/showcase")
+  await page.getByText("Inspect design", { exact: true }).click()
   const download = page.waitForEvent("download", { timeout: 30_000 })
-  await page.getByRole("button", { name: /Download the packet/i }).click()
+  await page.getByRole("button", { name: /Download packet/i }).click()
   const file = await download
   expect(file.suggestedFilename()).toBe("jpl-front-encoder-packet.zip")
 })

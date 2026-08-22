@@ -78,9 +78,9 @@ function RootLayout() {
       <div className="app-shell">
         <HeadContent />
         <header className="topbar">
-          <Link to="/" className="brand">
+          <Link to="/" className="brand" aria-label="Grayhaven Nerve home">
             <GrayhavenMark />
-            Grayhaven Nerve
+            <span className="brand-label">Grayhaven Nerve</span>
           </Link>
           <nav className="topnav">
             <Link to="/showcase" activeProps={{ className: "active" }}>

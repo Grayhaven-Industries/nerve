@@ -12,7 +12,7 @@
    small luminance step (background -> card -> popover). Geist for display,
    Inter for UI, Geist Mono reserved for code, IDs, and numbers. */
 @theme static {
-  --color-accent-hover: #ffffff;
+  --color-accent-hover: var(--foreground);
   --color-success: oklch(0.751 0.149 162.48);
   --color-warning: oklch(0.774 0.165 70.08);
   --color-info: oklch(0.76 0.141 237.323);
@@ -60,33 +60,41 @@
   --mono: var(--font-mono);
   --sans: var(--font-sans);
   --heading: var(--font-heading);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --input: oklch(0.922 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Dark-only Tokenbase palette. The HTML carries .dark for shadcn, while
+     :root repeats the same values so the visual contract does not depend on
+     that implementation class. */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.946 0 0);
+  --card: oklch(0.213 0 0);
+  --card-foreground: oklch(0.946 0 0);
+  --popover: oklch(0.239 0 0);
+  --popover-foreground: oklch(0.946 0 0);
+  --primary: oklch(0.946 0 0);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.26 0 0);
+  --secondary-foreground: oklch(0.946 0 0);
+  --muted: oklch(0.26 0 0);
+  --muted-foreground: oklch(0.77 0 0);
+  --accent: oklch(0.26 0 0);
+  --accent-foreground: oklch(0.946 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.285 0 0);
+  --input: oklch(0.285 0 0);
+  --ring: oklch(0.724 0.187 49.178);
+  --chart-1: oklch(0.724 0.187 49.178);
+  --chart-2: oklch(0.68 0.187 293.009);
+  --chart-3: oklch(0.806 0.096 252.66);
+  --chart-4: oklch(0.856 0.104 65.669);
+  --chart-5: oklch(0.811 0.101 293.571);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.946 0 0);
+  --sidebar-primary: oklch(0.946 0 0);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.26 0 0);
+  --sidebar-accent-foreground: oklch(0.946 0 0);
+  --sidebar-border: oklch(0.285 0 0);
+  --sidebar-ring: oklch(0.724 0.187 49.178);
 }
 
 * { box-sizing: border-box; }
@@ -95,6 +103,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-synthesis: none;
+  color-scheme: dark;
 }
 
 body {
@@ -558,364 +567,228 @@ textarea:focus-visible, select:focus-visible {
   color: hsl(0 0% 32%);
 }
 
-/* NASA/JPL rover corpus proof.
-   The page is an inspector, not a landing page: a lede, the measurements, then
-   one selected harness examined from its source down to its packet. Structure
-   comes from hairlines and a numbered figure spine (Linear), and the only
-   framed surfaces are the ones holding real output (Vercel). Nothing here is a
-   slogan; every heading is a label and every number is derived from the
-   imported data. */
+/* NASA/JPL rover review. The default view answers one question: can this
+   harness move forward? Detailed source and outputs stay one disclosure away. */
 .showcase {
   flex: 1;
   width: 100%;
-  max-width: 1440px;
+  max-width: 880px;
   margin: 0 auto;
-  padding: clamp(52px, 7vw, 96px) clamp(24px, 5vw, 72px) 112px;
+  padding: clamp(36px, 6vw, 64px) clamp(20px, 5vw, 48px) 80px;
   overflow: auto;
 }
 
-/* Lede, not a headline: one statement and the sentence that qualifies it, set
-   in the same display size so it reads as an opening paragraph. The muted run
-   is a continuation, not the second half of a split slogan. */
 .showcase-hero h1 {
-  max-width: 1180px;
   margin: 0;
-  font-size: clamp(28px, 3.4vw, 46px);
+  font-size: clamp(24px, 3vw, 30px);
   font-weight: 500;
-  line-height: 1.14;
-  letter-spacing: -0.024em;
-  text-wrap: pretty;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
 }
-.showcase-hero h1 span { color: var(--fg-muted); }
-
-/* Measurements under a single rule. The counts carry the claim the old hero
-   paragraph made in prose, and one of them is deliberately unflattering. */
-.showcase-facts {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0 24px;
-  margin-top: clamp(44px, 5vw, 68px);
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-}
-.showcase-fact strong {
-  display: block;
-  font-family: var(--mono);
-  font-size: clamp(19px, 1.9vw, 24px);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.showcase-fact span {
-  display: block;
-  margin-top: 7px;
-  font-size: 12px;
-  line-height: 1.45;
+.showcase-hero p {
+  margin: 8px 0 0;
   color: var(--fg-muted);
+  font-size: 13px;
 }
-.showcase-fact-flagged strong { color: var(--error); }
 
-/* Tabs on a rail: the active harness lights its own segment of the hairline
-   the picker hangs from. No fills, no pills, no rounded strip — the rail is
-   also the top edge of the stage below it, so picker and evidence read as one
-   surface rather than two stacked cards. */
 .showcase-picker {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  margin-top: clamp(64px, 8vw, 104px);
-  border-top: 1px solid var(--border);
-}
-.showcase-picker button {
-  min-width: 0;
-  margin-top: -1px;
-  padding: 15px 20px 16px 0;
-  background: none;
-  color: var(--fg-muted);
-  border: 0;
-  border-top: 1px solid transparent;
-  text-align: left;
-  cursor: pointer;
-  /* Matches the .tabs convention: fast, ease-out, and a press that scales.
-     A tab is pressed dozens of times a session, so the feedback has to be
-     instant rather than merely present. */
-  transition: color var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    scale 100ms var(--ease-out);
-}
-.showcase-picker button:active { scale: 0.98; }
-/* Gated: a tap on a touch device leaves :hover stuck on the old tab, which
-   would light a second segment of the rail and read as two selections. */
-@media (hover: hover) and (pointer: fine) {
-  .showcase-picker button:hover { color: var(--text); border-top-color: color-mix(in srgb, var(--text) 40%, transparent); }
-}
-.showcase-picker button[aria-pressed="true"] { color: var(--text); border-top-color: var(--text); }
-.showcase-picker button span {
-  display: block;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.showcase-picker button small {
-  display: block;
-  margin-top: 5px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-}
-
-/* Frameless: source and review are divided by one vertical hairline and
-   bounded top and bottom. The rounded filled slab this used to be was the
-   heaviest object on the page and made the YAML look like a screenshot
-   instead of a file. */
-.showcase-stage {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  border-top: 1px solid var(--border);
+  grid-template-columns: auto minmax(220px, 320px) 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
-.showcase-source, .showcase-evidence { min-width: 0; }
-.showcase-source { display: flex; flex-direction: column; }
-.showcase-evidence { border-left: 1px solid var(--border); }
-.showcase-panel-head {
-  min-height: 82px;
+.showcase-picker label {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.showcase-picker select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+}
+.showcase-picker a {
+  justify-self: end;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.showcase-picker a:hover { color: var(--text); }
+
+.showcase-review { margin-top: 32px; }
+.showcase-review-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+}
+.showcase-review-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.showcase-review-head p {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.showcase-review-head strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.gate-blocked { color: var(--error); }
+.gate-clear { color: var(--ok); }
+
+.showcase-findings {
+  margin: 22px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+.showcase-finding {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--border);
+}
+.showcase-finding > span,
+.showcase-finding code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.showcase-finding p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.showcase-finding code {
+  display: block;
+  margin-top: 7px;
+}
+.showcase-no-findings {
+  margin: 22px 0 0;
+  padding: 17px 0;
+  border-block: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.showcase-details {
+  margin-top: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.showcase-details > summary {
+  padding: 16px 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.showcase-details > summary:hover { color: var(--text); }
+.showcase-details-body { padding-bottom: 48px; }
+.showcase-detail-section { margin-top: 44px; }
+.showcase-detail-section > h2,
+.showcase-detail-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.showcase-detail-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 20px;
-  padding: 22px 24px 20px 0;
-  border-bottom: 1px solid var(--border);
 }
-.showcase-evidence .showcase-panel-head { padding-left: 24px; }
-.showcase-panel-head h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-}
-.showcase-kicker {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  line-height: 1.5;
+.showcase-detail-head > code {
   color: var(--fg-muted);
-}
-/* Filenames are code — the mono voice. */
-.showcase-file {
-  flex: 0 0 auto;
   font-family: var(--mono);
   font-size: 11px;
-  line-height: 1.5;
-  color: var(--fg-muted);
 }
 .showcase-source pre {
-  flex: 1;
-  /* Sized to the file, not to a fixed stage height: a 20-line harness used to
-     leave the review column half empty beside a stretched source pane. */
-  min-height: 300px;
-  max-height: 520px;
-  margin: 0;
-  padding: 22px 24px 22px 0;
+  max-height: 420px;
+  margin: 12px 0 0;
+  padding: 16px;
   overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--fg-muted);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.7;
   white-space: pre;
 }
-.showcase-source-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 12px 24px 12px 0;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-/* Status reads through color and weight alone; no box. */
-.showcase-gate {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-.gate-blocked { color: var(--error); }
-.gate-clear { color: var(--ok); }
-.showcase-ledger {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 20px;
-  padding: 20px 24px 22px;
-  border-bottom: 1px solid var(--border);
-}
-.showcase-ledger > div { min-width: 0; }
-/* Ledger values are counts and IDs — mono, tabular. */
-.showcase-ledger strong {
-  display: block;
-  overflow: hidden;
-  font-family: var(--mono);
-  font-size: 15px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.showcase-ledger span {
-  display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--fg-muted);
-}
-.showcase-findings { margin: 0; padding: 0; list-style: none; }
-.showcase-finding {
-  padding: 19px 24px 20px;
-  border-bottom: 1px solid var(--border);
-}
-/* Rule codes and targets are IDs (mono); the severity word is plain text. */
-.showcase-finding-code {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  font-size: 11px;
-}
-.showcase-finding-code span:first-child { font-family: var(--mono); }
-.showcase-finding-code span:last-child { color: var(--error); }
-.showcase-finding p { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--text); text-wrap: pretty; }
-.showcase-finding > code {
-  display: block;
-  margin-top: 9px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-.showcase-no-findings { padding: 30px 24px; border-bottom: 1px solid var(--border); }
-.showcase-no-findings strong { font-size: 14px; }
-.showcase-no-findings p { max-width: 440px; margin: 8px 0 0; color: var(--fg-muted); line-height: 1.55; text-wrap: pretty; }
-.showcase-import-notes { padding: 16px 24px; }
-.showcase-import-notes summary {
-  font-size: 12px;
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.showcase-import-notes ul { margin: 14px 0 0; padding: 0 0 0 18px; color: var(--fg-muted); font-size: 12px; line-height: 1.6; }
+.showcase-drawing .sheet-wrap { margin-top: 12px; }
+.showcase-drawing .diagram-pane { max-height: 560px; }
+.showcase-drawing .diagram-pane svg { min-width: 720px; height: auto; }
 
-/* Numbered figures. The number is an ID (mono) and the name is a plain label,
-   so the page gets a spine without a slogan in it. The note sits on the same
-   line, right-aligned, which is what stops these heads leaving the right half
-   of the page empty the way the old section heads did. */
-.showcase-fig { margin-top: clamp(52px, 6vw, 76px); }
-.showcase-fig-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px 40px;
-  padding-bottom: 14px;
+.showcase-table-wrap {
+  margin-top: 12px;
+  overflow: auto;
+}
+.showcase-wire-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+.showcase-wire-table th,
+.showcase-wire-table td {
+  padding: 12px 16px 12px 0;
   border-bottom: 1px solid var(--border);
-}
-.showcase-fig-head h2 {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-.showcase-fig-head h2 span {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-}
-.showcase-fig-head p {
-  max-width: 620px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--fg-muted);
-  text-align: right;
-  text-wrap: pretty;
-}
-.showcase-drawing .sheet-wrap { margin-top: 16px; }
-.showcase-drawing .diagram-pane { max-height: 640px; }
-.showcase-drawing .diagram-pane svg { min-width: 760px; height: auto; }
-
-.showcase-table-wrap { overflow: auto; }
-.showcase-wire-table { width: 100%; min-width: 860px; border-collapse: collapse; }
-.showcase-wire-table th {
-  padding: 13px 18px 13px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 500;
   text-align: left;
+  white-space: nowrap;
+}
+.showcase-wire-table th {
   color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 500;
 }
 .showcase-wire-table td {
-  padding: 14px 18px 14px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  color: var(--fg-muted);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: var(--fg-muted);
-  white-space: nowrap;
 }
-.showcase-wire-table tbody tr:last-child td { border-bottom: 0; }
 .showcase-wire-table td:first-child { color: var(--text); }
-.showcase-color { display: inline-flex; align-items: center; gap: 8px; }
-.showcase-color i { width: 9px; height: 9px; border: 1px solid var(--fg-muted); }
 
-/* The packet as its manifest. Real filenames in the mono voice say what the
-   exporter produces; the four capability words that used to sit here said
-   what a brochure produces. */
-.showcase-manifest {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
-  gap: 10px 32px;
-  margin: 20px 0 0;
-  padding: 0;
-  list-style: none;
+.showcase-export {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
 }
-.showcase-manifest li {
-  font-family: var(--mono);
+.showcase-export span {
+  color: var(--error);
   font-size: 12px;
-  color: var(--fg-muted);
 }
-.showcase-export { display: flex; align-items: center; gap: 18px; margin-top: 30px; }
-.showcase-export > span { font-size: 12px; color: var(--fg-muted); }
-
-/* Closing notes as a spec sheet: term left, prose right, one row per claim.
-   The comparison table, the bullet list of what Nerve adds, and the
-   disclaimer were three sections making the same kind of statement, and the
-   honest one was buried at the bottom in the smallest type on the page. */
-.showcase-notes { margin-top: clamp(80px, 9vw, 116px); }
-.showcase-notes dl { margin: 0; border-top: 1px solid var(--border); }
-.showcase-notes dl > div {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
-  gap: 40px;
-  padding: 26px 0 28px;
-  border-bottom: 1px solid var(--border);
+.showcase-provenance {
+  margin-top: 44px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
-.showcase-notes dt {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.showcase-notes dd {
-  max-width: 760px;
+.showcase-provenance p {
+  max-width: 680px;
   margin: 0;
   color: var(--fg-muted);
-  line-height: 1.65;
-  text-wrap: pretty;
+  font-size: 12px;
+  line-height: 1.6;
 }
-.showcase-notes code { color: var(--text); font-family: var(--mono); font-size: 12px; }
-.showcase-notes a { color: var(--text); border-bottom: 1px solid var(--border); }
-.showcase-notes a:hover { border-bottom-color: var(--text); }
+.showcase-provenance a,
+.showcase-provenance code { color: var(--text); }
+.showcase-provenance code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
 
 .workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
@@ -1384,24 +1257,6 @@ table.data th.sortable:hover { color: var(--text); }
 ::view-transition-old(render-pane) { animation: vt-out 150ms var(--ease-in) both; }
 ::view-transition-new(render-pane) { animation: vt-in 210ms var(--ease-out) 150ms both; }
 
-@media (max-width: 1080px) {
-  .showcase-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 26px; }
-  .showcase-picker { grid-template-columns: repeat(3, 1fr); }
-  .showcase-stage { grid-template-columns: 1fr; }
-  /* Stacked: the divider between source and review becomes a horizontal one,
-     and the review's left padding is no longer indenting a second column. */
-  .showcase-evidence { border-left: 0; border-top: 1px solid var(--border); }
-  .showcase-evidence .showcase-panel-head,
-  .showcase-ledger,
-  .showcase-finding,
-  .showcase-no-findings,
-  .showcase-import-notes { padding-inline: 0; }
-  .showcase-source pre { min-height: 420px; }
-  /* The note can no longer sit beside the figure name without crowding it. */
-  .showcase-fig-head { display: block; }
-  .showcase-fig-head p { max-width: none; margin-top: 8px; text-align: left; }
-}
-
 @media (max-width: 680px) {
   /* svh, not dvh: mobile browser chrome hides and shows as you scroll, and
      with dvh the whole three-pane column resized under the finger doing it.
@@ -1430,23 +1285,22 @@ table.data th.sortable:hover { color: var(--text); }
   .workspace-header .searchbox input { width: 100%; }
   .workspace-header .search-results { width: min(280px, calc(100vw - 32px)); }
 
-  .showcase { padding: 44px 20px 72px; }
-  .showcase-hero h1 { font-size: clamp(26px, 7.2vw, 34px); }
-  .showcase-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 24px; }
+  .showcase { padding: 32px 20px 64px; }
   .showcase-picker {
-    display: flex;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
   }
-  .showcase-picker button { flex: 0 0 160px; padding-right: 16px; }
-  .showcase-panel-head { min-height: 0; padding: 18px 0; }
-  .showcase-source pre { min-height: 360px; padding: 18px 0; }
-  .showcase-source-foot { padding-inline: 0; }
-  .showcase-ledger { grid-template-columns: 1fr; gap: 18px; padding-block: 18px; }
-  .showcase-manifest { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
-  .showcase-drawing .diagram-pane svg { min-width: 680px; }
-  .showcase-export { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .showcase-notes dl > div { grid-template-columns: 1fr; gap: 10px; }
+  .showcase-picker label { grid-column: 1 / -1; }
+  .showcase-picker a { grid-column: 2; grid-row: 2; }
+  .showcase-finding { grid-template-columns: 1fr; gap: 8px; }
+  .showcase-drawing .diagram-pane svg { min-width: 640px; }
+}
+
+@media (max-width: 380px) {
+  /* Keep all primary destinations visible at the narrowest supported width.
+     The shield retains the home affordance and the link's aria-label retains
+     the full brand name for assistive technology. */
+  .topbar .brand-label { display: none; }
 }
 
 /* Higher contrast: luminance-step surfaces normally have no border — give
@@ -1473,12 +1327,12 @@ table.data th.sortable:hover { color: var(--text); }
   }
   .ai-step.running { animation: none; opacity: 0.7; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-  .tabs a:active, .showcase-picker button:active { scale: none; }
+  .tabs a:active { scale: none; }
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: "Geist Variable", "Inter Variable", system-ui, sans-serif;
+  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -1526,36 +1380,36 @@ table.data th.sortable:hover { color: var(--text); }
 
 .dark {
   --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --foreground: oklch(0.946 0 0);
+  --card: oklch(0.213 0 0);
+  --card-foreground: oklch(0.946 0 0);
+  --popover: oklch(0.239 0 0);
+  --popover-foreground: oklch(0.946 0 0);
+  --primary: oklch(0.946 0 0);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.26 0 0);
+  --secondary-foreground: oklch(0.946 0 0);
+  --muted: oklch(0.26 0 0);
+  --muted-foreground: oklch(0.77 0 0);
+  --accent: oklch(0.26 0 0);
+  --accent-foreground: oklch(0.946 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.285 0 0);
+  --input: oklch(0.285 0 0);
+  --ring: oklch(0.724 0.187 49.178);
+  --chart-1: oklch(0.724 0.187 49.178);
+  --chart-2: oklch(0.68 0.187 293.009);
+  --chart-3: oklch(0.806 0.096 252.66);
+  --chart-4: oklch(0.856 0.104 65.669);
+  --chart-5: oklch(0.811 0.101 293.571);
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.946 0 0);
+  --sidebar-primary: oklch(0.946 0 0);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.26 0 0);
+  --sidebar-accent-foreground: oklch(0.946 0 0);
+  --sidebar-border: oklch(0.285 0 0);
+  --sidebar-ring: oklch(0.724 0.187 49.178);
 }
 
 @layer base {
