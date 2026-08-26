@@ -88,38 +88,48 @@ export const prefixRefs = (prefix: string, fragment: HarnessFragment): HarnessFr
     connectors: (fragment.connectors ?? []).map((c) =>
       connector(p(c.ref), c.part, { pins: c.pins, terminals: c.terminals, seals: c.seals })
     ),
-    wires: (fragment.wires ?? []).map((w) => ({
-      ...w,
-      id: p(w.id),
-      from: mapEndpoint(w.from),
-      to: mapEndpoint(w.to),
-      ...(w.cable !== undefined && cableIds.has(w.cable) ? { cable: p(w.cable) } : {}),
+    wires: (fragment.wires ?? []).map((w) => {
+      let mapped: WireDef = {
+        ...w,
+        id: p(w.id),
+        from: mapEndpoint(w.from),
+        to: mapEndpoint(w.to)
+      }
+      if (w.cable !== undefined && cableIds.has(w.cable)) mapped = { ...mapped, cable: p(w.cable) }
       // twist/shield groups are per-instance grouping keys — namespace them
       // too, or two instances of a template would merge into ONE twist
       // (or shield) group and defeat the collision-free guarantee.
-      ...(w.twistGroup !== undefined ? { twistGroup: p(w.twistGroup) } : {}),
-      ...(w.shieldGroup !== undefined ? { shieldGroup: p(w.shieldGroup) } : {})
-    })),
-    branches: (fragment.branches ?? []).map((b) => ({
-      ...b,
-      id: p(b.id),
-      path: b.path.map((ref) => (connectorRefs.has(ref) ? p(ref) : ref)),
-      ...(b.parent !== undefined && branchIds.has(b.parent) ? { parent: p(b.parent) } : {})
-    })),
-    labels: (fragment.labels ?? []).map((l) => ({
-      ...l,
-      id: p(l.id),
-      attachTo:
-        branchIds.has(l.attachTo) || connectorRefs.has(l.attachTo) ? p(l.attachTo) : l.attachTo,
-      ...(l.offsetFrom !== undefined && connectorRefs.has(l.offsetFrom)
-        ? { offsetFrom: p(l.offsetFrom) }
-        : {})
-    })),
-    splices: (fragment.splices ?? []).map((s) => ({
-      ...s,
-      id: p(s.id),
-      ...(s.branch !== undefined && branchIds.has(s.branch) ? { branch: p(s.branch) } : {})
-    })),
+      if (w.twistGroup !== undefined) mapped = { ...mapped, twistGroup: p(w.twistGroup) }
+      if (w.shieldGroup !== undefined) mapped = { ...mapped, shieldGroup: p(w.shieldGroup) }
+      return mapped
+    }),
+    branches: (fragment.branches ?? []).map((b) => {
+      const mapped: BranchDef = {
+        ...b,
+        id: p(b.id),
+        path: b.path.map((ref) => (connectorRefs.has(ref) ? p(ref) : ref))
+      }
+      return b.parent !== undefined && branchIds.has(b.parent)
+        ? { ...mapped, parent: p(b.parent) }
+        : mapped
+    }),
+    labels: (fragment.labels ?? []).map((l) => {
+      const mapped: LabelDef = {
+        ...l,
+        id: p(l.id),
+        attachTo:
+          branchIds.has(l.attachTo) || connectorRefs.has(l.attachTo) ? p(l.attachTo) : l.attachTo
+      }
+      return l.offsetFrom !== undefined && connectorRefs.has(l.offsetFrom)
+        ? { ...mapped, offsetFrom: p(l.offsetFrom) }
+        : mapped
+    }),
+    splices: (fragment.splices ?? []).map((s) => {
+      const mapped: SpliceDef = { ...s, id: p(s.id) }
+      return s.branch !== undefined && branchIds.has(s.branch)
+        ? { ...mapped, branch: p(s.branch) }
+        : mapped
+    }),
     cables: (fragment.cables ?? []).map((c) => ({ ...c, id: p(c.id) }))
   }
 }

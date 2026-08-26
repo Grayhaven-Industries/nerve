@@ -5,7 +5,7 @@
  * DSL produces — <Harness> compiles to byte-identical HIR (proven in
  * tests), so JSX is purely an authoring-style choice.
  *
- *   /** @jsxImportSource @grayhaven/nerve-react *​/
+ *   /** @jsxImportSource @grayhaven/nerve-react *\/
  *   export default (
  *     <Harness id="h" revision="A" units="mm">
  *       <Connector ref="J1" part={part("microfit-2x8")} pins={{ 1: "VBAT" }} />
@@ -46,7 +46,11 @@ export type Children = Def | ReadonlyArray<Children> | undefined | null | false
 
 export const flatten = (children: Children): Array<Def> => {
   if (children === undefined || children === null || children === false) return []
-  if (Array.isArray(children)) return (children as ReadonlyArray<Children>).flatMap(flatten)
+  if (Array.isArray(children)) {
+    // SAFETY: the only array member of Children is ReadonlyArray<Children>.
+    return (children as ReadonlyArray<Children>).flatMap(flatten)
+  }
+  // SAFETY: every Children value that is not empty and not an array is a Def.
   return [children as Def]
 }
 
@@ -94,15 +98,16 @@ export function Harness(props: {
   children?: Children
 }): HarnessDesign {
   const kids = flatten(props.children)
-  const byKind = (kind: Def["kind"]) => kids.filter((k) => k.kind === kind)
+  const byKind = <K extends Def["kind"]>(kind: K) =>
+    kids.filter((k): k is Extract<Def, { kind: K }> => k.kind === kind)
   return harnessFn(props.id, {
     revision: props.revision,
     units: props.units,
-    connectors: byKind("connector") as never,
-    wires: byKind("wire") as never,
-    splices: byKind("splice") as never,
-    cables: byKind("cable") as never,
-    branches: byKind("branch") as never,
-    labels: byKind("label") as never
+    connectors: byKind("connector"),
+    wires: byKind("wire"),
+    splices: byKind("splice"),
+    cables: byKind("cable"),
+    branches: byKind("branch"),
+    labels: byKind("label")
   })
 }

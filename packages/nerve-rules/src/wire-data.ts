@@ -11,8 +11,12 @@
 import { parseAwg } from "@grayhaven/nerve"
 export { parseAwg }
 
+/** A per-gauge figure keyed by AWG number: the contract a shop profile's
+ * override tables and the bundled defaults share. */
+export type GaugeTable = Readonly<Record<number, number>>
+
 /** Max continuous current (A) per AWG, bundled/derated. */
-export const AMPACITY_BY_AWG: Readonly<Record<number, number>> = {
+export const AMPACITY_BY_AWG = {
   30: 0.3,
   28: 0.5,
   26: 0.8,
@@ -24,7 +28,7 @@ export const AMPACITY_BY_AWG: Readonly<Record<number, number>> = {
   14: 15,
   12: 24,
   10: 38
-}
+} satisfies Readonly<Record<number, number>>
 
 /**
  * Bundle derating: how much of a conductor's ampacity survives being one of
@@ -224,7 +228,7 @@ export const differentialPartner = (signal: string): string | undefined => {
 }
 
 /** Typical insulated OD (mm) per AWG — PVC hookup wire, conservative. */
-export const INSULATED_OD_MM_BY_AWG: Readonly<Record<number, number>> = {
+export const INSULATED_OD_MM_BY_AWG = {
   30: 1.0,
   28: 1.1,
   26: 1.3,
@@ -236,7 +240,7 @@ export const INSULATED_OD_MM_BY_AWG: Readonly<Record<number, number>> = {
   14: 3.3,
   12: 3.9,
   10: 4.8
-}
+} satisfies Readonly<Record<number, number>>
 
 /**
  * Estimated bundle diameter (mm) for a set of wire ODs: area-equivalent

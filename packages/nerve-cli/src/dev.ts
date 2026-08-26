@@ -14,7 +14,7 @@
 import { createServer, type Server } from "node:http"
 import { existsSync, watch, type FSWatcher } from "node:fs"
 import { dirname, join, resolve } from "node:path"
-import { Cause, Effect, Exit } from "effect"
+import { Cause, Effect, Exit, Predicate } from "effect"
 import type { Diagnostic } from "@grayhaven/nerve"
 import { compileFile } from "@grayhaven/nerve-compiler"
 import { boardHtml, facesHtml, hirFingerprint, pinoutHtml, schematicHtml } from "@grayhaven/nerve-exporters"
@@ -158,7 +158,9 @@ export const startDev = async (
     server.listen(options.port ?? 4477, "127.0.0.1", () => resolveListen())
   )
   const address = server.address()
-  const port = typeof address === "object" && address !== null ? address.port : (options.port ?? 4477)
+  // A TCP listener reports an AddressInfo; only pipes and sockets report a string.
+  const port =
+    address === null || Predicate.isString(address) ? (options.port ?? 4477) : address.port
 
   // Watch the harness file's tree; debounce bursts (editors write twice).
   let timer: ReturnType<typeof setTimeout> | undefined

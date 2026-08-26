@@ -19,7 +19,6 @@ import {
   decodeHir,
   harness,
   wire,
-  type HirBranch,
   type Point3
 } from "@grayhaven/nerve"
 import robotPlatform from "../../../examples/robot-platform/src/main.harness.js"
@@ -44,7 +43,9 @@ const compileBranch = (props: {
       branches: [branch("spine", { path: [j1, j2], ...props })]
     })
   )
-  return { branch: hir.branches[0] as HirBranch, hir, diagnostics }
+  const [spine] = hir.branches
+  if (spine === undefined) throw new Error("the routed design compiled without its branch")
+  return { branch: spine, hir, diagnostics }
 }
 
 describe("branch geometry", () => {
@@ -92,8 +93,9 @@ describe("branch geometry", () => {
     expect(spine).not.toHaveProperty("routedMinBendRadius")
   })
 
+  const noWaypoints: ReadonlyArray<Point3> = []
   it.each([
-    ["empty", [] as ReadonlyArray<Point3>],
+    ["empty", noWaypoints],
     ["single-point", [p(0, 0, 0)]]
   ])("rejects a %s waypoint array rather than measuring it", (_label, waypoints) => {
     const { branch: spine, diagnostics } = compileBranch({ waypoints })
@@ -141,7 +143,7 @@ describe("branch geometry", () => {
       waypoints: [p(0, 0, 0), p(100, 0, 0), p(100, 100, 0)]
     })
 
-    const decoded = decodeHir(JSON.parse(JSON.stringify(hir)) as unknown)
+    const decoded = decodeHir(JSON.parse(JSON.stringify(hir)))
     expect(decoded.branches[0]).toEqual(hir.branches[0])
   })
 

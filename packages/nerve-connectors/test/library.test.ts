@@ -26,12 +26,14 @@ describe("bundled part library", () => {
   })
 
   it("mating references resolve within the library", () => {
+    const byMpn = new Map(Object.entries(allParts))
     for (const [key, p] of Object.entries(allParts)) {
       if (p.matingMpn === undefined) continue
       // Headers (JST B*B-*) are PCB-side and intentionally out of library scope.
       if (/^B\d+B-/.test(p.matingMpn)) continue
-      expect(allParts[p.matingMpn], `${key} mates ${p.matingMpn}`).toBeDefined()
-      expect(allParts[p.matingMpn]?.matingMpn, key).toBe(key)
+      const mate = byMpn.get(p.matingMpn)
+      expect(mate, `${key} mates ${p.matingMpn}`).toBeDefined()
+      expect(mate?.matingMpn, key).toBe(key)
     }
   })
 
@@ -56,8 +58,8 @@ describe("compact part specs (footprinter-style)", () => {
 
   it("every spec resolves to a real library part", async () => {
     const { part, partSpecs } = await import("../src/part-spec.js")
-    for (const spec of Object.keys(partSpecs)) {
-      expect(part(spec).mpn, spec).toBe(partSpecs[spec])
+    for (const [spec, mpn] of Object.entries(partSpecs)) {
+      expect(part(spec).mpn, spec).toBe(mpn)
     }
   })
 
@@ -85,7 +87,7 @@ describe("compact part specs (footprinter-style)", () => {
       part("DT06 4X")
       expect.fail("should throw")
     } catch (e) {
-      const msg = (e as Error).message
+      const msg = e instanceof Error ? e.message : String(e)
       // The user's input is quoted verbatim (not the normalized form)…
       expect(msg).toContain('Unknown part spec "DT06 4X"')
       // …and every compact spec is in the menu.

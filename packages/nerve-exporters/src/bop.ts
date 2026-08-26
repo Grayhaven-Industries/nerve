@@ -14,6 +14,7 @@
 import { isPinEndpoint, refs, type Hir, type HirPin } from "@grayhaven/nerve"
 import { generateTestPlan } from "./test-plan.js"
 import { toCsv, type TableData } from "./csv.js"
+import { draft } from "./draft.js"
 
 /** The contact record as it reaches an exporter. Derived from `HirPin`
  * because the HIR package publishes the pin type, not the terminal type. */
@@ -94,18 +95,19 @@ export const crimpSetups = (hir: Hir): ReadonlyArray<CrimpSetup> => {
         terminal.provenance?.verification ?? null
       ])
       const key = JSON.stringify([terminal.mpn, gauge ?? null, signature])
-      const existing = groups.get(key)
-      const group: Group =
-        existing ??
-        {
+      let group = groups.get(key)
+      if (group === undefined) {
+        const started = draft<Group>({
           key,
           terminalMpn: terminal.mpn,
-          ...(gauge !== undefined ? { gauge } : {}),
           terminal,
           pins: [],
           pinRefs: [],
           connectors: []
-        }
+        })
+        if (gauge !== undefined) started.gauge = gauge
+        group = started
+      }
       group.pins.push(`${c.ref}.${p.pin}`)
       group.pinRefs.push(refs.pin(c.ref, p.pin))
       if (!group.connectors.includes(c.ref)) group.connectors.push(c.ref)
@@ -120,16 +122,17 @@ export const crimpSetups = (hir: Hir): ReadonlyArray<CrimpSetup> => {
         (a.gauge ?? "").localeCompare(b.gauge ?? "") ||
         a.key.localeCompare(b.key)
     )
-    .map(
-      (g): CrimpSetup => ({
-        terminalMpn: g.terminalMpn,
-        ...(g.gauge !== undefined ? { gauge: g.gauge } : {}),
+    .map((g): CrimpSetup => {
+      const head = draft<Pick<CrimpSetup, "terminalMpn" | "gauge">>({ terminalMpn: g.terminalMpn })
+      if (g.gauge !== undefined) head.gauge = g.gauge
+      return {
+        ...head,
         terminal: g.terminal,
         pins: g.pins,
         pinRefs: g.pinRefs,
         connectors: g.connectors
-      })
-    )
+      }
+    })
 }
 
 /** How the setup is announced: what part, on what wire, at which cavities. */

@@ -11,7 +11,8 @@
  */
 import { isPinEndpoint, type Hir, type HirConnector, type HirWire } from "@grayhaven/nerve"
 import { diagnosticBadges } from "./badges.js"
-import { renderSvg, textWidth, type DrawItem, type Drawing } from "./drawing.js"
+import { renderSvg, textWidth, type DrawItem, type DrawPath, type Drawing } from "./drawing.js"
+import { draft } from "./draft.js"
 
 const CAV_R = 9
 const PITCH = 26
@@ -22,10 +23,16 @@ const MARGIN = 40
 const TITLE_H = 64
 const MIN_SIGNAL_COL = 150
 
+/** Authored color names that need a visible stroke; anything else is used as written. */
+const NAMED_STROKES = new Map([
+  ["white", "#b8b8b8"],
+  ["yellow", "#c9a800"],
+  ["black", "#222222"]
+])
+
 const strokeFor = (color: string | undefined): string => {
   if (color === undefined) return "#888888"
-  const map: Record<string, string> = { white: "#b8b8b8", yellow: "#c9a800", black: "#222222" }
-  return map[color.toLowerCase()] ?? color
+  return NAMED_STROKES.get(color.toLowerCase()) ?? color
 }
 
 interface CavityState {
@@ -33,6 +40,15 @@ interface CavityState {
   readonly signal?: string | undefined
   readonly wire?: HirWire | undefined
   readonly reserved: boolean
+}
+
+/** data-* attributes for a cavity: the wire lands only when one is populated. */
+type CavityData = { connector: string; pin: string; wire?: string }
+
+const cavityData = (connector: string, cav: CavityState): CavityData => {
+  const data: CavityData = { connector, pin: cav.pin }
+  if (cav.wire !== undefined) data.wire = cav.wire.id
+  return data
 }
 
 const layoutOf = (c: HirConnector): { rows: number; columns: number; derived: boolean } =>
@@ -149,22 +165,19 @@ export const connectorFacesDrawing = (hir: Hir): Drawing => {
         const cy = gy + CARD_PAD + row * PITCH + PITCH / 2
         if (!mirrored) cavityAt.set(`${c.ref}:${cav.pin}`, { x: cx, y: cy })
         const populated = cav.wire !== undefined
-        const data = {
-          connector: c.ref,
-          pin: cav.pin,
-          ...(cav.wire !== undefined ? { wire: cav.wire.id } : {})
-        }
+        const data = cavityData(c.ref, cav)
         if (populated) {
           items.push({ kind: "circle", cx, cy, r: CAV_R, fill: strokeFor(cav.wire?.color), data })
         }
-        items.push({
+        const ring = draft<DrawPath>({
           kind: "path",
           d: `M ${cx - CAV_R} ${cy} A ${CAV_R} ${CAV_R} 0 1 0 ${cx + CAV_R} ${cy} A ${CAV_R} ${CAV_R} 0 1 0 ${cx - CAV_R} ${cy} Z`,
           stroke: cav.reserved ? "#b3261e" : cav.signal !== undefined && !populated ? "#666" : "#333",
-          strokeWidth: cav.signal !== undefined && !populated ? 1.8 : 1.2,
-          ...(cav.reserved ? { dash: [3, 2] } : {}),
-          data
+          strokeWidth: cav.signal !== undefined && !populated ? 1.8 : 1.2
         })
+        if (cav.reserved) ring.dash = [3, 2]
+        ring.data = data
+        items.push(ring)
         items.push({
           kind: "text",
           x: cx,

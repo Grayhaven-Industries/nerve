@@ -7,6 +7,9 @@
  * (alternating connector/cable chains with pin lists, semantic labels, or
  * ranges). Anything WireViz expresses that HIR cannot map cleanly produces
  * an actionable diagnostic instead of silent loss.
+ *
+ * The YAML tree is decoded once, at the boundary, into the `WireViz*` types
+ * below; everything after that works on typed values.
  */
 import { parse } from "yaml"
 import {
@@ -17,12 +20,15 @@ import {
   wire,
   DiagnosticSeverity,
   type CableDef,
+  type CableProps,
   type ConnectorInstance,
+  type ConnectorPart,
   type Diagnostic,
   type HarnessDesign,
-  type WireDef
+  type WireDef,
+  type WireProps
 } from "@grayhaven/nerve"
-import { COLOR_CODES, colorFromWireViz } from "./colors.js"
+import { COLOR_CODES, colorFromWireViz, isWireVizColorCodeName } from "./colors.js"
 
 export interface ImportOptions {
   readonly harnessId?: string
@@ -35,6 +41,42 @@ export interface ImportResult {
   readonly design: HarnessDesign
   readonly diagnostics: ReadonlyArray<Diagnostic>
 }
+
+type Draft<T> = { -readonly [K in keyof T]: T[K] }
+/** Mutable builders for the DSL inputs; optional properties are added only when present. */
+type ConnectorPartDraft = Draft<ConnectorPart>
+type CablePropsDraft = Draft<CableProps>
+type WirePropsDraft = Draft<WireProps>
+
+// --- YAML boundary ----------------------------------------------------------
+
+/** The value tree `yaml.parse` yields under the core schema. */
+type YamlValue = string | number | boolean | null | Array<YamlValue> | YamlMapping
+interface YamlMapping {
+  readonly [key: string]: YamlValue
+}
+
+const isMapping = (value: YamlValue | undefined): value is YamlMapping =>
+  value !== null && value !== undefined && !Array.isArray(value) && value instanceof Object
+
+const isNumber = (value: YamlValue | undefined): value is number =>
+  Number.isFinite(value) ||
+  Number.isNaN(value) ||
+  value === Number.POSITIVE_INFINITY ||
+  value === Number.NEGATIVE_INFINITY
+
+const isText = (value: YamlValue | undefined): value is string =>
+  value !== undefined &&
+  value !== null &&
+  value !== true &&
+  value !== false &&
+  !Array.isArray(value) &&
+  !(value instanceof Object) &&
+  !isNumber(value)
+
+/** `String(x)` for a present YAML value; `undefined` stays absent and `null` reads as absent. */
+const textOf = (value: YamlValue | undefined): string | undefined =>
+  value === undefined || value === null ? undefined : String(value)
 
 const SUPPORTED_CONNECTOR_KEYS = new Set([
   "type",
@@ -59,39 +101,79 @@ const SUPPORTED_CABLE_KEYS = new Set([
   "notes"
 ])
 
-/** "1-4" → [1,2,3,4]; "4-1" → [4,3,2,1]; 3 → [3]. */
-const expandPins = (spec: unknown): Array<string> => {
-  const expandOne = (v: unknown): Array<string> => {
-    if (typeof v === "number") return [String(v)]
-    if (typeof v === "string") {
-      const range = /^(\d+)\s*-\s*(\d+)$/.exec(v.trim())
-      if (range !== null) {
-        const lo = Number(range[1])
-        const hi = Number(range[2])
-        const out: Array<string> = []
-        const step = lo <= hi ? 1 : -1
-        for (let i = lo; step > 0 ? i <= hi : i >= hi; i += step) out.push(String(i))
-        return out
-      }
-      return [v.trim()]
-    }
-    return []
-  }
-  return Array.isArray(spec) ? spec.flatMap(expandOne) : expandOne(spec)
+interface WireVizConnector {
+  /** `mpn`, else `pn`, else `type`, else the designator — as text. */
+  readonly mpn: string
+  /** `type`, when it is text. */
+  readonly family: string | undefined
+  readonly manufacturer: string | undefined
+  /** `subtype`, lower-cased. */
+  readonly subtype: string | undefined
+  readonly pincount: number | undefined
+  /** Explicit `pins` identifiers, as text. */
+  readonly pinIds: ReadonlyArray<string>
+  /** `pinlabels`; a null entry leaves that pin unlabeled. */
+  readonly pinlabels: ReadonlyArray<string | undefined>
+  readonly unsupportedKeys: ReadonlyArray<string>
 }
 
-const normalizeGauge = (gauge: unknown): string | undefined => {
-  if (gauge === undefined || gauge === null) return undefined
-  const s = String(gauge).trim()
-  // WireViz convention (syntax.md): a unitless gauge number is mm², NOT
-  // AWG. Tag it so canonicalGauge/parseAwg never misread "16" (16mm² ≈
-  // 5AWG) as 16AWG. Explicit AWG spellings canonicalize as everywhere else.
-  if (/awg/i.test(s)) return canonicalGauge(s)
-  if (/^\d+(\.\d+)?$/.test(s)) return `${s}mm2`
-  return s
+interface WireVizLength {
+  /** The source text, for diagnostics. */
+  readonly source: string
+  /** Millimetres, when the source could be converted. */
+  readonly mm: number | undefined
 }
 
-const LENGTH_UNIT_TO_MM: Readonly<Record<string, number>> = {
+interface WireVizCable {
+  /** `gauge` as written, when it is text or a number. */
+  readonly gauge: string | undefined
+  readonly length: WireVizLength | undefined
+  /** `wirecount`, else the number of declared `colors`. */
+  readonly wirecount: number | undefined
+  readonly colors: ReadonlyArray<string>
+  /** `color_code`, upper-cased. */
+  readonly colorCode: string | undefined
+  /** `wirelabels`; a null entry leaves that conductor unlabeled. */
+  readonly wirelabels: ReadonlyArray<string | undefined>
+  /** `true` or a shield description; `true` reads as "shield". */
+  readonly shield: string | undefined
+  readonly notes: string | undefined
+  /** `category: bundle` — loose wires rather than a cable. */
+  readonly isBundle: boolean
+  readonly unsupportedKeys: ReadonlyArray<string>
+}
+
+/** One `{name: pins}` entry of a connection chain, or something that is not one. */
+type WireVizChainEntry =
+  | { readonly kind: "named"; readonly name: string; readonly pins: ReadonlyArray<string> }
+  | { readonly kind: "unrecognized" }
+
+/** One row of `connections`: a chain of entries, or something that is not a sequence. */
+type WireVizConnectionRow =
+  | { readonly kind: "chain"; readonly entries: ReadonlyArray<WireVizChainEntry> }
+  | { readonly kind: "not-a-sequence" }
+
+interface WireVizMetadata {
+  readonly title: string | undefined
+  readonly pn: string | undefined
+  readonly unsupportedKeys: ReadonlyArray<string>
+}
+
+interface WireVizDocument {
+  readonly connectors: ReadonlyMap<string, WireVizConnector>
+  readonly cables: ReadonlyMap<string, WireVizCable>
+  readonly connections: ReadonlyArray<WireVizConnectionRow>
+  /** `options.template_separator` when it is non-empty text. */
+  readonly templateSeparator: string | undefined
+  /** `options.template_separator` was given but is not non-empty text. */
+  readonly invalidTemplateSeparator: boolean
+  readonly unsupportedOptions: ReadonlyArray<string>
+  /** Top-level sections WireViz defines that the import does not carry. */
+  readonly unsupportedSections: ReadonlyArray<string>
+  readonly metadata: WireVizMetadata
+}
+
+const LENGTH_UNIT_TO_MM = {
   "": 1000,
   m: 1000,
   meter: 1000,
@@ -116,26 +198,181 @@ const LENGTH_UNIT_TO_MM: Readonly<Record<string, number>> = {
   foot: 304.8,
   feet: 304.8,
   "'": 304.8
-}
+} as const satisfies Record<string, number>
+
+type LengthUnit = keyof typeof LENGTH_UNIT_TO_MM
+
+const isLengthUnit = (unit: string): unit is LengthUnit => Object.hasOwn(LENGTH_UNIT_TO_MM, unit)
 
 /** WireViz assumes numeric lengths are metres; unit-bearing strings retain their unit. */
-const normalizeLengthMm = (length: unknown): number | undefined => {
-  if (typeof length === "number" && Number.isFinite(length)) return Math.round(length * 1000)
-  if (typeof length !== "string") return undefined
+const lengthToMm = (length: YamlValue): number | undefined => {
+  if (isNumber(length)) return Number.isFinite(length) ? Math.round(length * 1000) : undefined
+  if (!isText(length)) return undefined
   const match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*([a-zA-Z"']*)$/.exec(length.trim())
   if (match === null) return undefined
   const value = Number(match[1])
-  const factor = LENGTH_UNIT_TO_MM[match[2]!.toLowerCase()]
-  return Number.isFinite(value) && factor !== undefined ? Math.round(value * factor) : undefined
+  const unit = match[2]!.toLowerCase()
+  if (!Number.isFinite(value) || !isLengthUnit(unit)) return undefined
+  return Math.round(value * LENGTH_UNIT_TO_MM[unit])
+}
+
+/** "1-4" → [1,2,3,4]; "4-1" → [4,3,2,1]; 3 → [3]. */
+const expandPins = (spec: YamlValue | undefined): Array<string> => {
+  const expandOne = (v: YamlValue | undefined): Array<string> => {
+    if (isNumber(v)) return [String(v)]
+    if (isText(v)) {
+      const range = /^(\d+)\s*-\s*(\d+)$/.exec(v.trim())
+      if (range !== null) {
+        const lo = Number(range[1])
+        const hi = Number(range[2])
+        const out: Array<string> = []
+        const step = lo <= hi ? 1 : -1
+        for (let i = lo; step > 0 ? i <= hi : i >= hi; i += step) out.push(String(i))
+        return out
+      }
+      return [v.trim()]
+    }
+    return []
+  }
+  return Array.isArray(spec) ? spec.flatMap(expandOne) : expandOne(spec)
+}
+
+const textList = (value: YamlValue | undefined): Array<string> =>
+  Array.isArray(value) ? value.map(String) : []
+
+const labelList = (value: YamlValue | undefined): Array<string | undefined> =>
+  Array.isArray(value) ? value.map(textOf) : []
+
+const unsupportedKeysOf = (mapping: YamlMapping, supported: ReadonlySet<string>): Array<string> =>
+  Object.keys(mapping).filter((key) => !supported.has(key))
+
+const decodeConnector = (ref: string, value: YamlValue): WireVizConnector => {
+  if (!isMapping(value)) throw new Error(`WireViz connector "${ref}" must be a mapping.`)
+  const pincount = value["pincount"]
+  const subtype = value["subtype"]
+  const family = value["type"]
+  const manufacturer = value["manufacturer"]
+  return {
+    mpn: String(value["mpn"] ?? value["pn"] ?? value["type"] ?? ref),
+    family: isText(family) ? family : undefined,
+    manufacturer: isText(manufacturer) ? manufacturer : undefined,
+    subtype: isText(subtype) ? subtype.toLowerCase() : undefined,
+    pincount: isNumber(pincount) ? pincount : undefined,
+    pinIds: textList(value["pins"]),
+    pinlabels: labelList(value["pinlabels"]),
+    unsupportedKeys: unsupportedKeysOf(value, SUPPORTED_CONNECTOR_KEYS)
+  }
+}
+
+const decodeCable = (id: string, value: YamlValue): WireVizCable => {
+  if (!isMapping(value)) throw new Error(`WireViz cable "${id}" must be a mapping.`)
+  const gauge = value["gauge"]
+  const length = value["length"]
+  const wirecount = value["wirecount"]
+  const colors = value["colors"]
+  const colorCode = value["color_code"]
+  const shield = value["shield"]
+  const notes = value["notes"]
+  return {
+    gauge: isText(gauge) || isNumber(gauge) ? String(gauge) : undefined,
+    length: length === undefined ? undefined : { source: String(length), mm: lengthToMm(length) },
+    wirecount: isNumber(wirecount)
+      ? wirecount
+      : Array.isArray(colors)
+        ? colors.length
+        : undefined,
+    colors: textList(colors),
+    colorCode: isText(colorCode) ? colorCode.toUpperCase() : undefined,
+    wirelabels: labelList(value["wirelabels"]),
+    shield: shield === true ? "shield" : isText(shield) ? shield : undefined,
+    notes: isText(notes) ? notes : undefined,
+    isBundle: value["category"] === "bundle",
+    unsupportedKeys: unsupportedKeysOf(value, SUPPORTED_CABLE_KEYS)
+  }
+}
+
+const decodeChainEntry = (entry: YamlValue): WireVizChainEntry => {
+  if (!isMapping(entry)) return { kind: "unrecognized" }
+  const first = Object.entries(entry)[0]
+  if (first === undefined) return { kind: "unrecognized" }
+  const [name, spec] = first
+  return { kind: "named", name, pins: expandPins(spec) }
+}
+
+const decodeConnectionRow = (row: YamlValue): WireVizConnectionRow =>
+  Array.isArray(row)
+    ? { kind: "chain", entries: row.map(decodeChainEntry) }
+    : { kind: "not-a-sequence" }
+
+const decodeSection = <T>(
+  doc: YamlMapping,
+  section: string,
+  decodeEntry: (key: string, value: YamlValue) => T
+): ReadonlyMap<string, T> => {
+  const value = doc[section] ?? {}
+  if (!isMapping(value)) throw new Error(`WireViz section "${section}" must be a mapping.`)
+  return new Map(Object.entries(value).map(([key, entry]) => [key, decodeEntry(key, entry)]))
+}
+
+const decodeDocument = (source: string): WireVizDocument => {
+  // The core YAML schema (no custom tags) yields only strings, numbers,
+  // booleans, null, arrays, and plain objects — exactly `YamlValue`. An
+  // empty document parses to null.
+  const root: YamlValue = parse(source, { merge: true })
+  const doc = root ?? {}
+  if (!isMapping(doc)) throw new Error("WireViz source must be a YAML mapping.")
+
+  const connections = doc["connections"] ?? []
+  if (!Array.isArray(connections)) throw new Error(`WireViz section "connections" must be a sequence.`)
+
+  const options = doc["options"] ?? {}
+  if (!isMapping(options)) throw new Error(`WireViz section "options" must be a mapping.`)
+  const separator = options["template_separator"]
+  const hasSeparator = isText(separator) && separator.length > 0
+
+  const metadata = doc["metadata"] ?? {}
+  if (!isMapping(metadata)) throw new Error(`WireViz section "metadata" must be a mapping.`)
+  const title = metadata["title"]
+  const pn = metadata["pn"]
+
+  return {
+    connectors: decodeSection(doc, "connectors", decodeConnector),
+    cables: decodeSection(doc, "cables", decodeCable),
+    connections: connections.map(decodeConnectionRow),
+    templateSeparator: hasSeparator ? separator : undefined,
+    invalidTemplateSeparator: separator !== undefined && !hasSeparator,
+    unsupportedOptions: Object.keys(options).filter((key) => key !== "template_separator"),
+    unsupportedSections: ["tweak", "additional_bom_items"].filter(
+      (section) => doc[section] !== undefined
+    ),
+    metadata: {
+      title: isText(title) ? title : undefined,
+      pn: isText(pn) ? pn : undefined,
+      unsupportedKeys: Object.keys(metadata).filter((key) => key !== "title" && key !== "pn")
+    }
+  }
+}
+
+// --- Import ------------------------------------------------------------------
+
+const normalizeGauge = (gauge: string | undefined): string | undefined => {
+  if (gauge === undefined) return undefined
+  const s = gauge.trim()
+  // WireViz convention (syntax.md): a unitless gauge number is mm², NOT
+  // AWG. Tag it so canonicalGauge/parseAwg never misread "16" (16mm² ≈
+  // 5AWG) as 16AWG. Explicit AWG spellings canonicalize as everywhere else.
+  if (/awg/i.test(s)) return canonicalGauge(s)
+  if (/^\d+(\.\d+)?$/.test(s)) return `${s}mm2`
+  return s
 }
 
 const addReference = (
   references: Map<string, Array<string>>,
-  reference: unknown,
+  reference: string | undefined,
   value: string
 ): void => {
-  if (reference === undefined || reference === null) return
-  const key = String(reference).trim()
+  if (reference === undefined) return
+  const key = reference.trim()
   if (key === "") return
   const values = references.get(key) ?? []
   if (!values.includes(value)) values.push(value)
@@ -153,62 +390,52 @@ const splitGeneratedName = (
     instance: name.slice(at + separator.length)
   }
 }
+
+type ImportedMetadata = {
+  readonly importedFrom: "wireviz"
+  sourceTitle?: string
+  sourcePartNumber?: string
+}
+
 export const importWireViz = (
   yamlText: string,
   options: ImportOptions = {}
 ): ImportResult => {
   const source = [...(options.prependYaml ?? []), yamlText].join("\n")
-  const doc = parse(source, { merge: true }) as Record<string, unknown> | null
+  const doc = decodeDocument(source)
   const diagnostics: Array<Diagnostic> = []
   const report = (
     severity: DiagnosticSeverity,
     message: string,
     target?: string
   ) => {
-    diagnostics.push({
-      code: "HK-WV-001",
-      severity,
-      message,
-      ...(target !== undefined ? { target } : {})
-    })
+    const code = "HK-WV-001"
+    diagnostics.push(
+      target === undefined ? { code, severity, message } : { code, severity, message, target }
+    )
   }
   const warn = (message: string, target?: string) =>
     report(DiagnosticSeverity.Warning, message, target)
   const error = (message: string, target?: string) =>
     report(DiagnosticSeverity.Error, message, target)
 
-  const connectorsIn = (doc?.["connectors"] ?? {}) as Record<string, Record<string, unknown>>
-  const cablesIn = (doc?.["cables"] ?? {}) as Record<string, Record<string, unknown>>
-  const connectionsIn = (doc?.["connections"] ?? []) as Array<Array<unknown>>
-
-  const optionsIn = (doc?.["options"] ?? {}) as Record<string, unknown>
-  const configuredSeparator = optionsIn["template_separator"]
-  const hasConfiguredSeparator =
-    typeof configuredSeparator === "string" && configuredSeparator.length > 0
-  const templateSeparator =
-    typeof configuredSeparator === "string" && configuredSeparator.length > 0
-      ? configuredSeparator
-      : "."
-  if (configuredSeparator !== undefined && !hasConfiguredSeparator) {
+  const templateSeparator = doc.templateSeparator ?? "."
+  if (doc.invalidTemplateSeparator) {
     warn(`WireViz option "template_separator" must be a non-empty string; using ".".`)
   }
-  const unsupportedOptions = Object.keys(optionsIn).filter((key) => key !== "template_separator")
-  if (unsupportedOptions.length > 0) {
-    warn(`WireViz options ${unsupportedOptions.map((key) => `"${key}"`).join(", ")} are not imported.`)
+  if (doc.unsupportedOptions.length > 0) {
+    warn(`WireViz options ${doc.unsupportedOptions.map((key) => `"${key}"`).join(", ")} are not imported.`)
   }
 
-  for (const section of ["tweak", "additional_bom_items"]) {
-    if (doc?.[section] !== undefined) {
-      warn(`WireViz section "${section}" is not imported.`)
-    }
+  for (const section of doc.unsupportedSections) {
+    warn(`WireViz section "${section}" is not imported.`)
   }
 
-  const metadataIn = (doc?.["metadata"] ?? {}) as Record<string, unknown>
-  const importedMetadata: Record<string, string> = { importedFrom: "wireviz" }
-  if (typeof metadataIn["title"] === "string") importedMetadata["sourceTitle"] = metadataIn["title"]
-  if (typeof metadataIn["pn"] === "string") importedMetadata["sourcePartNumber"] = metadataIn["pn"]
-  for (const key of Object.keys(metadataIn)) {
-    if (key !== "title" && key !== "pn") warn(`WireViz metadata key "${key}" is not imported.`)
+  const importedMetadata: ImportedMetadata = { importedFrom: "wireviz" }
+  if (doc.metadata.title !== undefined) importedMetadata.sourceTitle = doc.metadata.title
+  if (doc.metadata.pn !== undefined) importedMetadata.sourcePartNumber = doc.metadata.pn
+  for (const key of doc.metadata.unsupportedKeys) {
+    warn(`WireViz metadata key "${key}" is not imported.`)
   }
 
   // --- Connectors -----------------------------------------------------------
@@ -216,54 +443,33 @@ export const importWireViz = (
   const connectorByRef = new Map<string, ConnectorInstance>()
   const connectorPins = new Map<string, ReadonlySet<string>>()
   const connectorPinsByLabel = new Map<string, Map<string, Array<string>>>()
-  for (const [ref, def] of Object.entries(connectorsIn)) {
-    for (const key of Object.keys(def)) {
-      if (!SUPPORTED_CONNECTOR_KEYS.has(key)) {
-        warn(`Connector ${ref}: WireViz key "${key}" is not imported.`, `connector:${ref}`)
-      }
+  for (const [ref, def] of doc.connectors) {
+    for (const key of def.unsupportedKeys) {
+      warn(`Connector ${ref}: WireViz key "${key}" is not imported.`, `connector:${ref}`)
     }
-    const pinlabels = Array.isArray(def["pinlabels"]) ? (def["pinlabels"] as Array<unknown>) : []
-    const pinIds = Array.isArray(def["pins"])
-      ? (def["pins"] as Array<unknown>).map(String)
-      : []
-    const pincount =
-      typeof def["pincount"] === "number"
-        ? def["pincount"]
-        : Math.max(pinlabels.length, pinIds.length)
-    const subtype = typeof def["subtype"] === "string" ? def["subtype"].toLowerCase() : undefined
+    const pincount = def.pincount ?? Math.max(def.pinlabels.length, def.pinIds.length)
     const pins: Record<string, string> = {}
     const pinsByLabel = new Map<string, Array<string>>()
-    pinlabels.forEach((label, i) => {
-      if (label !== null && label !== undefined) {
-        const pin = pinIds[i] ?? String(i + 1)
-        pins[pin] = String(label)
+    def.pinlabels.forEach((label, i) => {
+      if (label !== undefined) {
+        const pin = def.pinIds[i] ?? String(i + 1)
+        pins[pin] = label
         addReference(pinsByLabel, label, pin)
       }
     })
-    const instance = connector(
-      ref,
-      {
-        mpn: String(def["mpn"] ?? def["pn"] ?? def["type"] ?? ref),
-        ...(typeof def["manufacturer"] === "string"
-          ? { manufacturer: def["manufacturer"] }
-          : {}),
-        ...(typeof def["type"] === "string" ? { family: def["type"] } : {}),
-        ...(subtype === "female"
-          ? { gender: "receptacle" as const }
-          : subtype === "male"
-            ? { gender: "plug" as const }
-            : {}),
-        pinCount: Math.max(pincount, 1)
-      },
-      { pins }
-    )
+    const part: ConnectorPartDraft = { mpn: def.mpn, pinCount: Math.max(pincount, 1) }
+    if (def.manufacturer !== undefined) part.manufacturer = def.manufacturer
+    if (def.family !== undefined) part.family = def.family
+    if (def.subtype === "female") part.gender = "receptacle"
+    else if (def.subtype === "male") part.gender = "plug"
+    const instance = connector(ref, part, { pins })
     connectors.push(instance)
     connectorByRef.set(ref, instance)
     connectorPins.set(
       ref,
       new Set(
-        pinIds.length > 0
-          ? pinIds
+        def.pinIds.length > 0
+          ? def.pinIds
           : Array.from({ length: Math.max(pincount, 1) }, (_, index) => String(index + 1))
       )
     )
@@ -281,25 +487,16 @@ export const importWireViz = (
   }
   const cables: Array<CableDef> = []
   const cableInfo = new Map<string, CableInfo>()
-  for (const [id, def] of Object.entries(cablesIn)) {
-    for (const key of Object.keys(def)) {
-      if (!SUPPORTED_CABLE_KEYS.has(key)) {
-        warn(`Cable ${id}: WireViz key "${key}" is not imported.`, `cable:${id}`)
-      }
+  for (const [id, def] of doc.cables) {
+    for (const key of def.unsupportedKeys) {
+      warn(`Cable ${id}: WireViz key "${key}" is not imported.`, `cable:${id}`)
     }
-    const wirecount =
-      typeof def["wirecount"] === "number"
-        ? def["wirecount"]
-        : Array.isArray(def["colors"])
-          ? (def["colors"] as Array<unknown>).length
-          : undefined
-    let colorTokens = Array.isArray(def["colors"])
-      ? (def["colors"] as Array<unknown>).map(String)
-      : []
+    const wirecount = def.wirecount
+    let colorTokens = [...def.colors]
     let colors = colorTokens.map(colorFromWireViz)
-    const colorCode = typeof def["color_code"] === "string" ? def["color_code"].toUpperCase() : undefined
+    const colorCode = def.colorCode
     if (colors.length === 0 && colorCode !== undefined) {
-      const cycle = COLOR_CODES[colorCode]
+      const cycle = isWireVizColorCodeName(colorCode) ? COLOR_CODES[colorCode] : undefined
       if (cycle !== undefined && wirecount !== undefined) {
         colorTokens = Array.from({ length: wirecount }, (_, i) => cycle[i % cycle.length]!)
         colors = colorTokens.map(colorFromWireViz)
@@ -307,25 +504,19 @@ export const importWireViz = (
         warn(`Cable ${id}: color_code "${colorCode}" is not supported; colors omitted.`, `cable:${id}`)
       }
     }
-    const isBundle = def["category"] === "bundle"
-    const lengthMm = normalizeLengthMm(def["length"])
-    if (def["length"] !== undefined && lengthMm === undefined) {
-      warn(`Cable ${id}: length "${String(def["length"])}" cannot be converted to millimetres.`, `cable:${id}`)
+    const isBundle = def.isBundle
+    const lengthMm = def.length?.mm
+    if (def.length !== undefined && lengthMm === undefined) {
+      warn(`Cable ${id}: length "${def.length.source}" cannot be converted to millimetres.`, `cable:${id}`)
     }
-    const cableDef = cable(id, {
-      ...(typeof def["gauge"] === "string" || typeof def["gauge"] === "number"
-        ? { type: `${wirecount ?? "?"}x${String(def["gauge"])}` }
-        : {}),
-      ...(wirecount !== undefined ? { conductors: wirecount } : {}),
-      ...(def["shield"] === true || typeof def["shield"] === "string"
-        ? { shield: typeof def["shield"] === "string" ? def["shield"] : "shield" }
-        : {}),
-      ...(typeof def["notes"] === "string" ? { notes: def["notes"] } : {})
-    })
+    const cableProps: CablePropsDraft = {}
+    if (def.gauge !== undefined) cableProps.type = `${wirecount ?? "?"}x${def.gauge}`
+    if (wirecount !== undefined) cableProps.conductors = wirecount
+    if (def.shield !== undefined) cableProps.shield = def.shield
+    if (def.notes !== undefined) cableProps.notes = def.notes
+    const cableDef = cable(id, cableProps)
     const conductorReferences = new Map<string, Array<string>>()
-    const wirelabels = Array.isArray(def["wirelabels"])
-      ? (def["wirelabels"] as Array<unknown>)
-      : []
+    const wirelabels = def.wirelabels
     const referenceCount = Math.max(wirecount ?? 0, colorTokens.length, wirelabels.length)
     for (let index = 0; index < referenceCount; index++) {
       const conductor = String(index + 1)
@@ -337,7 +528,7 @@ export const importWireViz = (
     if (!isBundle) cables.push(cableDef)
     cableInfo.set(id, {
       def: cableDef,
-      gauge: normalizeGauge(def["gauge"]),
+      gauge: normalizeGauge(def.gauge),
       lengthMm,
       colors,
       conductorReferences,
@@ -345,8 +536,8 @@ export const importWireViz = (
     })
   }
 
-  const sourceConnectorRefs = new Set(Object.keys(connectorsIn))
-  const sourceCableIds = new Set(Object.keys(cablesIn))
+  const sourceConnectorRefs = new Set(doc.connectors.keys())
+  const sourceCableIds = new Set(doc.cables.keys())
   const directlyUsedConnectors = new Set<string>()
   const directlyUsedCables = new Set<string>()
   const usedConnectorTemplates = new Set<string>()
@@ -485,19 +676,13 @@ export const importWireViz = (
   // --- Connections ------------------------------------------------------------
   const wires: Array<WireDef> = []
   let looseWireCounter = 0
-  for (const [rowIndex, row] of connectionsIn.entries()) {
-    if (!Array.isArray(row)) {
+  for (const [rowIndex, row] of doc.connections.entries()) {
+    if (row.kind === "not-a-sequence") {
       error(`Connection row ${rowIndex + 1} is not a sequence; skipped.`)
       continue
     }
     // Each row is an alternating chain of {connector: pins} / {cable: conductors}.
-    const items = row.map((entry) => {
-      if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
-        const [name, spec] = Object.entries(entry)[0] ?? []
-        return name !== undefined ? { name, pins: expandPins(spec) } : undefined
-      }
-      return undefined
-    })
+    const items = row.entries.map((entry) => (entry.kind === "named" ? entry : undefined))
     for (let i = 0; i + 2 < items.length || (items.length === 2 && i === 0); i += 2) {
       const left = items[i]
       const middle = items.length === 2 ? undefined : items[i + 1]
@@ -552,27 +737,25 @@ export const importWireViz = (
             : `W${++looseWireCounter}`
         const signal =
           leftConn.pins[fromPin] ?? rightConn.pins[toPin]
-        wires.push(
-          wire(id, leftConn.pin(fromPin), rightConn.pin(toPin), {
-            ...(info?.gauge !== undefined ? { gauge: info.gauge } : {}),
-            ...(info?.lengthMm !== undefined ? { length: info.lengthMm } : {}),
-            ...(conductor !== undefined && info !== undefined
-              ? {
-                  color: info.colors[Number(conductor) - 1],
-                  ...(cableId !== undefined && cables.some((c) => c.id === cableId)
-                    ? { cable: cableId, conductor }
-                    : {})
-                }
-              : {}),
-            ...(signal !== undefined ? { signal } : {})
-          })
-        )
+        const props: WirePropsDraft = {}
+        if (info?.gauge !== undefined) props.gauge = info.gauge
+        if (info?.lengthMm !== undefined) props.length = info.lengthMm
+        if (conductor !== undefined && info !== undefined) {
+          const color = info.colors[Number(conductor) - 1]
+          if (color !== undefined) props.color = color
+          if (cableId !== undefined && cables.some((c) => c.id === cableId)) {
+            props.cable = cableId
+            props.conductor = conductor
+          }
+        }
+        if (signal !== undefined) props.signal = signal
+        wires.push(wire(id, leftConn.pin(fromPin), rightConn.pin(toPin), props))
       }
     }
   }
 
-  if (connectionsIn.length > 0 && wires.length === 0) {
-    error(`WireViz source declares ${connectionsIn.length} connection row(s), but no wires were imported.`)
+  if (doc.connections.length > 0 && wires.length === 0) {
+    error(`WireViz source declares ${doc.connections.length} connection row(s), but no wires were imported.`)
   }
 
   const design = harness(options.harnessId ?? "imported-wireviz-harness", {

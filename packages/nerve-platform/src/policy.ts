@@ -8,7 +8,7 @@
  * carries a fingerprint: §10.2 invalidates an approval when policy moves, and
  * "moved" is only decidable if the policy has a content identity.
  */
-import type { Fingerprint } from "./fingerprint.js"
+import type { Canonical, Fingerprint } from "./fingerprint.js"
 import { fingerprint } from "./fingerprint.js"
 import type { Policy, Severity } from "./objects.js"
 
@@ -67,4 +67,4 @@ export const policyFingerprint = (policy: Omit<Policy, "fingerprint">): Fingerpr
     allowEvidenceReuse: policy.allowEvidenceReuse,
     retentionDays: policy.retentionDays,
     sourceStalenessToleranceDays: policy.sourceStalenessToleranceDays
-  } satisfies Record<keyof Omit<Policy, "fingerprint">, unknown>)
+  } satisfies { readonly [K in keyof Omit<Policy, "fingerprint">]: Canonical })

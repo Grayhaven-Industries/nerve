@@ -64,7 +64,10 @@ export function SchematicSheet({
       for (const el of pane.querySelectorAll(".hl")) el.classList.remove("hl")
     }
     const over = (e: PointerEvent) => {
-      const ref = (e.target as Element).closest?.("[data-wire]")?.getAttribute("data-wire")
+      const ref =
+        e.target instanceof Element
+          ? e.target.closest("[data-wire]")?.getAttribute("data-wire")
+          : undefined
       clear()
       if (ref === null || ref === undefined) return
       pane.classList.add("net-hover")
@@ -89,7 +92,7 @@ export function SchematicSheet({
       scroller.scrollTop += py * (next / prev - 1)
     }
     const click = (e: MouseEvent) => {
-      setSelection(selectionFromElement(e.target as Element))
+      if (e.target instanceof Element) setSelection(selectionFromElement(e.target))
     }
     // Keyboard parity for the focusable pane: ± zoom, 0 resets, Escape
     // clears the selection. Same clamp as the wheel handler.

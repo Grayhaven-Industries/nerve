@@ -167,6 +167,10 @@ export const partCoverage = (part: ConnectorPart): PartCoverage => {
 /** Info diagnostics that name a dark check are still diagnostics (PRD §11.2). */
 const COVERAGE_CODE = "HK-CONN-022"
 
+/** A diagnostic under construction: `target` is added only when the caller
+ * supplied one, so a targetless diagnostic carries no `target` key at all. */
+type DiagnosticDraft = { -readonly [K in keyof Diagnostic]: Diagnostic[K] }
+
 /**
  * Diagnostics naming every check that is dark for this part.
  * Emits HK-CONN-022 (info severity) per inactive rule.
@@ -178,13 +182,14 @@ export const partCoverageDiagnostics = (
   const byCode = new Map(entriesByCode.map((e) => [e.code, e]))
   return partCoverage(part).inactive.map(({ code, missingField }) => {
     const entry = byCode.get(code)!
-    return {
+    const diagnostic: DiagnosticDraft = {
       code: COVERAGE_CODE,
-      severity: "info" as const,
-      message: `${code} cannot run against ${part.mpn}: the part declares no \`${missingField}\`. That check ${entry.what}; declaring \`${missingField}\` turns it on.`,
-      ...(target !== undefined ? { target } : {}),
-      data: { mpn: part.mpn, check: code, missingField, rule: entry.rule }
+      severity: "info",
+      message: `${code} cannot run against ${part.mpn}: the part declares no \`${missingField}\`. That check ${entry.what}; declaring \`${missingField}\` turns it on.`
     }
+    if (target !== undefined) diagnostic.target = target
+    diagnostic.data = { mpn: part.mpn, check: code, missingField, rule: entry.rule }
+    return diagnostic
   })
 }
 
@@ -196,16 +201,16 @@ export const definePart = (part: ConnectorPart): ConnectorPart =>
   part.provenance !== undefined ? part : { ...part, provenance: { verification: "unverified" } }
 
 /** Example values per gated field — plausible, and obviously placeholders. */
-const SCAFFOLD_PLACEHOLDER: Readonly<Record<string, string>> = {
-  compatibleTerminals: `["TERMINAL-MPN"]`,
-  sealed: "false",
-  compatibleSeals: `["SEAL-MPN"]`,
-  reservedPins: "[]",
-  currentLimitA: "5",
-  voltageLimitV: "250",
-  cavityLayout: "{ rows: 1, columns: PIN_COUNT }",
-  wireGaugeRange: `{ min: "24AWG", max: "20AWG" }`
-}
+const SCAFFOLD_PLACEHOLDER: ReadonlyMap<string, string> = new Map([
+  ["compatibleTerminals", `["TERMINAL-MPN"]`],
+  ["sealed", "false"],
+  ["compatibleSeals", `["SEAL-MPN"]`],
+  ["reservedPins", "[]"],
+  ["currentLimitA", "5"],
+  ["voltageLimitV", "250"],
+  ["cavityLayout", "{ rows: 1, columns: PIN_COUNT }"],
+  ["wireGaugeRange", `{ min: "24AWG", max: "20AWG" }`]
+])
 
 /** Descriptive fields no rule reads, but every good entry carries. */
 const SCAFFOLD_DESCRIPTIVE: ReadonlyArray<readonly [string, string]> = [
@@ -237,7 +242,7 @@ export const scaffoldPartSource = (mpn: string, pinCount: number): string => {
   const gated = [...codesByField.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([field, codes]) => {
-      const value = SCAFFOLD_PLACEHOLDER[field]!.replace("PIN_COUNT", String(pinCount))
+      const value = SCAFFOLD_PLACEHOLDER.get(field)!.replace("PIN_COUNT", String(pinCount))
       return `  // ${field}: ${value},  // enables ${[...codes].sort().join(", ")}`
     })
   const descriptive = SCAFFOLD_DESCRIPTIVE.map(([field, value]) => `  // ${field}: ${value},`)

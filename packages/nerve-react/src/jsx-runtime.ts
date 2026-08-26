@@ -10,7 +10,7 @@ export const jsx = <P, R>(type: JsxComponent<P, R>, props: P): R => type(props)
 export const jsxs = jsx
 export const jsxDEV = <P, R>(type: JsxComponent<P, R>, props: P): R => type(props)
 
-export const Fragment = (props: { children?: unknown }): unknown => props.children
+export const Fragment = <C>(props: { children?: C }): C | undefined => props.children
 
 // Minimal JSX namespace: components only (no intrinsic lowercase elements —
 // <Harness> not <harness>, keeping every element a typed function).
@@ -21,7 +21,7 @@ declare global {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     type Element = any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type ElementType = (props: any) => unknown
+    type ElementType = (props: any) => Element
     interface ElementChildrenAttribute {
       children: unknown
     }

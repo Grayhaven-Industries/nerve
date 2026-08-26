@@ -10,7 +10,15 @@
  */
 import { isPinEndpoint, type Hir, type HirEndpoint } from "@grayhaven/nerve"
 import { diagnosticBadges } from "./badges.js"
-import { renderSvg, textWidth, type DrawItem, type Drawing } from "./drawing.js"
+import {
+  renderSvg,
+  textWidth,
+  type DrawItem,
+  type DrawLine,
+  type DrawPath,
+  type Drawing
+} from "./drawing.js"
+import { draft } from "./draft.js"
 
 const MIN_BOX_W = 180
 const ROW_H = 20
@@ -29,14 +37,15 @@ const NET_LABEL_MIN_WIRES = 12
 const STUB_LEN = 26
 
 /** Map authored color names to visible strokes. */
+const NAMED_STROKES = new Map([
+  ["white", "#b8b8b8"],
+  ["yellow", "#c9a800"],
+  ["black", "#222222"]
+])
+
 const strokeFor = (color: string | undefined): string => {
   if (color === undefined) return "#888888"
-  const map: Record<string, string> = {
-    white: "#b8b8b8",
-    yellow: "#c9a800",
-    black: "#222222"
-  }
-  return map[color.toLowerCase()] ?? color
+  return NAMED_STROKES.get(color.toLowerCase()) ?? color
 }
 
 interface PlacedConnector {
@@ -327,18 +336,19 @@ export const schematicDrawing = (hir: Hir): Drawing => {
       for (const end of [a, b]) {
         const dir = end.dir !== 0 ? end.dir : 1
         const sx = end.x + dir * STUB_LEN
+        const stub = draft<DrawLine>({
+          kind: "line",
+          x1: end.x,
+          y1: end.y,
+          x2: sx,
+          y2: end.y,
+          stroke,
+          strokeWidth: 2,
+          data: { wire: w.id }
+        })
+        if (isError) stub.dash = [6, 3]
         items.push(
-          {
-            kind: "line",
-            x1: end.x,
-            y1: end.y,
-            x2: sx,
-            y2: end.y,
-            stroke,
-            strokeWidth: 2,
-            data: { wire: w.id },
-            ...(isError ? { dash: [6, 3] } : {})
-          },
+          stub,
           {
             kind: "text",
             x: sx + dir * 6,
@@ -394,14 +404,15 @@ export const schematicDrawing = (hir: Hir): Drawing => {
         const dropB = dirB === 1 ? channelLeft - 12 - stagB : channelRight + 12 + stagB
         pts.push([dropB, slotY(last, w.id)], [dropB, b.y], [b.x, b.y])
       }
-      items.push({
+      const channel = draft<DrawPath>({
         kind: "path",
         d: pts.map(([px, py], i) => `${i === 0 ? "M" : "L"} ${px} ${py}`).join(" "),
         stroke,
         strokeWidth: 1.6,
-        data: { wire: w.id },
-        ...(isError ? { dash: [6, 3] } : {})
+        data: { wire: w.id }
       })
+      if (isError) channel.dash = [6, 3]
+      items.push(channel)
       const annotation = [w.id, w.gauge, w.twistGroup !== undefined ? "twisted" : undefined]
         .filter((t): t is string => t !== undefined)
         .join(" · ")
@@ -428,14 +439,15 @@ export const schematicDrawing = (hir: Hir): Drawing => {
     const c1 = x1 + dir1 * dx
     const c2 = x2 + dir2 * dx
     const isError = errorWires.has(w.id)
-    items.push({
+    const curve = draft<DrawPath>({
       kind: "path",
       d: `M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2} ${y2}`,
       stroke: isError ? "#d11" : strokeFor(w.color),
       strokeWidth: 2,
-      data: { wire: w.id },
-      ...(isError ? { dash: [6, 3] } : {})
+      data: { wire: w.id }
     })
+    if (isError) curve.dash = [6, 3]
+    items.push(curve)
     const annotation = [w.id, w.gauge, w.twistGroup !== undefined ? "twisted" : undefined]
       .filter((s): s is string => s !== undefined)
       .join(" · ")

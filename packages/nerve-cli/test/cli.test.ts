@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, mkdirSync, rmSync
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
+import { Schema } from "effect"
 import { compileDesign } from "@grayhaven/nerve"
 import { run, type Io } from "@grayhaven/nerve-cli"
 import { buildPacket } from "@grayhaven/nerve-exporters"
@@ -256,11 +257,9 @@ connections:
     expect(packet.files.get("cut-list.csv")).toContain("W1.1")
     expect(packet.files.get("cut-list.csv")).toContain("W2.4")
     expect(packet.files.get("test-plan.json")).toContain("jpl-front-encoder")
-    expect(
-      Buffer.from(packet.files.get("manufacturing-packet.pdf") as Uint8Array)
-        .subarray(0, 5)
-        .toString()
-    ).toBe("%PDF-")
+    const pdf = packet.files.get("manufacturing-packet.pdf")
+    if (!(pdf instanceof Uint8Array)) throw new Error("expected PDF bytes in the packet")
+    expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe("%PDF-")
     expect(packet.zip.byteLength).toBeGreaterThan(10_000)
   })
 
@@ -440,9 +439,9 @@ describe("nerve inspect / init / help", () => {
       expect(existsSync(join(dir, f)), f).toBe(true)
     }
     // Dependencies pin the CLI's own version line; entry is configured.
-    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
-      dependencies: Record<string, string>
-    }
+    const pkg = Schema.decodeUnknownSync(
+      Schema.Struct({ dependencies: Schema.Record({ key: Schema.String, value: Schema.String }) })
+    )(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")))
     expect(pkg.dependencies["@grayhaven/nerve"]).toMatch(/^\^\d+\.\d+\.\d+$/)
     expect(readFileSync(join(dir, "nerve.config.ts"), "utf8")).toContain('entry: "./src/main.harness.ts"')
     expect(await run(["init", dir], capture())).toBe(2)
@@ -561,7 +560,7 @@ describe("config-driven entrypoint + exports toggles", () => {
 })
 
 describe("nerve snapshot", () => {
-  const project = (): { dir: string; harness: string } => {
+  const project = () => {
     const dir = mkdtempSync(join(import.meta.dirname, "tmp-snap-"))
     mkdirSync(join(dir, "src"), { recursive: true })
     const harness = join(dir, "src", "main.harness.ts")
@@ -673,7 +672,9 @@ describe("nerve parts", () => {
   it("emits JSON for agents/CI", async () => {
     const io = capture()
     expect(await run(["parts", "--json"], io)).toBe(0)
-    const rows = JSON.parse(io.stdout.join("\n")) as Array<{ mpn: string; specs: string[] }>
+    const rows = Schema.decodeUnknownSync(
+      Schema.Array(Schema.Struct({ mpn: Schema.String, specs: Schema.Array(Schema.String) }))
+    )(JSON.parse(io.stdout.join("\n")))
     expect(rows.length).toBeGreaterThanOrEqual(21)
     expect(rows.find((r) => r.mpn === "PHR-3")?.specs).toContain("ph-3")
   })
@@ -855,7 +856,7 @@ describe("nerve redline", () => {
         [
           "redline", "add", FIXTURE,
           "--target", "wire:W1",
-          "--type", "length",
+          "--type", "incorrect-length",
           "--description", "W1 runs 30mm short on the bench",
           "--file", redlines
         ],
@@ -867,7 +868,7 @@ describe("nerve redline", () => {
     const bad = capture()
     expect(
       await run(
-        ["redline", "add", FIXTURE, "--target", "wire:W99", "--type", "length", "--description", "x", "--file", redlines],
+        ["redline", "add", FIXTURE, "--target", "wire:W99", "--type", "incorrect-length", "--description", "x", "--file", redlines],
         bad
       )
     ).toBe(1)

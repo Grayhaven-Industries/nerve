@@ -22,6 +22,7 @@ export {
   type IsolationTest,
   type NetContinuityTest,
   type SpliceTest,
+  type TestCoverage,
   type TestPlan,
   type TestPoint
 } from "./test-plan.js"
@@ -52,7 +53,27 @@ export { generateQuote, quoteCsv, quoteDiff, quoteJson, quoteTable, type Quote, 
 export { analysisCsv, analysisJson, analysisTable, analyzeHarness, type AnalysisReport, type BranchAnalysis, type SpliceAnalysis, type WireAnalysis } from "./analysis.js"
 export { builtinAdapters, cirrisEasyWireNetlist, findAdapter, genericCutStripCsv, genericLabelPrinterCsv, genericTesterJson, type AdapterKind, type AdapterResult, type MachineAdapter } from "./adapters.js"
 export { ingestTesterResults, type TesterIngestOptions, type TesterIngestResult } from "./tester-ingest.js"
-export { builtinContractImporters, contractJson, exportConnectorContract, exportTscircuitCircuitJson, findContractImporter, importKiCadPcbPinout, importPinoutCsv, importTscircuitPinout, kicadPcbContractImporter, validateContract, type ConnectorContract, type ConnectorContractImporter, type ConnectorContractImportMeta } from "./contracts.js"
+export {
+  builtinContractImporters,
+  contractJson,
+  exportConnectorContract,
+  exportTscircuitCircuitJson,
+  findContractImporter,
+  importKiCadPcbPinout,
+  importPinoutCsv,
+  importTscircuitPinout,
+  kicadPcbContractImporter,
+  parseTscircuitCircuitJson,
+  validateContract,
+  type ConnectorContract,
+  type ConnectorContractImporter,
+  type ConnectorContractImportMeta,
+  type ContractPin,
+  type ContractSource,
+  type TscircuitElement,
+  type TscircuitSourceComponent,
+  type TscircuitSourcePort
+} from "./contracts.js"
 export { formboardSheets, type Formboard, type FormboardOptions, type FormboardSheet, type Paper } from "./formboard.js"
 export { computeImpact, createRelease, hirFingerprint, ReleaseBlockedError, releaseJson, type ChangeRisk, type CreateReleaseOptions, type Release, type ReleaseImpact } from "./release.js"
 export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict } from "./build-record.js"

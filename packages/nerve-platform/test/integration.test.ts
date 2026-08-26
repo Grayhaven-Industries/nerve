@@ -76,21 +76,26 @@ const errorFinding: Finding = {
 }
 
 /** A complete waiver, differing only in when it lapses. */
-const waiver = (expiresAt: string | undefined): Disposition => ({
-  findingId: "f-1",
-  state: "accepted-risk",
-  reason: "Reviewed with the manufacturer; risk accepted for this build.",
-  ownerId: "engineer-1",
-  decidedBy: "reviewer-1",
-  decidedAt: "2026-01-01T00:00:00Z",
-  ...(expiresAt === undefined ? {} : { expiresAt }),
-  scope: {
-    harnessId: "h-1",
-    code: "HK-WIRE-001",
-    target: "wire:W1",
-    sourceSetFingerprint: SOURCE_FP
+const waiver = (expiresAt: string | undefined): Disposition => {
+  const decision = {
+    findingId: "f-1",
+    state: "accepted-risk",
+    reason: "Reviewed with the manufacturer; risk accepted for this build.",
+    ownerId: "engineer-1",
+    decidedBy: "reviewer-1",
+    decidedAt: "2026-01-01T00:00:00Z"
+  } as const
+  const timed = expiresAt === undefined ? decision : { ...decision, expiresAt }
+  return {
+    ...timed,
+    scope: {
+      harnessId: "h-1",
+      code: "HK-WIRE-001",
+      target: "wire:W1",
+      sourceSetFingerprint: SOURCE_FP
+    }
   }
-})
+}
 
 /** A gate input that passes every §10.2 bullet; individual tests spoil one. */
 const passingGate = (overrides: Partial<GateInput> = {}): GateInput => ({

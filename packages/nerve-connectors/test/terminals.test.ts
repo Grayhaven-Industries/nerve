@@ -40,7 +40,7 @@ describe("bundled terminal library", () => {
     }
     expect(referenced.size).toBeGreaterThan(0)
     for (const mpn of referenced) {
-      const known = allTerminals[mpn] !== undefined || NOT_YET_MODELLED.includes(mpn)
+      const known = Object.hasOwn(allTerminals, mpn) || NOT_YET_MODELLED.includes(mpn)
       expect(known, `${mpn} is neither modelled nor on the deferred list`).toBe(true)
     }
   })

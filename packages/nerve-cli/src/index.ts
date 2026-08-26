@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs"
 import { createRequire } from "node:module"
 import { basename, dirname, extname, join, resolve } from "node:path"
-import { Effect, Exit, Cause } from "effect"
+import { Effect, Exit, Cause, Predicate, Schema } from "effect"
 import {
   compileDesign,
   decodeHir,
@@ -39,7 +39,8 @@ import {
   normalizeWireListColumnMap,
   parseCsvWireList,
   parseXlsxWireList,
-  wireListColumnMapJson
+  wireListColumnMapJson,
+  type JsonValue
 } from "@grayhaven/nerve-importers"
 import {
   auditProvenance,
@@ -88,7 +89,10 @@ import {
   hirFingerprint,
   pinoutSvg,
   schematicSvg,
-  type ConnectorContract
+  parseTscircuitCircuitJson,
+  type ConnectorContract,
+  type Redline,
+  type RedlineType
 } from "@grayhaven/nerve-exporters"
 
 export interface Io {
@@ -147,13 +151,77 @@ const parseArgs = (argv: ReadonlyArray<string>): ParsedArgs => {
 /** Display-only rounding. The report JSON keeps full precision. */
 const round3 = (n: number): number => Math.round(n * 1000) / 1000
 
+/**
+ * A command that stopped early. Carrying the exit code in its own type keeps
+ * it distinguishable from a result without inspecting the value.
+ */
+class CommandExit {
+  constructor(readonly code: number) {}
+}
+
+/** The parsed document a JSON file holds; callers narrow from here. */
+const readJson = (path: string): JsonValue => {
+  // JSON.parse yields nothing outside the JSON value grammar.
+  const parsed: JsonValue = JSON.parse(readFileSync(path, "utf8"))
+  return parsed
+}
+
+/** A ledger file (redlines.json) must hold a JSON array; anything else is corrupt. */
+const readJsonArray = (path: string): ReadonlyArray<JsonValue> => {
+  const parsed = readJson(path)
+  if (!Array.isArray(parsed)) throw new Error(`${path} does not contain a JSON array.`)
+  return parsed
+}
+
+/** The `id` of a ledger entry, when the entry carries one. */
+const entryId = (entry: JsonValue): string | undefined =>
+  Predicate.isRecord(entry) && Predicate.isString(entry["id"]) ? entry["id"] : undefined
+
+const REDLINE_TYPES = [
+  "ambiguity",
+  "incorrect-length",
+  "incorrect-label",
+  "orientation",
+  "process",
+  "other"
+] as const satisfies ReadonlyArray<RedlineType>
+
+const RedlineTypeSchema = Schema.Literal(...REDLINE_TYPES)
+
+const RedlineSchema: Schema.Schema<Redline> = Schema.Struct({
+  id: Schema.String,
+  target: Schema.String,
+  type: RedlineTypeSchema,
+  description: Schema.String,
+  proposedValue: Schema.optionalWith(Schema.String, { exact: true }),
+  release: Schema.String,
+  serial: Schema.optionalWith(Schema.String, { exact: true }),
+  reportedBy: Schema.optionalWith(Schema.String, { exact: true }),
+  status: Schema.Literal("open", "accepted", "rejected"),
+  resolution: Schema.optionalWith(
+    Schema.Struct({
+      by: Schema.optionalWith(Schema.String, { exact: true }),
+      reason: Schema.String,
+      resolvedAt: Schema.String
+    }),
+    { exact: true }
+  )
+})
+
+// Extra keys survive the round trip, so rewriting a ledger never strips what
+// another tool recorded on an entry.
+const decodeRedline = Schema.decodeUnknownSync(RedlineSchema, { onExcessProperty: "preserve" })
+const decodeRedlines = Schema.decodeUnknownSync(Schema.Array(RedlineSchema), {
+  onExcessProperty: "preserve"
+})
+
 // Lowercase to match formatDiff's section labels; the severity is a tag on
 // the line, not a heading over it.
-const severityLabel: Record<string, string> = {
+const severityLabel = {
   error: "error",
   warning: "warning",
   info: "info"
-}
+} satisfies Record<Diagnostic["severity"], string>
 
 /**
  * Findings lead with the object and what is wrong with it, not the rule code.
@@ -190,7 +258,7 @@ const compileOrExit = async (
   file: string,
   io: Io,
   options: CompileFileOptions = {}
-): Promise<CompileFileResult | number> => {
+): Promise<CompileFileResult | CommandExit> => {
   const exit = await Effect.runPromiseExit(compileFile(file, options))
   if (Exit.isFailure(exit)) {
     const failure = Cause.failureOption(exit.cause)
@@ -199,7 +267,7 @@ const compileOrExit = async (
         ? `CompileError: ${failure.value.message}`
         : `Unexpected failure: ${Cause.pretty(exit.cause)}`
     )
-    return 2
+    return new CommandExit(2)
   }
   return exit.value
 }
@@ -288,25 +356,25 @@ Usage:
   nerve parts    scaffold <mpn> --pins <n> [--out dir]   (stub a new part with every rule-relevant field)`
 
 /** Resolve a diff argument to HIR: a harness.json, a .harness.ts, or a directory. */
-const loadHirForDiff = async (path: string, io: Io): Promise<Hir | number> => {
+const loadHirForDiff = async (path: string, io: Io): Promise<Hir | CommandExit> => {
   const p = resolve(path)
   if (existsSync(p) && statSync(p).isDirectory()) {
     for (const candidate of [join(p, "harness.json"), join(p, "dist", "harness.json")]) {
       if (existsSync(candidate)) return loadHirForDiff(candidate, io)
     }
     io.err(`No harness.json found in ${path} (looked in ./ and ./dist).`)
-    return 2
+    return new CommandExit(2)
   }
   if (p.endsWith(".json")) {
     try {
-      return decodeHir(JSON.parse(readFileSync(p, "utf8")))
+      return decodeHir(readJson(p))
     } catch (cause) {
       io.err(`Failed to load ${path}: ${cause instanceof Error ? cause.message : String(cause)}`)
-      return 2
+      return new CommandExit(2)
     }
   }
   const result = await compileOrExit(p, io)
-  return typeof result === "number" ? result : result.hir
+  return result instanceof CommandExit ? result : result.hir
 }
 
 export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise<number> => {
@@ -318,7 +386,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       if (arg === undefined) return usage(io)
       const { file, configDir } = arg
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const outDir = resolveOutDir(flags, result.config, configDir)
       writeOut(outDir, "harness.json", JSON.stringify(result.hir, null, 2) + "\n", io)
       writeOut(outDir, "diagnostics.json", JSON.stringify(result.diagnostics, null, 2) + "\n", io)
@@ -331,9 +399,9 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const arg = await resolveHarnessArg(positional)
       if (arg === undefined) return usage(io)
       const { file } = arg
-      const port = flags["port"] !== undefined ? Number(flags["port"]) : undefined
+      const port = flags["port"]
       try {
-        const dev = await startDev(file, { io, ...(port !== undefined ? { port } : {}) })
+        const dev = await startDev(file, port === undefined ? { io } : { io, port: Number(port) })
         io.out(`nerve dev → ${dev.url}  (views: / /board /faces /pinout) — watching for changes, ctrl-c to stop`)
         // Keep the process alive until killed.
         await new Promise<void>((res) => process.once("SIGINT", () => void dev.close().then(res)))
@@ -364,7 +432,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       if (arg === undefined) return usage(io)
       const { file } = arg
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       io.out(summarize(result.hir))
       return hasErrors(result.diagnostics) ? 1 : 0
@@ -385,7 +453,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         return 2
       }
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const outDir = resolveOutDir(flags, result.config, configDir)
       if (view === "formboard") {
         const paper = flags["paper"] === "a4" ? "a4" as const : "letter" as const
@@ -425,7 +493,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const target = flags["target"] ?? "manufacturing-packet"
       if (target === "wireviz") {
         const result = await compileOrExit(file, io)
-        if (typeof result === "number") return result
+        if (result instanceof CommandExit) return result.code
         const { yaml, diagnostics } = exportWireViz(result.hir)
         printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
         const outDir = resolveOutDir(flags, result.config, configDir)
@@ -437,7 +505,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         return 2
       }
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       printDiagnostics(result.diagnostics, io, flags["codes"] !== undefined)
       if (!canRelease(result.hir)) {
         io.err(
@@ -447,10 +515,9 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       const outDir = resolveOutDir(flags, result.config, configDir)
       const tolerance = result.config.defaultWireTolerance
-      const options = {
-        ...(tolerance !== undefined ? { defaultWireTolerance: tolerance } : {}),
-        ...(result.config.costing !== undefined ? { costing: result.config.costing } : {})
-      }
+      const costing = result.config.costing
+      const toleranced = tolerance === undefined ? {} : { defaultWireTolerance: tolerance }
+      const options = costing === undefined ? toleranced : { ...toleranced, costing }
       // The packet IS the artifact list (PRD §9.8): write every file it
       // contains as loose output too — one source of truth, no second
       // hand-maintained list to drift (the pre-0.5.2 list silently lacked
@@ -484,18 +551,20 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           return 2
         }
         try {
-          const mapping = normalizeWireListColumnMap(
-            JSON.parse(readFileSync(resolve(mappingPath), "utf8"))
-          )
+          const mapping = normalizeWireListColumnMap(readJson(resolve(mappingPath)))
           const bytes = readFileSync(resolve(file))
           const table =
             extension === ".csv"
               ? parseCsvWireList(bytes.toString("utf8"))
               : parseXlsxWireList(bytes, flags["sheet"])
-          const imported = importWireList(table, mapping, {
-            ...(flags["id"] !== undefined ? { harnessId: flags["id"] } : {}),
-            sourceName: basename(file)
-          })
+          const harnessId = flags["id"]
+          const imported = importWireList(
+            table,
+            mapping,
+            harnessId === undefined
+              ? { sourceName: basename(file) }
+              : { harnessId, sourceName: basename(file) }
+          )
           const outDir = resolve(flags["out"] ?? "dist")
           writeOut(outDir, "column-map.json", wireListColumnMapJson(mapping), io)
           writeOut(
@@ -524,7 +593,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
             config: {},
             moduleAliases: { "@grayhaven/nerve": coreModule }
           })
-          if (typeof compiled === "number") return compiled
+          if (compiled instanceof CommandExit) return compiled.code
           const diagnostics = [
             ...imported.diagnostics,
             ...compiled.diagnostics
@@ -551,12 +620,14 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       let result
       try {
-        result = importWireViz(readFileSync(resolve(file), "utf8"), {
-          ...(flags["id"] !== undefined ? { harnessId: flags["id"] } : {}),
-          ...(flags["prepend-file"] !== undefined
-            ? { prependYaml: [readFileSync(resolve(flags["prepend-file"]), "utf8")] }
-            : {})
-        })
+        const harnessId = flags["id"]
+        const prependFile = flags["prepend-file"]
+        const identified = harnessId === undefined ? {} : { harnessId }
+        const options =
+          prependFile === undefined
+            ? identified
+            : { ...identified, prependYaml: [readFileSync(resolve(prependFile), "utf8")] }
+        result = importWireViz(readFileSync(resolve(file), "utf8"), options)
       } catch (cause) {
         io.err(
           `Failed to import ${file}: ${cause instanceof Error ? cause.message : String(cause)}`
@@ -578,7 +649,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const arg = await resolveHarnessArg(positional)
       if (arg === undefined) return usage(io)
       const result = await compileOrExit(arg.file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       // Findings say what is wrong; margins say how close to wrong everything
       // else is. A design with zero errors can still sit at 99% of every
       // limit, and no other artifact answers that.
@@ -634,7 +705,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const arg = await resolveHarnessArg(positional)
       if (arg === undefined) return usage(io)
       const result = await compileOrExit(arg.file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const audit = auditProvenance(result.hir)
       const outDir = resolveOutDir(flags, result.config, arg.configDir)
       writeOut(outDir, "provenance-audit.json", provenanceAuditJson(audit), io)
@@ -660,14 +731,12 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
     case "eval": {
       const manifestPath = resolve(positional[0] ?? "eval-corpus/manifest.json")
       try {
-        const manifest = decodeEvalManifest(
-          JSON.parse(readFileSync(manifestPath, "utf8"))
-        )
+        const manifest = decodeEvalManifest(readJson(manifestPath))
         const caseResults = []
         for (const testCase of manifest.cases) {
           const fixturePath = resolve(dirname(manifestPath), testCase.fixture)
           const compiled = await compileOrExit(fixturePath, io)
-          if (typeof compiled === "number") return compiled
+          if (compiled instanceof CommandExit) return compiled.code
           caseResults.push(evaluateCase(testCase, compiled.diagnostics))
         }
         const report = createCorpusReport(caseResults)
@@ -697,7 +766,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const file = positional[0]
       if (file === undefined) return usage(io)
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const model = result.config.costing
       if (model === undefined) {
         io.err("No costing model: add `costing: { laborRatePerHour, ... }` to nerve.config.ts (PRD §29).")
@@ -720,7 +789,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const file = positional[0]
       if (file === undefined) return usage(io)
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const report = analyzeHarness(result.hir)
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
       writeOut(outDir, "analysis.csv", analysisCsv(result.hir), io)
@@ -740,7 +809,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         return 2
       }
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const { files, diagnostics } = adapter.generate(result.hir)
       printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
       if (hasErrors(diagnostics)) return 1
@@ -754,7 +823,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const connectorRef = flags["connector"]
       if (file === undefined || connectorRef === undefined) return usage(io)
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       const against = flags["against"]
       if (against !== undefined) {
         let contract: ConnectorContract | undefined
@@ -763,9 +832,13 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           if (against.endsWith(".csv")) {
             contract = importPinoutCsv(raw, { connector: connectorRef })
           } else if (findContractImporter(against) !== undefined) {
+            const component = flags["component"]
+            const named =
+              component === undefined
+                ? { connector: connectorRef }
+                : { connector: connectorRef, component }
             contract = findContractImporter(against)!.import(raw, {
-              connector: connectorRef,
-              ...(flags["component"] !== undefined ? { component: flags["component"] } : {}),
+              ...named,
               sourceName: basename(against)
             })
             if (contract === undefined) {
@@ -774,10 +847,13 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
             }
           } else if (against.endsWith(".circuit.json")) {
             // PRD §37: validate the harness against a tscircuit board.
-            contract = importTscircuitPinout(JSON.parse(raw), {
-              connector: connectorRef,
-              ...(flags["component"] !== undefined ? { component: flags["component"] } : {})
-            })
+            const component = flags["component"]
+            contract = importTscircuitPinout(
+              parseTscircuitCircuitJson(raw),
+              component === undefined
+                ? { connector: connectorRef }
+                : { connector: connectorRef, component }
+            )
             if (contract === undefined) {
               io.err(`Component ${flags["component"] ?? connectorRef} not found in ${against}.`)
               return 2
@@ -836,13 +912,13 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const date = flags["date"]
       if (file === undefined || eco === undefined || reason === undefined || date === undefined) return usage(io)
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       let previous
       if (flags["against"] !== undefined) {
         try {
           const prevRelease = JSON.parse(readFileSync(resolve(flags["against"]), "utf8"))
           const prevDir = resolve(flags["against"], "..")
-          const prevHir = decodeHir(JSON.parse(readFileSync(join(prevDir, "harness.json"), "utf8")))
+          const prevHir = decodeHir(readJson(join(prevDir, "harness.json")))
           previous = { hir: prevHir, releaseId: prevRelease.releaseId }
         } catch (cause) {
           io.err(`Failed to load previous release: ${cause instanceof Error ? cause.message : String(cause)}`)
@@ -850,11 +926,15 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         }
       }
       try {
-        const release = createRelease(result.hir, {
-          eco: { id: eco, reason, ...(flags["author"] !== undefined ? { author: flags["author"] } : {}) },
-          createdAt: date,
-          ...(previous !== undefined ? { previous } : {})
-        })
+        const author = flags["author"]
+        const dated = {
+          eco: author === undefined ? { id: eco, reason } : { id: eco, reason, author },
+          createdAt: date
+        }
+        const release = createRelease(
+          result.hir,
+          previous === undefined ? dated : { ...dated, previous }
+        )
         const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
         writeOut(outDir, "harness.json", JSON.stringify(result.hir, null, 2) + "\n", io)
         writeOut(outDir, `release-${result.hir.harness.revision}.json`, releaseJson(release), io)
@@ -885,7 +965,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         return usage(io)
       }
       const result = await compileOrExit(file, io)
-      if (typeof result === "number") return result
+      if (result instanceof CommandExit) return result.code
       // --lengths is the as-built half of the loop (§36): the technician's
       // measured wire lengths, judged against design length + tolerance.
       // Optional on purpose — a continuity-only record stays byte-identical.
@@ -903,17 +983,17 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         return 2
       }
       const lengthTolerance = flags["length-tolerance"]
-      const record = createBuildRecord(result.hir, release, measurements, {
-        serial,
-        operator,
-        buildDate: date,
-        ...(flags["lot"] !== undefined ? { lot: flags["lot"] } : {}),
-        ...(flags["workstation"] !== undefined ? { workstation: flags["workstation"] } : {}),
-        ...(lengths !== undefined ? { lengths } : {}),
-        ...(lengthTolerance !== undefined
-          ? { defaultLengthTolerance: Number(lengthTolerance) }
-          : {})
-      })
+      const lot = flags["lot"]
+      const workstation = flags["workstation"]
+      const identified = { serial, operator, buildDate: date }
+      const lotted = lot === undefined ? identified : { ...identified, lot }
+      const stationed = workstation === undefined ? lotted : { ...lotted, workstation }
+      const measuredLengths = lengths === undefined ? stationed : { ...stationed, lengths }
+      const recordOptions =
+        lengthTolerance === undefined
+          ? measuredLengths
+          : { ...measuredLengths, defaultLengthTolerance: Number(lengthTolerance) }
+      const record = createBuildRecord(result.hir, release, measurements, recordOptions)
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
       writeOut(outDir, `build-record-${serial}.json`, buildRecordJson(record), io)
       io.out(
@@ -940,26 +1020,37 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         const description = flags["description"]
         if (file === undefined || target === undefined || type === undefined || description === undefined) return usage(io)
         const result = await compileOrExit(file, io)
-        if (typeof result === "number") return result
+        if (result instanceof CommandExit) return result.code
         const invalid = validateRedlineTarget(result.hir, target)
         if (invalid !== undefined) {
           printDiagnostics([invalid], io, flags["codes"] !== undefined)
           return 1
         }
+        if (!Schema.is(RedlineTypeSchema)(type)) {
+          io.err(`Unsupported redline type: ${type} (supported: ${REDLINE_TYPES.join(", ")})`)
+          return 2
+        }
         const redlinesPath = resolve(flags["file"] ?? "redlines.json")
-        const existing = existsSync(redlinesPath)
-          ? (JSON.parse(readFileSync(redlinesPath, "utf8")) as Array<unknown>)
-          : []
-        const redline = createRedline({
+        const existing = existsSync(redlinesPath) ? readJsonArray(redlinesPath) : []
+        const proposedValue = flags["value"]
+        const serial = flags["serial"]
+        const reportedBy = flags["by"]
+        const described = {
           id: `RL-${String(existing.length + 1).padStart(3, "0")}`,
           target,
-          type: type as never,
-          description,
-          ...(flags["value"] !== undefined ? { proposedValue: flags["value"] } : {}),
-          release: flags["release"] ?? `${result.hir.harness.id}@${result.hir.harness.revision}`,
-          ...(flags["serial"] !== undefined ? { serial: flags["serial"] } : {}),
-          ...(flags["by"] !== undefined ? { reportedBy: flags["by"] } : {})
-        })
+          type,
+          description
+        }
+        const proposed =
+          proposedValue === undefined ? described : { ...described, proposedValue }
+        const released = {
+          ...proposed,
+          release: flags["release"] ?? `${result.hir.harness.id}@${result.hir.harness.revision}`
+        }
+        const serialized = serial === undefined ? released : { ...released, serial }
+        const redline = createRedline(
+          reportedBy === undefined ? serialized : { ...serialized, reportedBy }
+        )
         writeFileSync(redlinesPath, JSON.stringify([...existing, redline], null, 2) + "\n")
         io.out(`Recorded ${redline.id} against ${target} in ${redlinesPath}`)
         return 0
@@ -972,7 +1063,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         const recordPath = flags["record"]
         if (file === undefined || recordPath === undefined) return usage(io)
         const result = await compileOrExit(file, io)
-        if (typeof result === "number") return result
+        if (result instanceof CommandExit) return result.code
         let record
         try {
           record = JSON.parse(readFileSync(resolve(recordPath), "utf8"))
@@ -980,19 +1071,20 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           io.err(`Failed to load ${recordPath}: ${cause instanceof Error ? cause.message : String(cause)}`)
           return 2
         }
-        const generated = redlinesFromBuildRecord(record, {
-          ...(flags["prefix"] !== undefined ? { idPrefix: flags["prefix"] } : {}),
-          ...(flags["by"] !== undefined ? { reportedBy: flags["by"] } : {})
-        })
+        const idPrefix = flags["prefix"]
+        const reportedBy = flags["by"]
+        const prefixed = idPrefix === undefined ? {} : { idPrefix }
+        const generated = redlinesFromBuildRecord(
+          record,
+          reportedBy === undefined ? prefixed : { ...prefixed, reportedBy }
+        )
         if (generated.length === 0) {
           io.out("No out-of-tolerance lengths in this build record; nothing to redline.")
           return 0
         }
         const redlinesPath = resolve(flags["file"] ?? "redlines.json")
-        const existing = existsSync(redlinesPath)
-          ? (JSON.parse(readFileSync(redlinesPath, "utf8")) as Array<{ id: string }>)
-          : []
-        const seen = new Set(existing.map((r) => r.id))
+        const existing = existsSync(redlinesPath) ? readJsonArray(redlinesPath) : []
+        const seen = new Set(existing.map(entryId))
         const fresh = generated.filter((r) => !seen.has(r.id))
         writeFileSync(redlinesPath, JSON.stringify([...existing, ...fresh], null, 2) + "\n")
         for (const r of fresh) io.out(`${r.id}  ${r.target}  ${r.description}`)
@@ -1009,12 +1101,12 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         if (redlinesPath === undefined) return usage(io)
         let redlines
         try {
-          redlines = JSON.parse(readFileSync(resolve(redlinesPath), "utf8")) as Array<never>
+          redlines = decodeRedlines(readJson(resolve(redlinesPath)))
         } catch (cause) {
           io.err(`Failed to load ${redlinesPath}: ${cause instanceof Error ? cause.message : String(cause)}`)
           return 2
         }
-        const accepted = redlines.filter((r: { status: string }) => r.status === "accepted")
+        const accepted = redlines.filter((r) => r.status === "accepted")
         const patches = accepted.map((r) => suggestPatch(r)).filter((p) => p !== undefined)
         if (patches.length === 0) {
           io.out("No accepted redlines yield a structured patch.")
@@ -1038,21 +1130,21 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         const accept = flags["accept"] === "true"
         const reject = flags["reject"] === "true"
         if (redlinesPath === undefined || id === undefined || reason === undefined || date === undefined || accept === reject) return usage(io)
-        const redlines = JSON.parse(readFileSync(resolve(redlinesPath), "utf8")) as Array<never>
-        const existing = redlines.find((r: { id: string }) => r.id === id)
-        const index = redlines.findIndex((r: { id: string }) => r.id === id)
+        const redlines = readJsonArray(resolve(redlinesPath))
+        const index = redlines.findIndex((entry) => entryId(entry) === id)
+        const existing = redlines[index]
         if (existing === undefined) {
           io.err(`Redline ${id} not found in ${redlinesPath}.`)
           return 2
         }
-        const resolved = resolveRedline(existing, {
-          accept,
-          reason,
-          resolvedAt: date,
-          ...(flags["by"] !== undefined ? { by: flags["by"] } : {})
-        })
-        const updated = [...redlines]
-        updated[index] = resolved as never
+        const by = flags["by"]
+        const decision = { accept, reason, resolvedAt: date }
+        const resolved = resolveRedline(
+          decodeRedline(existing),
+          by === undefined ? decision : { ...decision, by }
+        )
+        // Every other entry is written back verbatim.
+        const updated = [...redlines.slice(0, index), resolved, ...redlines.slice(index + 1)]
         writeFileSync(resolve(redlinesPath), JSON.stringify(updated, null, 2) + "\n")
         io.out(`${id} ${resolved.status}.`)
         if (resolved.status === "accepted") {
@@ -1071,9 +1163,9 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const [pathA, pathB] = positional
       if (pathA === undefined || pathB === undefined) return usage(io)
       const a = await loadHirForDiff(pathA, io)
-      if (typeof a === "number") return a
+      if (a instanceof CommandExit) return a.code
       const b = await loadHirForDiff(pathB, io)
-      if (typeof b === "number") return b
+      if (b instanceof CommandExit) return b.code
       const d = diffHir(a, b)
       // Structural diff alone is blind to a design walking toward a cliff
       // without stepping off it: a revision that eats 30% of the thermal
@@ -1107,7 +1199,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       const file = positional[0]
       if (file === undefined) return usage(io)
       try {
-        const hir = decodeHir(JSON.parse(readFileSync(resolve(file), "utf8")))
+        const hir = decodeHir(readJson(resolve(file)))
         io.out(`schema   ${hir.schemaVersion}`)
         io.out(`harness  ${hir.harness.id}`)
         io.out(`revision ${hir.harness.revision}`)

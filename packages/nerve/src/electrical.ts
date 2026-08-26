@@ -1,5 +1,5 @@
 /** Deterministic electrical constraint analysis over compiled HIR nets. */
-import type { PinElectrical } from "./domain.js"
+import type { PinElectrical, VoltageRange } from "./domain.js"
 import { refs } from "./hir/core.js"
 import type { Hir } from "./hir/schema.js"
 import { computeNets } from "./nets.js"
@@ -73,31 +73,32 @@ const pinRefs = (
 
 const toPinElectrical = (
   electrical: NonNullable<Hir["connectors"][number]["pins"][number]["electrical"]>
-): PinElectrical => ({
-  ...(electrical.role !== undefined ? { role: electrical.role } : {}),
-  ...(electrical.voltage !== undefined
-    ? {
-        voltage: {
-          ...(electrical.voltage.minV !== undefined
-            ? { minV: electrical.voltage.minV }
-            : {}),
-          ...(electrical.voltage.maxV !== undefined
-            ? { maxV: electrical.voltage.maxV }
-            : {})
-        }
+): PinElectrical => {
+  let out: PinElectrical = {}
+  if (electrical.role !== undefined) out = { ...out, role: electrical.role }
+  if (electrical.voltage !== undefined) {
+    let voltage: VoltageRange = {}
+    if (electrical.voltage.minV !== undefined) {
+      voltage = { ...voltage, minV: electrical.voltage.minV }
+    }
+    if (electrical.voltage.maxV !== undefined) {
+      voltage = { ...voltage, maxV: electrical.voltage.maxV }
+    }
+    out = { ...out, voltage }
+  }
+  if (electrical.currentA !== undefined) out = { ...out, currentA: electrical.currentA }
+  if (electrical.protocol !== undefined) out = { ...out, protocol: electrical.protocol }
+  if (electrical.differential !== undefined) {
+    out = {
+      ...out,
+      differential: {
+        pair: electrical.differential.pair,
+        polarity: electrical.differential.polarity
       }
-    : {}),
-  ...(electrical.currentA !== undefined ? { currentA: electrical.currentA } : {}),
-  ...(electrical.protocol !== undefined ? { protocol: electrical.protocol } : {}),
-  ...(electrical.differential !== undefined
-    ? {
-        differential: {
-          pair: electrical.differential.pair,
-          polarity: electrical.differential.polarity
-        }
-      }
-    : {})
-})
+    }
+  }
+  return out
+}
 
 const findingsForNet = (
   net: ElectricalNetSemantics,

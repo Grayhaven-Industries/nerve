@@ -14,7 +14,7 @@
 import { dirname, join, resolve } from "node:path"
 import { existsSync } from "node:fs"
 import { createJiti } from "jiti"
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
 import {
   compileDesign,
   HIR_SCHEMA_VERSION,
@@ -38,12 +38,12 @@ const jiti = createJiti(import.meta.url, { interopDefault: true })
  * The module-level `jiti` above CACHES — using it in a watch loop serves
  * stale designs forever.
  */
-const freshJiti = (alias?: Readonly<Record<string, string>>) =>
-  createJiti(import.meta.url, {
-    interopDefault: true,
-    moduleCache: false,
-    ...(alias !== undefined ? { alias: { ...alias } } : {})
-  })
+const freshJiti = (alias?: Readonly<Record<string, string>>) => {
+  const options = { interopDefault: true, moduleCache: false }
+  return alias !== undefined
+    ? createJiti(import.meta.url, { ...options, alias: { ...alias } })
+    : createJiti(import.meta.url, options)
+}
 
 const loaderFor = (
   fresh: boolean,
@@ -69,10 +69,10 @@ export interface CompileFileResult {
   readonly config: NerveConfig
 }
 
-const isHarnessDesign = (value: unknown): value is HarnessDesign =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { kind?: unknown }).kind === "harness"
+/** The runtime surface a loaded module value must carry to be a `harness(...)` result. */
+const HarnessSurface = Schema.Struct({ kind: Schema.Literal("harness") })
+const hasHarnessSurface = Schema.is(HarnessSurface)
+const isHarnessDesign = <T>(value: T): value is T & HarnessDesign => hasHarnessSurface(value)
 
 /** Load the default-exported design from a `.harness.ts` module. */
 export const loadDesign = (
@@ -87,9 +87,8 @@ export const loadDesign = (
       const mod = await loaderFor(
         options.fresh === true,
         options.moduleAliases
-      ).import<unknown>(resolve(file))
-      const design =
-        isHarnessDesign(mod) ? mod : (mod as { default?: unknown })?.default
+      ).import<{ readonly default?: unknown }>(resolve(file))
+      const design = isHarnessDesign(mod) ? mod : mod?.default
       if (!isHarnessDesign(design)) {
         throw new CompileError({
           message: `${file} does not default-export a harness design (expected the result of harness(...)).`,
@@ -127,11 +126,11 @@ export const findConfig = (
         for (const name of CONFIG_FILES) {
           const candidate = join(dir, name)
           if (existsSync(candidate)) {
-            const mod = await loader.import<{ default?: NerveConfig }>(candidate)
-            return {
-              config: (mod as { default?: NerveConfig }).default ?? (mod as NerveConfig),
-              dir
-            }
+            // With interopDefault the module is either the config itself or wraps it.
+            const mod = await loader.import<NerveConfig & { readonly default?: NerveConfig }>(
+              candidate
+            )
+            return { config: mod.default ?? mod, dir }
           }
         }
         if (existsSync(join(dir, "package.json"))) return { config: {}, dir }
@@ -169,8 +168,8 @@ export const loadPlugins = (
       const diagnostics: Array<Diagnostic> = []
       for (const spec of specifiers) {
         const path = spec.startsWith(".") ? resolve(fromDir, spec) : spec
-        const mod = await loader.import<{ default?: unknown }>(path)
-        const plugin = (mod as { default?: unknown }).default ?? mod
+        const mod = await loader.import<{ readonly default?: unknown }>(path)
+        const plugin = mod.default ?? mod
         if (!isNervePlugin(plugin)) {
           throw new CompileError({
             message: `${spec} does not default-export a Nerve plugin (use definePlugin).`,
@@ -205,12 +204,12 @@ export const compileFile = (
 ): Effect.Effect<CompileFileResult, CompileError> =>
   Effect.gen(function* () {
     const fresh = options.fresh === true
-    const design = yield* loadDesign(file, {
-      fresh,
-      ...(options.moduleAliases !== undefined
-        ? { moduleAliases: options.moduleAliases }
-        : {})
-    })
+    const design = yield* loadDesign(
+      file,
+      options.moduleAliases !== undefined
+        ? { fresh, moduleAliases: options.moduleAliases }
+        : { fresh }
+    )
     const config =
       options.config ??
       (yield* Effect.map(

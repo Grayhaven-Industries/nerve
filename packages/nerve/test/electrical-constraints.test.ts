@@ -184,14 +184,24 @@ describe("pin electrical compiler invariants", () => {
     expect(hir.connectors[0]?.pins[0]?.electrical).toEqual({})
   })
 
+  /** Pin semantics as a build without the type contract would hand them over. */
+  interface ForeignRole {
+    readonly role: string
+    readonly protocol: string
+  }
+  const foreignRole: ForeignRole = { role: "generator", protocol: "CAN" }
+  interface ForeignPolarity {
+    readonly differential: { readonly pair: string; readonly polarity: string }
+  }
+  const foreignPolarity: ForeignPolarity = { differential: { pair: "CAN1", polarity: "+" } }
+
   it("rejects a runtime-invalid electrical role and preserves valid fields", () => {
     const instance = connector("J1", part, {
       pins: { 1: "SIG" },
       electrical: {
-        1: {
-          role: "generator",
-          protocol: "CAN"
-        } as unknown as PinElectrical
+        // SAFETY: deliberately not a PinElectrical. The compiler's runtime
+        // validation is under test and must reject this role with a diagnostic.
+        1: foreignRole as PinElectrical
       }
     })
     const { hir, diagnostics } = compileSingle(instance)
@@ -210,9 +220,9 @@ describe("pin electrical compiler invariants", () => {
     const instance = connector("J1", part, {
       pins: { 1: "SIG" },
       electrical: {
-        1: {
-          differential: { pair: "CAN1", polarity: "+" }
-        } as unknown as PinElectrical
+        // SAFETY: deliberately not a PinElectrical. The compiler's runtime
+        // validation is under test and must reject this polarity with a diagnostic.
+        1: foreignPolarity as PinElectrical
       }
     })
     const { hir, diagnostics } = compileSingle(instance)
@@ -259,12 +269,13 @@ describe("analyzeElectricalConstraints", () => {
         pins: { 1: "LOAD" },
         electrical: { 1: { role: "sink" } }
       })
-      const peer = connector("J2", part, {
-        pins: { 1: "LOAD" },
-        ...(peerElectrical !== undefined
-          ? { electrical: { 1: peerElectrical } }
-          : {})
-      })
+      const peer = connector(
+        "J2",
+        part,
+        peerElectrical !== undefined
+          ? { pins: { 1: "LOAD" }, electrical: { 1: peerElectrical } }
+          : { pins: { 1: "LOAD" } }
+      )
       const hir = compileDesign(
         harness("unknown-role", {
           revision: "A",

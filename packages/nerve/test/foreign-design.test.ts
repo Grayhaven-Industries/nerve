@@ -26,6 +26,8 @@ const part = {
 const foreignConnector = (ref: string): ConnectorInstance => {
   const c = connector(ref, part, { pins: { 1: "VBAT", 2: "GND" } })
   const { electrical: _dropped, ...rest } = c
+  // SAFETY: only `electrical` is removed, which an older build never emitted;
+  // the test exercises the compiler against exactly that shape of object.
   return rest as ConnectorInstance
 }
 

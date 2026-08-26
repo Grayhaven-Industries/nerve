@@ -36,19 +36,22 @@ export function DataTable<T>({
   sorting?: SortingState
   onSortingChange?: OnChangeFn<SortingState>
 }) {
+  // SAFETY: table-core only reads `data` (row models are derived copies), so
+  // handing it the readonly array as a mutable one cannot mutate the caller's.
+  const rows = data as T[]
   const sortable = sorting !== undefined && onSortingChange !== undefined
-  const table = useReactTable({
-    data: data as T[],
-    columns,
-    ...(sortable
+  const table = useReactTable(
+    sortable
       ? {
+          data: rows,
+          columns,
           state: { sorting },
           onSortingChange,
-          getSortedRowModel: getSortedRowModel()
+          getSortedRowModel: getSortedRowModel(),
+          getCoreRowModel: getCoreRowModel()
         }
-      : {}),
-    getCoreRowModel: getCoreRowModel()
-  })
+      : { data: rows, columns, getCoreRowModel: getCoreRowModel() }
+  )
 
   if (table.getRowModel().rows.length === 0) {
     return (

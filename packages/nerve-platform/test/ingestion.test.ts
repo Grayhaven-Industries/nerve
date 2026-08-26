@@ -211,8 +211,9 @@ describe("saved column maps (ING-003)", () => {
       expect.unreachable("assembly should refuse an unmapped CSV")
     } catch (error) {
       expect(error).toBeInstanceOf(IngestionError)
-      expect((error as IngestionError).code).toBe(IngestionErrorCode.MissingColumnMap)
-      expect((error as IngestionError).filename).toBe("wires.csv")
+      if (!(error instanceof IngestionError)) throw error
+      expect(error.code).toBe(IngestionErrorCode.MissingColumnMap)
+      expect(error.filename).toBe("wires.csv")
     }
   })
 

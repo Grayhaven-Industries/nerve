@@ -12,6 +12,8 @@ import { builtinRules } from "../../nerve-rules/src/index.ts"
 import { allParts, partSpecs } from "../../nerve-connectors/src/index.ts"
 import { hirJsonSchema, HIR_SCHEMA_VERSION } from "../../nerve/src/index.ts"
 import { RULE_SUMMARIES } from "../src/docs/rule-summaries.ts"
+import type { PartMetaRow } from "../src/docs/parts-meta.ts"
+import type { JsonSchema7, JsonSchema7Root } from "effect/JSONSchema"
 import { dslReferenceMd, extractDslMeta } from "./extract-dsl.ts"
 
 const ROOT = join(import.meta.dir, "..")
@@ -32,7 +34,7 @@ const indexNote = `> Grayhaven Nerve docs index: ${SITE}/llms.txt. Fetch it to d
 
 const rulesMd = (): string => {
   const rows = builtinRules
-    .map((r) => `| \`${r.code}\` | \`${r.name}\` | ${RULE_SUMMARIES[r.name] ?? "-"} |`)
+    .map((r) => `| \`${r.code}\` | \`${r.name}\` | ${RULE_SUMMARIES.get(r.name) ?? "-"} |`)
     .join("\n")
   return `# ${builtinRules.length} built-in validation rules.
 
@@ -53,63 +55,79 @@ Severity drives exit codes: errors fail \`nerve validate\` (exit 1), warnings pa
 `
 }
 
+/** Any node the walk can reach: a schema, an `anyOf` member (Effect encodes
+ * Schema.Object / `{}` with bare `{ type }` members), an `items` tuple, or an
+ * absent/boolean slot. */
+type SchemaNode = JsonSchema7 | { type: "object" } | Array<JsonSchema7> | boolean | undefined
+
 /** HIR contract page, generated from the live Effect schema. */
 const hirMd = (): string => {
-  const schema = hirJsonSchema() as {
-    required?: ReadonlyArray<string>
-    properties?: Record<string, unknown>
-  }
-  type Obj = Record<string, unknown>
-  const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v)
+  // SAFETY: hirJsonSchema() is JSONSchema.make(Hir) round-tripped through
+  // JSON.stringify/parse, so its structure is Effect's JsonSchema7Root (the
+  // round trip only drops undefined-valued keys).
+  const schema = hirJsonSchema() as JsonSchema7Root
   // Effect emits Schema.Unknown as { $id: "/schemas/unknown" } (or {}).
   // Match it precisely — a stringify-includes check would mis-flag any
   // struct that merely CONTAINS an unknown field as wholly unknown.
-  const isUnknownSchema = (s: Obj): boolean =>
-    s["$id"] === "/schemas/unknown" ||
-    (typeof s["$ref"] === "string" && s["$ref"].endsWith("/unknown")) ||
+  const isUnknownSchema = (s: JsonSchema7 | { type: "object" }): boolean =>
+    ("$id" in s && s.$id === "/schemas/unknown") ||
+    ("$ref" in s && s.$ref.endsWith("/unknown")) ||
     Object.keys(s).length === 0
   // A record (Schema.Record) is an object with NO declared properties but
   // an additionalProperties value-schema — distinct from a struct.
-  const isRecord = (s: Obj): boolean =>
-    s["type"] === "object" &&
-    (!isObj(s["properties"]) || Object.keys(s["properties"] as Obj).length === 0)
-  const typeOf = (s: unknown): string => {
-    if (!isObj(s)) return "unknown"
-    if (s["enum"] !== undefined) return (s["enum"] as Array<unknown>).map((e) => JSON.stringify(e)).join(" \\| ")
-    if (s["anyOf"] !== undefined) return (s["anyOf"] as Array<unknown>).map(typeOf).join(" \\| ")
-    if (s["type"] === "array") return `Array<${typeOf(s["items"])}>`
+  const isRecord = (s: JsonSchema7 | { type: "object" }): boolean =>
+    "type" in s &&
+    s.type === "object" &&
+    (!("properties" in s) || Object.keys(s.properties).length === 0)
+  const typeOf = (s: SchemaNode): string => {
+    if (s === undefined || s === true || s === false || Array.isArray(s)) return "unknown"
+    if ("enum" in s) return s.enum.map((e) => JSON.stringify(e)).join(" \\| ")
+    if ("anyOf" in s) return s.anyOf.map(typeOf).join(" \\| ")
+    if ("type" in s && s.type === "array") return `Array<${typeOf(s.items)}>`
     // Record before the unknown check: a record-of-unknown is
     // Record<string, unknown>, not bare "unknown".
     if (isRecord(s)) {
-      const valueType = isObj(s["additionalProperties"]) ? typeOf(s["additionalProperties"]) : "unknown"
+      const values = "additionalProperties" in s ? s.additionalProperties : undefined
+      const valueType =
+        values !== undefined && values !== true && values !== false ? typeOf(values) : "unknown"
       return `Record<string, ${valueType}>`
     }
     if (isUnknownSchema(s)) return "unknown"
-    if (s["type"] === "object" && isObj(s["properties"])) {
-      return `{ ${Object.keys(s["properties"]).join(", ")} }`
+    if ("type" in s && s.type === "object" && "properties" in s) {
+      return `{ ${Object.keys(s.properties).join(", ")} }`
     }
-    return String(s["type"] ?? "unknown")
+    return String(("type" in s ? s.type : undefined) ?? "unknown")
   }
-  const table = (name: string, s: unknown): string => {
-    if (!isObj(s)) return ""
+  const table = (name: string, s: JsonSchema7): string => {
     // Arrays of structs document the element shape.
-    const target = s["type"] === "array" && isObj(s["items"]) ? s["items"] : s
+    const target =
+      "type" in s &&
+      s.type === "array" &&
+      s.items !== undefined &&
+      s.items !== false &&
+      !Array.isArray(s.items)
+        ? s.items
+        : s
     // Records and property-less objects have no field table — render the
     // single-line type form instead of an empty header-only table.
-    if (!isObj(target) || isRecord(target) || !isObj(target["properties"]) || Object.keys(target["properties"] as Obj).length === 0) {
+    if (
+      isRecord(target) ||
+      !("properties" in target) ||
+      Object.keys(target.properties).length === 0
+    ) {
       return `## ${name}\n\nType: \`${typeOf(s)}\`\n`
     }
-    const req = new Set(Array.isArray(target["required"]) ? (target["required"] as Array<string>) : [])
-    const rows = Object.entries(target["properties"] as Obj)
+    const req = new Set(target.required)
+    const rows = Object.entries(target.properties)
       .map(([k, v]) => {
-        const desc = isObj(v) && typeof v["description"] === "string" ? v["description"] : ""
+        const desc = v.description ?? ""
         return `| \`${k}\` | \`${typeOf(v)}\` | ${req.has(k) ? "yes" : "no"} | ${desc} |`
       })
       .join("\n")
-    const prefix = s["type"] === "array" ? "Array of:" : ""
+    const prefix = "type" in s && s.type === "array" ? "Array of:" : ""
     return `## ${name}\n\n${prefix}\n\n| Field | Type | Required | Notes |\n| --- | --- | --- | --- |\n${rows}\n`
   }
-  const props = schema.properties ?? {}
+  const props = "properties" in schema ? schema.properties : {}
   const sections = Object.entries(props)
     .map(([k, v]) => table(k, v))
     .join("\n")
@@ -125,16 +143,29 @@ ${sections}
 }
 
 /** Part-library metadata: specs first (the way users should reach parts),
- * then the remaining MPNs. Effect-free JSON for the client + the page. */
-interface PartMetaRow {
-  readonly spec?: string
-  readonly mpn: string
-  readonly family?: string
-  readonly description?: string
-  readonly pinCount: number
-  readonly gender?: string
-  readonly verification?: string
+ * then the remaining MPNs. Effect-free JSON for the client + the page
+ * (`PartMetaRow` is the client's contract, in src/docs/parts-meta.ts). */
+type PartMetaRowDraft = { -readonly [K in keyof PartMetaRow]: PartMetaRow[K] }
+
+/** One row with optional fields present only when the part declares them,
+ * so the JSON carries no undefined-valued keys. Keys are inserted in the
+ * column order the JSON has always used (spec, mpn, family, description,
+ * pinCount, gender, verification); the final spread only fills the required
+ * keys' types — they already exist, so their positions are kept. */
+const partMetaRow = (mpn: string, spec: string | undefined): PartMetaRow => {
+  const p = allParts[mpn]!
+  const row: Partial<PartMetaRowDraft> = {}
+  if (spec !== undefined) row.spec = spec
+  row.mpn = mpn
+  if (p.family !== undefined) row.family = p.family
+  if (p.description !== undefined) row.description = p.description
+  row.pinCount = p.pinCount
+  if (p.gender !== undefined) row.gender = p.gender
+  const verification = p.provenance?.verification
+  if (verification !== undefined) row.verification = verification
+  return { ...row, mpn, pinCount: p.pinCount }
 }
+
 const partsMeta = (): Array<PartMetaRow> => {
   const rows: Array<PartMetaRow> = []
   const bySpec = new Map<string, string>()
@@ -144,30 +175,13 @@ const partsMeta = (): Array<PartMetaRow> => {
   }
   const speced = new Set(bySpec.keys())
   for (const [mpn, spec] of [...bySpec.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    const p = allParts[mpn]!
-    rows.push({
-      spec,
-      mpn,
-      family: p.family,
-      description: p.description,
-      pinCount: p.pinCount,
-      gender: p.gender,
-      verification: p.provenance?.verification
-    })
+    rows.push(partMetaRow(mpn, spec))
   }
   for (const mpn of Object.keys(allParts).sort()) {
     if (speced.has(mpn)) continue
-    const p = allParts[mpn]!
-    rows.push({
-      mpn,
-      family: p.family,
-      description: p.description,
-      pinCount: p.pinCount,
-      gender: p.gender,
-      verification: p.provenance?.verification
-    })
+    rows.push(partMetaRow(mpn, undefined))
   }
-  return rows.map((r) => JSON.parse(JSON.stringify(r)) as PartMetaRow) // strip undefined
+  return rows
 }
 
 const libraryMd = (rows: ReadonlyArray<PartMetaRow>): string => {
@@ -186,7 +200,7 @@ Generated from \`@grayhaven/nerve-connectors\` at build time; it cannot drift fr
 ${table}
 
 Aliases: ${Object.entries(partSpecs)
-    .filter(([s], i, all) => all.findIndex(([, m]) => m === partSpecs[s as keyof typeof partSpecs]) !== i)
+    .filter(([, mpn], i, all) => all.findIndex(([, m]) => m === mpn) !== i)
     .map(([s]) => `\`${s}\``)
     .join(", ")} resolve to the same housings as their primary specs.
 `

@@ -8,24 +8,25 @@
  */
 import { isPinEndpoint, refs, type Hir } from "@grayhaven/nerve"
 import { toCsv, type TableData } from "./csv.js"
+import { draft } from "./draft.js"
 
 /** Copper resistance, ohms per meter at 20°C, by AWG. */
-const OHMS_PER_M: Readonly<Record<number, number>> = {
-  10: 0.00328, 12: 0.00521, 14: 0.00829, 16: 0.0132, 18: 0.021,
-  20: 0.0333, 22: 0.053, 24: 0.0842, 26: 0.134, 28: 0.213, 30: 0.339
-}
+const OHMS_PER_M = new Map([
+  [10, 0.00328], [12, 0.00521], [14, 0.00829], [16, 0.0132], [18, 0.021],
+  [20, 0.0333], [22, 0.053], [24, 0.0842], [26, 0.134], [28, 0.213], [30, 0.339]
+])
 
 /** Typical insulated wire outer diameter, mm, by AWG (PVC hookup wire). */
-const OD_MM: Readonly<Record<number, number>> = {
-  10: 4.2, 12: 3.5, 14: 3.0, 16: 2.4, 18: 2.1,
-  20: 1.8, 22: 1.6, 24: 1.4, 26: 1.2, 28: 1.0, 30: 0.9
-}
+const OD_MM = new Map([
+  [10, 4.2], [12, 3.5], [14, 3.0], [16, 2.4], [18, 2.1],
+  [20, 1.8], [22, 1.6], [24, 1.4], [26, 1.2], [28, 1.0], [30, 0.9]
+])
 
 /** Copper conductor weight, grams per meter, by AWG. */
-const COPPER_G_PER_M: Readonly<Record<number, number>> = {
-  10: 46.8, 12: 29.4, 14: 18.5, 16: 11.6, 18: 7.32,
-  20: 4.61, 22: 2.89, 24: 1.82, 26: 1.14, 28: 0.72, 30: 0.45
-}
+const COPPER_G_PER_M = new Map([
+  [10, 46.8], [12, 29.4], [14, 18.5], [16, 11.6], [18, 7.32],
+  [20, 4.61], [22, 2.89], [24, 1.82], [26, 1.14], [28, 0.72], [30, 0.45]
+])
 
 /** Insulation adds roughly 35% over bare copper for hookup wire. */
 const INSULATION_FACTOR = 1.35
@@ -93,11 +94,11 @@ export const analyzeHarness = (hir: Hir): AnalysisReport => {
     if (lengthM === undefined) noLength += 1
     else totalLength += lengthM
 
-    const ohmsPerM = awg !== undefined ? OHMS_PER_M[awg] : undefined
+    const ohmsPerM = awg !== undefined ? OHMS_PER_M.get(awg) : undefined
     if (awg !== undefined && ohmsPerM === undefined) offTable += 1
     const resistance =
       ohmsPerM !== undefined && lengthM !== undefined ? ohmsPerM * lengthM : undefined
-    const gPerM = awg !== undefined ? COPPER_G_PER_M[awg] : undefined
+    const gPerM = awg !== undefined ? COPPER_G_PER_M.get(awg) : undefined
     if (gPerM !== undefined && lengthM !== undefined) {
       totalWeight += gPerM * INSULATION_FACTOR * lengthM
     }
@@ -105,14 +106,13 @@ export const analyzeHarness = (hir: Hir): AnalysisReport => {
       resistance !== undefined && w.currentEstimate !== undefined
         ? resistance * w.currentEstimate
         : undefined
-    return {
-      id: w.id,
-      ...(w.gauge !== undefined ? { gauge: w.gauge } : {}),
-      ...(lengthM !== undefined ? { lengthM: round(lengthM, 3) } : {}),
-      ...(resistance !== undefined ? { resistanceOhms: round(resistance, 4) } : {}),
-      ...(drop !== undefined ? { voltageDropV: round(drop, 3) } : {}),
-      ...(w.currentEstimate !== undefined ? { currentA: w.currentEstimate } : {})
-    }
+    const analysis = draft<WireAnalysis>({ id: w.id })
+    if (w.gauge !== undefined) analysis.gauge = w.gauge
+    if (lengthM !== undefined) analysis.lengthM = round(lengthM, 3)
+    if (resistance !== undefined) analysis.resistanceOhms = round(resistance, 4)
+    if (drop !== undefined) analysis.voltageDropV = round(drop, 3)
+    if (w.currentEstimate !== undefined) analysis.currentA = w.currentEstimate
+    return analysis
   })
 
   // Branch bundle diameter: wires whose pin endpoints land on the branch's
@@ -124,7 +124,7 @@ export const analyzeHarness = (hir: Hir): AnalysisReport => {
     )
     const sumSquares = members.reduce((sum, w) => {
       const awg = parseAwg(w.gauge)
-      const od = awg !== undefined ? (OD_MM[awg] ?? 1.5) : 1.5
+      const od = awg !== undefined ? (OD_MM.get(awg) ?? 1.5) : 1.5
       return sum + od * od
     }, 0)
     return {

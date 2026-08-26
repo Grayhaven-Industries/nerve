@@ -58,7 +58,8 @@ describe("immutable objects", () => {
     try {
       store.put("release", wrong, record(1))
     } catch (error) {
-      expect((error as StoreError).code).toBe(StoreCodes.FingerprintMismatch)
+      if (!(error instanceof StoreError)) throw error
+      expect(error.code).toBe(StoreCodes.FingerprintMismatch)
     }
     expect(store.has("release", wrong)).toBe(false)
   })
@@ -83,6 +84,9 @@ describe("immutable objects", () => {
     const id = fingerprint(r)
     store.put("release", id, r)
 
+    // SAFETY: `record(1)` was filed under `id` on the line above, so the store
+    // hands back that record; the mutable view is the misbehaving caller this
+    // test plays.
     const handed = store.get("release", id) as { n: number }
     handed.n = 42
     expect(store.get("release", id)).toEqual(record(1))
@@ -92,7 +96,9 @@ describe("immutable objects", () => {
     const mid = fingerprint(mutable)
     store.put("release-candidate", mid, mutable)
     mutable.n = 8
-    expect(fingerprint(store.get("release-candidate", mid) as Canonical)).toBe(mid)
+    const stored = store.get("release-candidate", mid)
+    if (stored === undefined) throw new Error("expected the stored record")
+    expect(fingerprint(stored)).toBe(mid)
   })
 })
 
@@ -116,7 +122,8 @@ describe("release pointer (§9.4 step 6)", () => {
       store.advance("h", undefined, b)
       throw new Error("expected a refusal")
     } catch (error) {
-      expect((error as StoreError).code).toBe(StoreCodes.PointerConflict)
+      if (!(error instanceof StoreError)) throw error
+      expect(error.code).toBe(StoreCodes.PointerConflict)
     }
     expect(store.pointer("h")).toBe(a)
   })
@@ -135,7 +142,8 @@ describe("release pointer (§9.4 step 6)", () => {
       store.advance("h", a, c) // second still believes `a` is current
       throw new Error("expected a refusal")
     } catch (error) {
-      expect((error as StoreError).code).toBe(StoreCodes.PointerConflict)
+      if (!(error instanceof StoreError)) throw error
+      expect(error.code).toBe(StoreCodes.PointerConflict)
     }
     expect(store.pointer("h")).toBe(b)
   })
@@ -146,7 +154,8 @@ describe("release pointer (§9.4 step 6)", () => {
       store.advance("h", a, b)
       throw new Error("expected a refusal")
     } catch (error) {
-      expect((error as StoreError).code).toBe(StoreCodes.PointerMissing)
+      if (!(error instanceof StoreError)) throw error
+      expect(error.code).toBe(StoreCodes.PointerMissing)
     }
     expect(store.pointer("h")).toBeUndefined()
   })

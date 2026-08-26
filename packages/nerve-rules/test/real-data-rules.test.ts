@@ -300,7 +300,13 @@ describe("HK-WIRE-004 derates ampacity by bundle conductor count", () => {
 
   it("leaves an unbundled wire on the flat table", () => {
     const trunk = bundleOf(30, carried)
-    const unassigned: Hir = { ...trunk, wires: trunk.wires.map(({ branch: _, ...w }) => w) }
+    const unassigned: Hir = {
+      ...trunk,
+      wires: trunk.wires.map(({ branch, ...w }) => {
+        expect(branch).toBe("main")
+        return w
+      })
+    }
     expect(runRules(unassigned, [gaugeCurrentMismatch])).toEqual([])
     expect(
       runRulesWithMargins(unassigned, [gaugeCurrentMismatch]).margins.find(

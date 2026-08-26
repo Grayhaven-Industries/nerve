@@ -151,7 +151,7 @@ describe("resolvePartWithCoverage", () => {
     expect(resolved.provider).toBe("lib")
     expect(resolved.part).toBe(bare)
     expect(resolved.diagnostics.map((d) => d.code)).toEqual(
-      new Array(9).fill("HK-CONN-022") as ReadonlyArray<string>
+      Array.from({ length: 9 }, () => "HK-CONN-022")
     )
   })
 
@@ -211,7 +211,7 @@ describe("scaffoldPartSource", () => {
       "wireGaugeRange"
     ])
     const scaffolded = annotated.flatMap((m) => m[2]!.split(", ")).sort()
-    expect(scaffolded).toEqual([...coverageTable.map((e) => e.code)].sort())
+    expect(scaffolded).toEqual(coverageTable.map((e) => e.code).sort())
     expect(source).toContain("// cavityLayout: { rows: 1, columns: 8 },  // enables HK-CONN-020")
   })
 })
@@ -261,6 +261,14 @@ const codesFor = (part: ConnectorPart): ReadonlySet<string> => {
   return new Set(runRules(compileDesign(design).hir, builtinRules).map((d) => d.code))
 }
 
+/** `violatingPart` with its readonly lifted, so one field can be deleted. */
+type PartDraft = { -readonly [K in keyof ConnectorPart]: ConnectorPart[K] }
+/** The optional `ConnectorPart` fields — the only ones a check can be gated on. */
+type GatedField = Exclude<keyof ConnectorPart, "mpn" | "pinCount">
+
+const isGatedField = (field: string): field is GatedField =>
+  field !== "mpn" && field !== "pinCount" && field in violatingPart
+
 describe("code→field table matches what the real rules consume", () => {
   const withEverything = codesFor(violatingPart)
 
@@ -273,9 +281,10 @@ describe("code→field table matches what the real rules consume", () => {
   it("removing a field silences exactly the checks the table maps to it", () => {
     const fields = [...new Set(coverageTable.map((e) => e.field))].sort()
     for (const field of fields) {
-      const stripped = { ...violatingPart } as Record<string, unknown>
+      if (!isGatedField(field)) throw new Error(`${field} is not a gated field on the fixture`)
+      const stripped: PartDraft = { ...violatingPart }
       delete stripped[field]
-      const codes = codesFor(stripped as unknown as ConnectorPart)
+      const codes = codesFor(stripped)
       const silenced = [...withEverything].filter((c) => !codes.has(c)).sort()
       const claimed = coverageTable
         .filter((e) => e.field === field)

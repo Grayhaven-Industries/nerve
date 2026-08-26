@@ -112,7 +112,7 @@ export const buildPacket = async (
   const zipInput: Record<string, [Uint8Array, { level: 6; mtime: Date }]> = {}
   for (const [name, contents] of files) {
     zipInput[name] = [
-      typeof contents === "string" ? strToU8(contents) : contents,
+      contents instanceof Uint8Array ? contents : strToU8(contents),
       { level: 6, mtime: ZIP_EPOCH }
     ]
   }

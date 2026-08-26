@@ -14,7 +14,8 @@ import {
   harness,
   runRules,
   wire,
-  type ConnectorPart
+  type ConnectorPart,
+  type WireProps
 } from "@grayhaven/nerve"
 import { builtinRules, parseAwg, ruleCodeFromNumber, ruleCodeNumber } from "@grayhaven/nerve-rules"
 
@@ -37,11 +38,13 @@ const partArb: fc.Arbitrary<ConnectorPart> = fc
     fc.integer({ min: 1, max: 8 }),
     fc.boolean()
   )
-  .map(([mpn, pinCount, ranged]) => ({
-    mpn,
-    pinCount,
-    ...(ranged ? { wireGaugeRange: { min: "30AWG", max: "18AWG" } } : {})
-  }))
+  .map(([mpn, pinCount, ranged]) =>
+    ranged ? { mpn, pinCount, wireGaugeRange: { min: "30AWG", max: "18AWG" } } : { mpn, pinCount }
+  )
+
+/** `WireProps` with its readonly lifted, so a generated wire carries only the
+ * properties the arbitrary drew. */
+type WirePropsDraft = { -readonly [K in keyof WireProps]: WireProps[K] }
 
 /** A random but structurally valid design: connectors with some assigned
  * pins, wires between existing pins. */
@@ -74,18 +77,18 @@ const designArb = fc
       const to = conns[w.toConn % conns.length]!
       const fromPart = connSpecs[w.fromConn % conns.length]![0]
       const toPart = connSpecs[w.toConn % conns.length]![0]
+      const props: WirePropsDraft = {}
+      if (w.gauge !== undefined) props.gauge = w.gauge
+      if (w.color !== undefined) props.color = w.color
+      if (w.length !== undefined) props.length = w.length
+      if (w.signal !== undefined) props.signal = w.signal
+      if (w.twistGroup !== undefined) props.twistGroup = w.twistGroup
+      if (w.currentEstimate !== undefined) props.currentEstimate = w.currentEstimate
       return wire(
         `W${i + 1}`,
         from.pin((w.fromPin % fromPart.pinCount) + 1),
         to.pin((w.toPin % toPart.pinCount) + 1),
-        {
-          ...(w.gauge !== undefined ? { gauge: w.gauge } : {}),
-          ...(w.color !== undefined ? { color: w.color } : {}),
-          ...(w.length !== undefined ? { length: w.length } : {}),
-          ...(w.signal !== undefined ? { signal: w.signal } : {}),
-          ...(w.twistGroup !== undefined ? { twistGroup: w.twistGroup } : {}),
-          ...(w.currentEstimate !== undefined ? { currentEstimate: w.currentEstimate } : {})
-        }
+        props
       )
     })
     return harness("prop-fixture", { revision, units: "mm", connectors: conns, wires })

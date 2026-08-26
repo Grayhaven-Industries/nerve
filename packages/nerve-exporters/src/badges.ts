@@ -26,6 +26,9 @@ export const parseRef = (target: string): ParsedRef | undefined => {
   if (pin !== null) return { kind: "pin", ref: pin[1]!, pin: pin[2]! }
   const m = /^(wire|connector|splice|branch|label|bom):(.+)$/.exec(target)
   if (m === null) return undefined
+  // SAFETY: the first capture group is the alternation
+  // wire|connector|splice|branch|label|bom, which is exactly the set of
+  // `ParsedRef["kind"]` values other than "pin" (handled above).
   return { kind: m[1] as ParsedRef["kind"], ref: m[2]! }
 }
 
@@ -83,7 +86,7 @@ export const diagnosticBadges = (
   }
   const items: Array<DrawItem> = []
   for (const g of groups.values()) {
-    const data = { ...(g.anchor.data ?? {}), diagnostic: g.codes.join(" ") }
+    const data = { ...g.anchor.data, diagnostic: g.codes.join(" ") }
     items.push(
       {
         kind: "circle",

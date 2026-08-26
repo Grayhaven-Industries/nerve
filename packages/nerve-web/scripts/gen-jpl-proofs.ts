@@ -91,30 +91,31 @@ const summary = {
 
 const payload = { harnesses, summary }
 
-/** Fail loudly if anything in the payload would be lost by JSON serialization. */
-const assertSerializable = (value: unknown, path: string): void => {
+/** Fail loudly if anything in the payload would be lost by JSON serialization.
+ * Polymorphic over the payload: every slot is classified at runtime (null,
+ * array, plain object, primitive), whatever its static type claims. */
+const assertSerializable = <T>(value: T, path: string): void => {
   if (value === null) return
-  const kind = typeof value
-  if (kind === "string" || kind === "number" || kind === "boolean") {
-    if (kind === "number" && !Number.isFinite(value as number)) {
-      throw new Error(`Non-finite number at ${path}`)
-    }
-    return
-  }
-  if (kind === "undefined" || kind === "function" || kind === "symbol" || kind === "bigint") {
-    throw new Error(`Non-serializable ${kind} at ${path}`)
-  }
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertSerializable(item, `${path}[${index}]`))
     return
   }
-  const proto = Object.getPrototypeOf(value)
-  if (proto !== Object.prototype && proto !== null) {
-    throw new Error(`Non-plain object (${proto?.constructor?.name ?? "unknown"}) at ${path}`)
+  if (value instanceof Object) {
+    const proto = Object.getPrototypeOf(value)
+    if (proto !== Object.prototype && proto !== null) {
+      throw new Error(`Non-plain object (${proto?.constructor?.name ?? "unknown"}) at ${path}`)
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      assertSerializable(entry, `${path}.${key}`)
+    }
+    return
   }
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    assertSerializable(entry, `${path}.${key}`)
-  }
+  // A primitive slot. JSON drops undefined and symbols outright and turns
+  // non-finite numbers into null; both are silent data loss. (A bigint makes
+  // JSON.stringify throw on its own.)
+  const encoded = JSON.stringify(value)
+  if (encoded === undefined) throw new Error(`Non-serializable value at ${path}`)
+  if (encoded === "null") throw new Error(`Non-finite number at ${path}`)
 }
 
 assertSerializable(payload, "payload")

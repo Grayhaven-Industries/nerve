@@ -41,6 +41,12 @@ const lengthMm = (mm: number | undefined): number =>
  * can resolve, while keeping float artifacts out of the emitted bytes. */
 const round3 = (n: number): number => Math.round(n * 1000) / 1000
 
+/** A position on the board sheet, in sheet millimetres. */
+interface SheetPoint {
+  readonly x: number
+  readonly y: number
+}
+
 /** Annotated lengths round to 0.1 mm — the resolution a cut list is called
  * out in. Deterministic: `String` of an already-rounded double. */
 const fmtLength = (n: number): string => String(Math.round(n * 10) / 10)
@@ -277,7 +283,7 @@ export const boardDrawing = (hir: Hir): Drawing => {
     branch: HirBranch,
     ox: number,
     oy: number
-  ): { readonly x: number; readonly y: number } => {
+  ): SheetPoint => {
     const geometry = geometryOf(branch)
     return geometry.routed
       ? { x: round3(ox - geometry.minX), y: round3(oy - geometry.minY) }
@@ -308,7 +314,7 @@ export const boardDrawing = (hir: Hir): Drawing => {
     /** Sheet position `along` units from the branch start. `flat` is the exact
      * expression the topological layout has always used, evaluated verbatim so
      * an unrouted branch emits byte-identical coordinates. */
-    const at = (along: number, flat: number): { readonly x: number; readonly y: number } => {
+    const at = (along: number, flat: number): SheetPoint => {
       if (!geometry.routed) return { x: flat, y: cy }
       const p = pointAtDistance(geometry.local, along)!
       return { x: round3(x0 + p.x), y: round3(cy + p.y) }
@@ -319,7 +325,7 @@ export const boardDrawing = (hir: Hir): Drawing => {
      * being struck through by it — a routed trunk folds back on itself, so the
      * unrouted layout's "always above, always below" no longer holds. Falls
      * back to straight down, which is exactly the unrouted convention. */
-    const normalAt = (along: number): { readonly x: number; readonly y: number } => {
+    const normalAt = (along: number): SheetPoint => {
       const step = Math.max(len * 1e-3, 1e-6)
       const before = pointAtDistance(geometry.local, along - step)!
       const after = pointAtDistance(geometry.local, along + step)!
@@ -334,7 +340,7 @@ export const boardDrawing = (hir: Hir): Drawing => {
 
     /** Text pushed sideways reads away from the trunk; text pushed up or down
      * stays centred, as the unrouted layout has it. */
-    const anchorFor = (n: { readonly x: number; readonly y: number }): "start" | "middle" | "end" =>
+    const anchorFor = (n: SheetPoint): "start" | "middle" | "end" =>
       Math.abs(n.x) <= Math.abs(n.y) ? "middle" : n.x > 0 ? "start" : "end"
 
     maxX = Math.max(

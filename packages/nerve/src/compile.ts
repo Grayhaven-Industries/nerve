@@ -19,6 +19,7 @@ import type {
   PinElectrical,
   SealPart,
   TerminalPart,
+  VoltageRange,
   WirePart
 } from "./domain.js"
 import { Codes, DiagnosticSeverity, type Diagnostic } from "./diagnostics.js"
@@ -89,12 +90,12 @@ const electricalRoles: ReadonlySet<string> = new Set([
   "passive",
   "ground"
 ])
-const isElectricalRole = (value: unknown): value is ElectricalRole =>
-  typeof value === "string" && electricalRoles.has(value)
+const isElectricalRole = (value: string): value is ElectricalRole =>
+  electricalRoles.has(value)
 
 const differentialPolarities: ReadonlySet<string> = new Set(["positive", "negative"])
-const isDifferentialPolarity = (value: unknown): value is DifferentialPolarity =>
-  typeof value === "string" && differentialPolarities.has(value)
+const isDifferentialPolarity = (value: string): value is DifferentialPolarity =>
+  differentialPolarities.has(value)
 
 /** Numeric conductor labels have one canonical identity (`01` and `1` are
  * the same conductor); non-numeric labels such as `red` remain valid. */
@@ -123,12 +124,11 @@ const cutLengthOf = (w: HirWire): number | undefined =>
       (w.terminationAllowance?.to ?? 0)
 
 /** Strip `undefined` values so optional fields are absent in serialized HIR. */
-const compact = <T extends Record<string, unknown>>(obj: T): T => {
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) out[key] = value
-  }
-  return out as T
+const compact = <T extends object>(obj: T): T => {
+  const present = Object.entries(obj).filter(([, value]) => value !== undefined)
+  // SAFETY: every kept key holds the value it had in `obj`, and every dropped key
+  // held `undefined`, which is what reading it from the result yields too.
+  return Object.fromEntries(present) as T
 }
 
 /** Normalize wire master data into HIR, canonicalizing its gauge the same
@@ -270,16 +270,13 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
     severity: DiagnosticSeverity = DiagnosticSeverity.Error,
     extra?: Pick<Diagnostic, "targets" | "data">
   ) => {
-    diagnostics.push({
-      code,
-      severity,
-      message,
-      ...(target !== undefined ? { target } : {}),
-      ...(extra?.targets !== undefined && extra.targets.length > 0
-        ? { targets: extra.targets }
-        : {}),
-      ...(extra?.data !== undefined ? { data: extra.data } : {})
-    })
+    let diagnostic: Diagnostic = { code, severity, message }
+    if (target !== undefined) diagnostic = { ...diagnostic, target }
+    if (extra?.targets !== undefined && extra.targets.length > 0) {
+      diagnostic = { ...diagnostic, targets: extra.targets }
+    }
+    if (extra?.data !== undefined) diagnostic = { ...diagnostic, data: extra.data }
+    diagnostics.push(diagnostic)
   }
 
   const electricalByConnector = new Map<
@@ -291,7 +288,7 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
     connectorRef: string,
     pins: Readonly<Record<string, string>>,
     assignments: Readonly<Record<string, PinElectrical>>
-  ): Readonly<Record<string, PinElectrical>> => {
+  ) => {
     const normalized: Record<string, PinElectrical> = {}
     for (const [pin, electrical] of Object.entries(assignments).sort(([a], [b]) =>
       comparePins(a, b)
@@ -344,10 +341,10 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
             { data: { minV, maxV } }
           )
         } else {
-          voltage = {
-            ...(validMin && minV !== undefined ? { minV } : {}),
-            ...(validMax && maxV !== undefined ? { maxV } : {})
-          }
+          let range: VoltageRange = {}
+          if (validMin && minV !== undefined) range = { ...range, minV }
+          if (validMax && maxV !== undefined) range = { ...range, maxV }
+          voltage = range
         }
       }
 
@@ -448,15 +445,15 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
         }
       }
 
-      normalized[pin] = {
-        ...(role !== undefined ? { role } : {}),
-        ...(voltage !== undefined ? { voltage } : {}),
-        ...(currentA !== undefined ? { currentA } : {}),
-        ...(protocol !== undefined ? { protocol } : {}),
-        ...(differential !== undefined ? { differential } : {}),
-        ...(terminationOhms !== undefined ? { terminationOhms } : {}),
-        ...(bitRateKbps !== undefined ? { bitRateKbps } : {})
-      }
+      let entry: PinElectrical = {}
+      if (role !== undefined) entry = { ...entry, role }
+      if (voltage !== undefined) entry = { ...entry, voltage }
+      if (currentA !== undefined) entry = { ...entry, currentA }
+      if (protocol !== undefined) entry = { ...entry, protocol }
+      if (differential !== undefined) entry = { ...entry, differential }
+      if (terminationOhms !== undefined) entry = { ...entry, terminationOhms }
+      if (bitRateKbps !== undefined) entry = { ...entry, bitRateKbps }
+      normalized[pin] = entry
     }
     return normalized
   }
@@ -762,17 +759,14 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       const belowLength =
         w.length === undefined || !isPositiveFinite(w.length) || w.lengthTolerance < w.length
       if (!toleranceValid || !belowLength) {
+        let data: NonNullable<Diagnostic["data"]> = { lengthTolerance: w.lengthTolerance }
+        if (w.length !== undefined) data = { ...data, length: w.length }
         report(
           Codes.InvalidWireQuantity,
           `Wire ${w.id} has length tolerance ${w.lengthTolerance}; tolerance must be non-negative, finite, and smaller than its positive length${w.length !== undefined ? ` (${w.length})` : ""}.`,
           refs.wire(w.id),
           DiagnosticSeverity.Error,
-          {
-            data: {
-              lengthTolerance: w.lengthTolerance,
-              ...(w.length !== undefined ? { length: w.length } : {})
-            }
-          }
+          { data }
         )
       }
     }
@@ -1213,10 +1207,12 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       existing.usedBy.push(usedBy)
     } else {
       bomByMpn.set(mpn, {
-        item: compact({ mpn, category, unitOfMeasure: "ea", ...extra }) as Omit<
-          HirBomItem,
-          "usedBy" | "quantity"
-        >,
+        item: compact<Omit<HirBomItem, "usedBy" | "quantity">>({
+          mpn,
+          category,
+          unitOfMeasure: "ea",
+          ...extra
+        }),
         usedBy: [usedBy],
         qty: 1
       })
@@ -1356,7 +1352,7 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
       compareStrings(a.message, b.message)
   )
 
-  const hir: Hir = {
+  const body = {
     schemaVersion: HIR_SCHEMA_VERSION,
     harness: {
       id: design.id,
@@ -1370,9 +1366,12 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
     branches,
     splices,
     labels,
-    bom,
-    // Omitted when empty so existing golden HIR stays byte-identical.
-    ...(protections.length > 0 ? { protections } : {}),
+    bom
+  }
+  // Omitted when empty so existing golden HIR stays byte-identical.
+  const withProtections = protections.length > 0 ? { ...body, protections } : body
+  const hir: Hir = {
+    ...withProtections,
     diagnostics,
     layoutHints: [],
     exports: {}

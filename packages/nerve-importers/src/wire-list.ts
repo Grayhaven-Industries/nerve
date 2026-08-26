@@ -5,12 +5,35 @@ import {
   wire,
   DiagnosticSeverity,
   type ConnectorPart,
+  type ConnectorProps,
   type Diagnostic,
   type HarnessDesign,
-  type Units
+  type Units,
+  type WireProps
 } from "@grayhaven/nerve"
 
-export interface WireListColumnMap {
+type Draft<T> = { -readonly [K in keyof T]: T[K] }
+
+/** A parsed JSON document, as `JSON.parse` yields it. */
+export type JsonValue = string | number | boolean | null | Array<JsonValue> | JsonObject
+export interface JsonObject {
+  readonly [key: string]: JsonValue
+}
+
+const isJsonObject = (value: JsonValue): value is JsonObject =>
+  value !== null && !Array.isArray(value) && value instanceof Object
+
+const isJsonString = (value: JsonValue): value is string =>
+  value !== null &&
+  value !== true &&
+  value !== false &&
+  !Array.isArray(value) &&
+  !(value instanceof Object) &&
+  !Number.isFinite(value) &&
+  !Number.isNaN(value)
+
+/** An object type (not an interface) so a column map is itself a `JsonObject`. */
+export type WireListColumnMap = {
   readonly fromConnector: string
   readonly fromPin: string
   readonly toConnector: string
@@ -52,39 +75,54 @@ const columnMapKeys = [
   "toSeal"
 ] as const satisfies ReadonlyArray<keyof WireListColumnMap>
 
-const requiredColumnMapKeys = new Set<keyof WireListColumnMap>([
-  "fromConnector",
-  "fromPin",
-  "toConnector",
-  "toPin"
-])
+const requiredColumnMapKeys = ["fromConnector", "fromPin", "toConnector", "toPin"] as const
+type RequiredColumnMapKey = (typeof requiredColumnMapKeys)[number]
+const isRequiredColumnMapKey = (key: keyof WireListColumnMap): key is RequiredColumnMapKey =>
+  requiredColumnMapKeys.some((required) => required === key)
+
+type WireListColumnMapDraft = Draft<WireListColumnMap>
 
 /** Decode and canonically order a reusable wire-list column map. */
-export const normalizeWireListColumnMap = (input: unknown): WireListColumnMap => {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+export const normalizeWireListColumnMap = (input: JsonValue): WireListColumnMap => {
+  if (!isJsonObject(input)) {
     throw new Error("Column map must be a JSON object.")
   }
-  const record = input as Record<string, unknown>
   const known = new Set<string>(columnMapKeys)
-  const unknown = Object.keys(record).filter((key) => !known.has(key)).sort()
+  const unknown = Object.keys(input).filter((key) => !known.has(key)).sort()
   if (unknown.length > 0) {
     throw new Error(`Unknown column-map field(s): ${unknown.join(", ")}.`)
   }
-  const normalized: Partial<Record<keyof WireListColumnMap, string>> = {}
+  const validated = new Map<keyof WireListColumnMap, string>()
   for (const key of columnMapKeys) {
-    const value = record[key]
+    const value = input[key]
     if (value === undefined) {
-      if (requiredColumnMapKeys.has(key)) {
+      if (isRequiredColumnMapKey(key)) {
         throw new Error(`Column map requires ${key}.`)
       }
       continue
     }
-    if (typeof value !== "string" || value.trim() === "") {
+    if (!isJsonString(value) || value.trim() === "") {
       throw new Error(`Column-map field ${key} must be a non-empty string.`)
     }
-    normalized[key] = value.trim()
+    validated.set(key, value.trim())
   }
-  return normalized as unknown as WireListColumnMap
+  const required = (key: RequiredColumnMapKey): string => {
+    const value = validated.get(key)
+    if (value === undefined) throw new Error(`Column map requires ${key}.`)
+    return value
+  }
+  const normalized: WireListColumnMapDraft = {
+    fromConnector: required("fromConnector"),
+    fromPin: required("fromPin"),
+    toConnector: required("toConnector"),
+    toPin: required("toPin")
+  }
+  for (const key of columnMapKeys) {
+    if (isRequiredColumnMapKey(key)) continue
+    const value = validated.get(key)
+    if (value !== undefined) normalized[key] = value
+  }
+  return normalized
 }
 
 export const wireListColumnMapJson = (mapping: WireListColumnMap): string =>
@@ -237,6 +275,10 @@ interface AcceptedRow {
   readonly color?: string
   readonly length?: number
 }
+
+type AcceptedRowDraft = Draft<AcceptedRow>
+type ConnectorPropsDraft = Draft<ConnectorProps>
+type WirePropsDraft = Draft<WireProps>
 
 interface ConnectorDraft {
   readonly ref: string
@@ -435,20 +477,23 @@ export const importWireList = (
     if (toCount !== undefined) to.pinCount = Math.max(to.pinCount ?? 0, toCount)
     setPin(from, fromPin, signal, get(row, mapping.fromTerminal), get(row, mapping.fromSeal))
     setPin(to, toPin, signal, get(row, mapping.toTerminal), get(row, mapping.toSeal))
-    accepted.push({
+    const acceptedRow: AcceptedRowDraft = {
       row: rowNumber,
       wireId,
       fromConnector,
       fromPin,
       toConnector,
-      toPin,
-      ...(signal !== undefined ? { signal } : {}),
-      ...(get(row, mapping.gauge) !== "" ? { gauge: get(row, mapping.gauge) } : {}),
-      ...(get(row, mapping.color) !== "" ? { color: get(row, mapping.color) } : {}),
-      ...(parsedLength !== undefined
-        ? { length: convertLength(parsedLength, rawLengthUnit, units) }
-        : {})
-    })
+      toPin
+    }
+    if (signal !== undefined) acceptedRow.signal = signal
+    const gauge = get(row, mapping.gauge)
+    if (gauge !== "") acceptedRow.gauge = gauge
+    const color = get(row, mapping.color)
+    if (color !== "") acceptedRow.color = color
+    if (parsedLength !== undefined) {
+      acceptedRow.length = convertLength(parsedLength, rawLengthUnit, units)
+    }
+    accepted.push(acceptedRow)
     rowResults.push({ row: rowNumber, status: "accepted", wireId, diagnostics: [] })
   })
 
@@ -509,30 +554,29 @@ export const importWireList = (
       pinCount: Math.max(c.pinCount ?? 0, numericPinCount(c.seenPins)),
       provenance: { source: sourceName, verification: "unverified" }
     }
-    return connector(c.ref, part, {
-      pins,
-      ...(c.terminals.size > 0 ? { terminals: Object.fromEntries(c.terminals) } : {}),
-      ...(c.seals.size > 0 ? { seals: Object.fromEntries(c.seals) } : {})
-    })
+    const props: ConnectorPropsDraft = { pins }
+    if (c.terminals.size > 0) props.terminals = Object.fromEntries(c.terminals)
+    if (c.seals.size > 0) props.seals = Object.fromEntries(c.seals)
+    return connector(c.ref, part, props)
   })
   const instanceByRef = new Map(instances.map((instance) => [instance.ref, instance]))
   const design = harness(harnessId, {
     revision: options.revision ?? "A",
     units,
     connectors: instances,
-    wires: accepted.map((row) =>
-      wire(
+    wires: accepted.map((row) => {
+      const props: WirePropsDraft = {}
+      if (row.signal !== undefined) props.signal = row.signal
+      if (row.gauge !== undefined) props.gauge = row.gauge
+      if (row.color !== undefined) props.color = row.color
+      if (row.length !== undefined) props.length = row.length
+      return wire(
         row.wireId,
         instanceByRef.get(row.fromConnector)!.pin(row.fromPin),
         instanceByRef.get(row.toConnector)!.pin(row.toPin),
-        {
-          ...(row.signal !== undefined ? { signal: row.signal } : {}),
-          ...(row.gauge !== undefined ? { gauge: row.gauge } : {}),
-          ...(row.color !== undefined ? { color: row.color } : {}),
-          ...(row.length !== undefined ? { length: row.length } : {})
-        }
+        props
       )
-    )
+    })
   })
 
   return {

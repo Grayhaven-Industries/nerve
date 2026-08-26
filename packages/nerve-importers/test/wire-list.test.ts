@@ -123,7 +123,8 @@ describe("wire-list import", () => {
       ]),
       "Wire List"
     )
-    const bytes = write(workbook, { type: "array", bookType: "xlsx" }) as Uint8Array
+    // `write` is typed `any`; with `type: "array"` it returns the workbook bytes.
+    const bytes: Uint8Array = write(workbook, { type: "array", bookType: "xlsx" })
     const parsed = parseXlsxWireList(bytes, "Wire List")
     expect(parsed.rows).toHaveLength(1)
     expect(importWireList(parsed, mapping).report.accepted).toBe(1)

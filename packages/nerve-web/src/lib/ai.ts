@@ -14,7 +14,12 @@
  */
 // The SDK loads lazily on the first agent turn (dynamic import below), so
 // none of it ships in the route chunk. Type-only imports are erased.
-import type { FunctionTool, Response, ResponseInputItem } from "openai/resources/responses/responses"
+import type {
+  FunctionTool,
+  Response,
+  ResponseCreateParamsStreaming,
+  ResponseInputItem
+} from "openai/resources/responses/responses"
 import { compileProjectFile, compileSource, countDiagnostics } from "./compile-client.js"
 import { ENTRY_FILE, getFiles, setFileSource } from "./sources.js"
 import type { CompileResult } from "./compile-types.js"
@@ -116,10 +121,16 @@ Rules of engagement:
 - The user watches the diagram update live as your edits land. Keep your prose to one or two sentences per turn; the diff and the diagram speak for themselves.
 - Current project: ${projectId}. Do not invent connector part numbers — reuse parts already defined in the source unless asked to add new ones.`
 
+export interface ToolEvent {
+  readonly name: string
+  readonly status: "running" | "ok" | "failed"
+  readonly detail?: string
+}
+
 export interface AgentEvent {
   readonly type: "text" | "tool" | "compile" | "done" | "error"
   readonly text?: string
-  readonly tool?: { name: string; status: "running" | "ok" | "failed"; detail?: string }
+  readonly tool?: ToolEvent
   readonly compile?: { errors: number; warnings: number }
 }
 
@@ -148,15 +159,59 @@ const diagnosticsReport = (result: CompileResult): string => {
   return `Compiled: ${errors} error(s), ${warnings} warning(s).\n${lines.join("\n")}`
 }
 
+/** A tool call the model can make, as the strict tool schemas above define
+ * it. `path` is nullable-and-required on the wire (strict mode's encoding of
+ * optional); null and absent both mean the entry file. */
+export interface EditToolCall {
+  readonly name: "edit_harness_source"
+  readonly path?: string | null
+  readonly old_string: string
+  readonly new_string: string
+}
+
+export interface RewriteToolCall {
+  readonly name: "rewrite_harness_source"
+  readonly path?: string | null
+  readonly source: string
+}
+
+export type ToolCall = EditToolCall | RewriteToolCall
+
+export type PatchOutcome = { ok: true; next: string } | { ok: false; report: string }
+
+export type ProjectPatchOutcome =
+  | { ok: true; path: string; next: string }
+  | { ok: false; report: string }
+
+/** Decode a function_call item into a ToolCall at the API boundary.
+ * Undefined when the tool is not one of ours or its arguments are not JSON. */
+export const parseToolCall = (name: string, argumentsJson: string): ToolCall | undefined => {
+  let args
+  try {
+    args = JSON.parse(argumentsJson)
+  } catch {
+    return undefined
+  }
+  if (name === "edit_harness_source") {
+    // SAFETY: the tool is declared `strict: true`, so the Responses API
+    // guarantees `arguments` conforms to its JSON schema (every required key
+    // present, typed as declared, no extras).
+    const call = args as Omit<EditToolCall, "name">
+    return { ...call, name }
+  }
+  if (name === "rewrite_harness_source") {
+    // SAFETY: as above — strict-mode arguments conform to the tool's schema.
+    const call = args as Omit<RewriteToolCall, "name">
+    return { ...call, name }
+  }
+  return undefined
+}
+
 /** Pure patch engine for the agent's tools. Exported for tests: this is
  * the logic that decides whether an LLM edit lands, so it must be exact. */
-export const applyPatch = (
-  current: string,
-  name: string,
-  input: unknown
-): { ok: true; next: string } | { ok: false; report: string } => {
-  if (name === "edit_harness_source") {
-    const { old_string, new_string } = input as { old_string: string; new_string: string }
+export const applyPatch = (current: string, call: ToolCall): PatchOutcome => {
+  if (call.name === "edit_harness_source") {
+    const { old_string, new_string } = call
     const first = current.indexOf(old_string)
     if (first === -1) {
       return { ok: false, report: "old_string not found in source. Re-read the current source and retry with exact text." }
@@ -166,10 +221,7 @@ export const applyPatch = (
     }
     return { ok: true, next: current.slice(0, first) + new_string + current.slice(first + old_string.length) }
   }
-  if (name === "rewrite_harness_source") {
-    return { ok: true, next: (input as { source: string }).source }
-  }
-  return { ok: false, report: `Unknown tool: ${name}` }
+  return { ok: true, next: call.source }
 }
 
 /** Resolve the tool call's target file and patch it. Pure over the project's
@@ -177,10 +229,9 @@ export const applyPatch = (
  * entry file; an unknown path is refused with the valid paths named. */
 export const applyProjectPatch = (
   files: Readonly<Record<string, string>>,
-  name: string,
-  input: unknown
-): { ok: true; path: string; next: string } | { ok: false; report: string } => {
-  const path = (input as { path?: string | null }).path ?? ENTRY_FILE
+  call: ToolCall
+): ProjectPatchOutcome => {
+  const path = call.path ?? ENTRY_FILE
   const current = files[path]
   if (current === undefined) {
     return {
@@ -188,17 +239,16 @@ export const applyProjectPatch = (
       report: `Unknown path: ${path}. Valid paths: ${Object.keys(files).join(", ")}`
     }
   }
-  const patched = applyPatch(current, name, input)
+  const patched = applyPatch(current, call)
   return patched.ok ? { ok: true, path, next: patched.next } : patched
 }
 
 /** Apply a tool call, compile-verify it, and return the function output. */
 const applyTool = async (
   projectId: string,
-  name: string,
-  input: unknown
+  call: ToolCall
 ): Promise<{ ok: boolean; report: string; result?: CompileResult }> => {
-  const patched = applyProjectPatch(getFiles(projectId), name, input)
+  const patched = applyProjectPatch(getFiles(projectId), call)
   if (!patched.ok) return { ok: false, report: patched.report }
   const { path, next } = patched
 
@@ -269,19 +319,17 @@ export const runAgentTurn = async (
       // openai 6.48.0: request options are the second argument and carry
       // `signal?: AbortSignal` — aborting it tears down the SSE connection
       // (internal/request-options.d.ts).
-      const stream = await client.responses.create(
-        {
-          model: MODEL,
-          instructions: systemPrompt(projectId),
-          reasoning: { effort: "medium" },
-          max_output_tokens: 16000,
-          tools: TOOLS,
-          input,
-          ...(previousResponseId !== undefined ? { previous_response_id: previousResponseId } : {}),
-          stream: true
-        },
-        { signal }
-      )
+      const request: ResponseCreateParamsStreaming = {
+        model: MODEL,
+        instructions: systemPrompt(projectId),
+        reasoning: { effort: "medium" },
+        max_output_tokens: 16000,
+        tools: TOOLS,
+        input,
+        stream: true
+      }
+      if (previousResponseId !== undefined) request.previous_response_id = previousResponseId
+      const stream = await client.responses.create(request, { signal })
 
       let finalResponse: Response | undefined
       for await (const event of stream) {
@@ -311,27 +359,20 @@ export const runAgentTurn = async (
         if (call.type !== "function_call") continue
         const name = call.name
         onEvent({ type: "tool", tool: { name, status: "running" } })
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(call.arguments)
-        } catch {
-          parsed = {}
-        }
-        const outcome = await applyTool(projectId, name, parsed)
+        const toolCall = parseToolCall(name, call.arguments)
+        const outcome =
+          toolCall === undefined
+            ? { ok: false, report: `Unknown tool or malformed arguments: ${name}` }
+            : await applyTool(projectId, toolCall)
         if (outcome.ok && outcome.result !== undefined) {
           onSourceApplied(outcome.result)
           const counts = countDiagnostics(outcome.result.hir.diagnostics)
           onEvent({ type: "compile", compile: counts })
         }
         const detail = outcome.report.split("\n")[0]
-        onEvent({
-          type: "tool",
-          tool: {
-            name,
-            status: outcome.ok ? "ok" : "failed",
-            ...(detail !== undefined ? { detail } : {})
-          }
-        })
+        const status = outcome.ok ? "ok" : "failed"
+        const tool: ToolEvent = detail === undefined ? { name, status } : { name, status, detail }
+        onEvent({ type: "tool", tool })
         outputs.push({
           type: "function_call_output",
           call_id: call.call_id,

@@ -13,6 +13,7 @@
  * ordering: the same HIR always yields the same plan.
  */
 import { computeNets, isPinEndpoint, type Hir, type HirEndpoint } from "@grayhaven/nerve"
+import { draft } from "./draft.js"
 
 export interface TestPoint {
   readonly connector: string
@@ -93,15 +94,15 @@ export const generateTestPlan = (hir: Hir): TestPlan => {
   for (const w of hir.wires) {
     if (!isPinEndpoint(w.from) || !isPinEndpoint(w.to)) continue
     const net = nets.nameOf(w.from)
-    tests.push({
+    const check = draft<Omit<ContinuityTest, "wire">>({
       id: nextId(),
       type: "continuity",
       from: { connector: w.from.connector, pin: w.from.pin },
       to: { connector: w.to.connector, pin: w.to.pin },
-      expected: "closed",
-      ...(net !== undefined ? { net } : {}),
-      wire: w.id
+      expected: "closed"
     })
+    if (net !== undefined) check.net = net
+    tests.push({ ...check, wire: w.id })
   }
 
   // Splice verification: hub pin ↔ every other pin attached through the splice.
@@ -119,15 +120,15 @@ export const generateTestPlan = (hir: Hir): TestPlan => {
     if (hub === undefined) continue
     const net = nets.nameOf({ splice: s.id })
     for (const p of pins.slice(1)) {
-      tests.push({
+      const check = draft<Omit<SpliceTest, "splice">>({
         id: nextId(),
         type: "splice",
         from: hub,
         to: p,
-        expected: "closed",
-        ...(net !== undefined ? { net } : {}),
-        splice: s.id
+        expected: "closed"
       })
+      if (net !== undefined) check.net = net
+      tests.push({ ...check, splice: s.id })
     }
   }
 
@@ -246,10 +247,14 @@ export const testPlanJson = (hir: Hir): string =>
   JSON.stringify(generateTestPlan(hir), null, 2) + "\n"
 
 /** Every wired net has at least one closed-circuit test (PRD §9.9 acceptance). */
-export const coverage = (
-  hir: Hir,
-  plan: TestPlan
-): { readonly nets: number; readonly covered: number } => {
+/** Multi-pin nets in the harness, and how many of them the plan's closed
+ * checks join end to end. */
+export interface TestCoverage {
+  readonly nets: number
+  readonly covered: number
+}
+
+export const coverage = (hir: Hir, plan: TestPlan): TestCoverage => {
   const netOf = computeNets(hir, endpointKey)
   const pinsByRoot = new Map<string, Map<string, TestPoint>>()
   for (const w of hir.wires) {

@@ -38,7 +38,9 @@ export type Action =
  * of two memberships; deliberately NOT used to decide permissions, for the
  * reviewer/engineer reason described in the module comment.
  */
-export const roleRank: { readonly [R in Role]: number } = {
+export type RoleRank = { readonly [R in Role]: number }
+
+export const roleRank: RoleRank = {
   viewer: 0,
   reviewer: 1,
   engineer: 2,
@@ -52,7 +54,9 @@ export const roleRank: { readonly [R in Role]: number } = {
  * the owners of policy, private packs, and connector contracts; a gate an
  * admin could not pass would just be routed around outside the product.
  */
-const actionRoles: { readonly [A in Action]: ReadonlyArray<Role> } = {
+type ActionRoles = { readonly [A in Action]: ReadonlyArray<Role> }
+
+const actionRoles: ActionRoles = {
   /** Policy, retention, severity overrides, and org-owned assets (ORG-004, ORG-005). */
   "org:manage": ["admin"],
   /** ORG-001: growing the organization changes who can approve, so it stays with admins. */

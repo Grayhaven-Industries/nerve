@@ -6,7 +6,9 @@ import {
   type EvalCase
 } from "@grayhaven/nerve-eval"
 
-const testCase: EvalCase = {
+// An object literal rather than an `EvalCase` binding so the same value can
+// be handed to the decoder as parsed JSON.
+const testCase = {
   id: "synthetic-signal-mismatch",
   title: "Signal assignment mismatch",
   fixture: "mismatch.harness.ts",
@@ -17,7 +19,7 @@ const testCase: EvalCase = {
     rights: "public"
   },
   expectedFindings: [{ code: "HK-CONN-011", target: "connector:J2.pin:1" }]
-}
+} satisfies EvalCase
 
 describe("evaluation primitives", () => {
   it("distinguishes asserted findings from findings that still need adjudication", () => {

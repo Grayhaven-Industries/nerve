@@ -114,9 +114,10 @@ describe("manufacturing rules", () => {
     const hir = make([
       wire("W1", j1.pin(1), j2.pin(1), { gauge: "14AWG", signal: "VBAT_24V" })
     ])
-    const diags = runRules(hir, [
-      ...builtinRules.filter((r) => r.name === "gaugeOutsideConnectorRange")
-    ])
+    const diags = runRules(
+      hir,
+      builtinRules.filter((r) => r.name === "gaugeOutsideConnectorRange")
+    )
     expect(diags.map((d) => d.code)).toEqual(["HK-MFG-004", "HK-MFG-004"])
     expect(diags[0]?.message).toContain("accepts 18AWG to 30AWG")
   })
@@ -390,9 +391,11 @@ describe("rule engine", () => {
       { missingWireLength: "error" }
     )
     expect(raised[0]?.severity).toBe("error")
-    const off = runRules(hir, builtinRules, {
-      ...Object.fromEntries(builtinRules.map((r) => [r.name, "off"] as const))
-    })
+    const off = runRules(
+      hir,
+      builtinRules,
+      Object.fromEntries(builtinRules.map((r) => [r.name, "off"] as const))
+    )
     expect(off).toEqual([])
   })
 

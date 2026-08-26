@@ -49,7 +49,11 @@ const reviveTable = (table: StoredTable): TableData => ({
   rows: table.rows.map((row) => row.map((cell) => cell ?? undefined))
 })
 
-const stored = proofs.harnesses as unknown as ReadonlyArray<StoredProof>
+// SAFETY: jpl-proofs.json is written by scripts/gen-jpl-proofs.ts from the
+// compiler's own Hir/Diagnostic/TestPlan values (tables null-filled as
+// StoredTable describes), so each element is a StoredProof; the JSON import
+// only lacks the literal-union and readonly typing.
+const stored = proofs.harnesses as ReadonlyArray<StoredProof>
 
 export const JPL_HARNESSES: ReadonlyArray<JplHarnessProof> = stored.map((proof) => ({
   ...proof,

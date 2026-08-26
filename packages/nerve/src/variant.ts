@@ -46,7 +46,7 @@ export interface VariantOptions {
 const apply = <T extends { readonly id: string }>(
   items: ReadonlyArray<T>,
   mods:
-    | (SectionMods<T> & { readonly override?: Readonly<Record<string, object>> })
+    | (SectionMods<T> & { readonly override?: Readonly<Record<string, Partial<NoInfer<T>>>> })
     | undefined
 ): ReadonlyArray<T> => {
   if (mods === undefined) return items
@@ -54,9 +54,7 @@ const apply = <T extends { readonly id: string }>(
   const out = items
     .filter((item) => !removed.has(item.id))
     .map((item) =>
-      mods.override?.[item.id] !== undefined
-        ? ({ ...item, ...mods.override[item.id] } as T)
-        : item
+      mods.override?.[item.id] !== undefined ? { ...item, ...mods.override[item.id] } : item
     )
   return [...out, ...(mods.add ?? [])]
 }

@@ -31,7 +31,19 @@ const CODE_PATTERN = /^HK-(DOC|MFG|WIRE|ELEC|CONN)-(\d{3})$/
 export const ruleCodeNumber = (code: string): number | undefined => {
   const m = CODE_PATTERN.exec(code)
   if (m === null) return undefined
+  // SAFETY: the first capture group is the alternation of exactly the
+  // RULE_CATEGORY_BANDS keys, so a match binds a RuleCategory.
   return RULE_CATEGORY_BANDS[m[1] as RuleCategory] + Number(m[2])
+}
+
+/** Category whose band is `band`, or undefined between the bands. */
+const categoryForBand = (band: number): RuleCategory | undefined => {
+  // SAFETY: Object.entries erases the key literal type; RULE_CATEGORY_BANDS
+  // is a closed `as const` object, so its keys are exactly RuleCategory.
+  const entries = Object.entries(RULE_CATEGORY_BANDS) as ReadonlyArray<
+    readonly [RuleCategory, number]
+  >
+  return entries.find(([, b]) => b === band)?.[0]
 }
 
 /** `5011` → `"HK-CONN-011"`. Undefined for numbers outside the bands. */
@@ -40,21 +52,19 @@ export const ruleCodeFromNumber = (n: number): string | undefined => {
   const band = Math.floor(n / 1000) * 1000
   const suffix = n - band
   if (suffix < 1 || suffix > 999) return undefined
-  const category = (Object.entries(RULE_CATEGORY_BANDS) as ReadonlyArray<
-    readonly [RuleCategory, number]
-  >).find(([, b]) => b === band)?.[0]
+  const category = categoryForBand(band)
   if (category === undefined) return undefined
   return `HK-${category}-${String(suffix).padStart(3, "0")}`
 }
 
 /** Category of a code (or its number): `"HK-MFG-004"` / `2004` → `"MFG"`. */
 export const ruleCategory = (code: string | number): RuleCategory | undefined => {
-  const n = typeof code === "number" ? code : ruleCodeNumber(code)
+  // A finite number is already the numeric view; anything else (a string, or
+  // NaN/Infinity, which never sit in a band) goes through the code parser.
+  const n = Number.isFinite(code) ? Number(code) : ruleCodeNumber(String(code))
   if (n === undefined) return undefined
   const band = Math.floor(n / 1000) * 1000
-  return (Object.entries(RULE_CATEGORY_BANDS) as ReadonlyArray<
-    readonly [RuleCategory, number]
-  >).find(([, b]) => b === band)?.[0]
+  return categoryForBand(band)
 }
 
 /** Compact set of fired rules for telemetry / waiver storage. */

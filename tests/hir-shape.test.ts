@@ -15,41 +15,52 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { Schema } from "effect"
 import { describe, expect, it } from "vitest"
 // Relative import: root-level tests sit outside the workspace packages,
 // so the @grayhaven/nerve specifier does not resolve here.
 import { hirJsonSchema, HIR_SCHEMA_VERSION } from "../packages/nerve/src/index.js"
+import { isJsonObject, isJsonString, JsonValue, parseJson } from "../scripts/json.js"
 
 const SNAP_DIR = join(import.meta.dirname, "__snapshots__")
 const SNAP_PATH = join(SNAP_DIR, "hir-shape.json")
 
-interface Snapshot {
-  readonly hirSchemaVersion: string
-  readonly jsonSchema: unknown
-}
+const Snapshot = Schema.Struct({
+  hirSchemaVersion: Schema.String,
+  jsonSchema: JsonValue
+})
+type Snapshot = Schema.Schema.Type<typeof Snapshot>
+const readSnapshot = (): Snapshot =>
+  Schema.decodeUnknownSync(Snapshot)(JSON.parse(readFileSync(SNAP_PATH, "utf8")))
 
 const current = (): Snapshot => ({
   hirSchemaVersion: HIR_SCHEMA_VERSION,
-  jsonSchema: hirJsonSchema()
+  jsonSchema: parseJson(JSON.stringify(hirJsonSchema()))
 })
 
-type JsonObject = Record<string, unknown>
-const isObj = (v: unknown): v is JsonObject =>
-  typeof v === "object" && v !== null && !Array.isArray(v)
+const isObj = isJsonObject
+
+/** A JSON Schema `required` list: the property names it holds, or none. */
+const requiredNames = (v: JsonValue | undefined): ReadonlyArray<string> =>
+  Array.isArray(v) ? v.filter(isJsonString) : []
 
 /**
  * Collect BREAKING differences old → new. Additions of optional properties
  * (and anything nested inside them) are fine; everything else is reported.
  */
-const breakingDiffs = (oldS: unknown, newS: unknown, path: string): Array<string> => {
+const breakingDiffs = (
+  oldS: JsonValue | undefined,
+  newS: JsonValue | undefined,
+  path: string
+): Array<string> => {
   if (isObj(oldS) && isObj(newS)) {
     const diffs: Array<string> = []
     // Object schemas: compare properties + required with the additive rule.
     if (oldS["type"] === "object" && newS["type"] === "object") {
       const oldProps = isObj(oldS["properties"]) ? oldS["properties"] : {}
       const newProps = isObj(newS["properties"]) ? newS["properties"] : {}
-      const oldReq = new Set(Array.isArray(oldS["required"]) ? (oldS["required"] as Array<string>) : [])
-      const newReq = new Set(Array.isArray(newS["required"]) ? (newS["required"] as Array<string>) : [])
+      const oldReq = new Set(requiredNames(oldS["required"]))
+      const newReq = new Set(requiredNames(newS["required"]))
       for (const key of Object.keys(oldProps)) {
         if (!(key in newProps)) diffs.push(`${path}.${key}: removed`)
         else diffs.push(...breakingDiffs(oldProps[key], newProps[key], `${path}.${key}`))
@@ -101,7 +112,7 @@ describe("HIR shape snapshot", () => {
       writeFileSync(SNAP_PATH, JSON.stringify(now, null, 2) + "\n")
       return
     }
-    const committed = JSON.parse(readFileSync(SNAP_PATH, "utf8")) as Snapshot
+    const committed = readSnapshot()
 
     const breaking = breakingDiffs(committed.jsonSchema, now.jsonSchema, "hir")
     if (breaking.length > 0 && committed.hirSchemaVersion === now.hirSchemaVersion) {
@@ -122,7 +133,7 @@ describe("HIR shape snapshot", () => {
 
   it("snapshot version matches the live schema version", () => {
     if (!existsSync(SNAP_PATH)) return
-    const committed = JSON.parse(readFileSync(SNAP_PATH, "utf8")) as Snapshot
+    const committed = readSnapshot()
     expect(committed.hirSchemaVersion).toBe(HIR_SCHEMA_VERSION)
   })
 })

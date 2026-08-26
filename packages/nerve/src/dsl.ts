@@ -30,9 +30,10 @@ import type {
   WireEndpoint,
   WireProps
 } from "./domain.js"
+import { isString } from "./is-string.js"
 
 const toRef = (target: ConnectorInstance | string): string =>
-  typeof target === "string" ? target : target.ref
+  isString(target) ? target : target.ref
 
 /**
  * A pin-level part, given either as a bare MPN or as a full record, as a map
@@ -57,7 +58,12 @@ export interface ConnectorProps {
 }
 
 const mpnOf = <T extends { readonly mpn: string }>(p: PinPart<T>): string =>
-  typeof p === "string" ? p : p.mpn
+  isString(p) ? p : p.mpn
+
+interface PinPartExpansion<T> {
+  readonly mpns: Record<string, string>
+  readonly parts: Record<string, T>
+}
 
 /**
  * Expand a pin-part assignment to per-pin MPNs and, where a full record was
@@ -67,10 +73,13 @@ const mpnOf = <T extends { readonly mpn: string }>(p: PinPart<T>): string =>
 const expandPinParts = <T extends { readonly mpn: string }>(
   assignment: PinPartAssignment<T> | undefined,
   pins: Readonly<Record<string, string>>
-): { mpns: Record<string, string>; parts: Record<string, T> } => {
+): PinPartExpansion<T> => {
   if (assignment === undefined) return { mpns: {}, parts: {} }
+  // SAFETY: a pin map is keyed by pin labels and no pin is labelled `mpn`, so a
+  // value carrying `mpn` is one part applied to every pin, and any other object
+  // is the per-pin map.
   const entries: Array<readonly [string, PinPart<T>]> =
-    typeof assignment === "string" || typeof assignment === "object" && "mpn" in assignment
+    isString(assignment) || "mpn" in assignment
       ? Object.keys(pins).map((pin) => [pin, assignment as PinPart<T>] as const)
       : Object.entries(assignment as Readonly<Record<string, PinPart<T>>>).map(
           ([pin, p]) => [String(pin), p] as const
@@ -79,7 +88,7 @@ const expandPinParts = <T extends { readonly mpn: string }>(
   const parts: Record<string, T> = {}
   for (const [pin, p] of entries) {
     mpns[pin] = mpnOf(p)
-    if (typeof p !== "string") parts[pin] = p
+    if (!isString(p)) parts[pin] = p
   }
   return { mpns, parts }
 }
@@ -100,6 +109,13 @@ export const connector = (
   }
   const terminals = expandPinParts(opts.terminals, pins)
   const seals = expandPinParts(opts.seals, pins)
+  // Omitted when no record was supplied, so a string-only design produces
+  // the identical ConnectorInstance it always has.
+  let records: Pick<ConnectorInstance, "terminalParts" | "sealParts"> = {}
+  if (Object.keys(terminals.parts).length > 0) {
+    records = { ...records, terminalParts: terminals.parts }
+  }
+  if (Object.keys(seals.parts).length > 0) records = { ...records, sealParts: seals.parts }
   return {
     kind: "connector",
     ref,
@@ -107,10 +123,7 @@ export const connector = (
     pins,
     terminals: terminals.mpns,
     seals: seals.mpns,
-    // Omitted when no record was supplied, so a string-only design produces
-    // the identical ConnectorInstance it always has.
-    ...(Object.keys(terminals.parts).length > 0 ? { terminalParts: terminals.parts } : {}),
-    ...(Object.keys(seals.parts).length > 0 ? { sealParts: seals.parts } : {}),
+    ...records,
     electrical,
     pin: (pin: string | number): PinRef => ({
       kind: "pin-ref",
@@ -182,13 +195,14 @@ export const protection = (id: string, props: ProtectionProps): ProtectionDef =>
 /** Define a label: `label("L1", { text: "MOTOR CTRL A", attachTo: "main", ... })`. */
 export const label = (id: string, props: LabelProps): LabelDef => {
   const { attachTo, offsetFrom, ...rest } = props
-  return {
+  const base: Pick<LabelDef, "kind" | "id" | "attachTo"> = {
     kind: "label",
     id,
-    attachTo: toRef(attachTo),
-    ...(offsetFrom !== undefined ? { offsetFrom: toRef(offsetFrom) } : {}),
-    ...rest
+    attachTo: toRef(attachTo)
   }
+  return offsetFrom !== undefined
+    ? { ...base, offsetFrom: toRef(offsetFrom), ...rest }
+    : { ...base, ...rest }
 }
 
 /** Define a harness — the root design object and default export of a `.harness.ts` file. */

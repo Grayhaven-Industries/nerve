@@ -10,6 +10,8 @@
  * outside the browser.
  */
 import type { HarnessDesign } from "@grayhaven/nerve"
+import type * as Nerve from "@grayhaven/nerve"
+import type * as Connectors from "@grayhaven/nerve-connectors"
 
 export type FsMap = Readonly<Record<string, string>>
 
@@ -57,14 +59,29 @@ export const resolveFilePath = (
   return candidates.find((c) => files.has(c))
 }
 
-const isHarnessDesign = (value: unknown): value is HarnessDesign =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { kind?: unknown }).kind === "harness"
+/** A bare-specifier module `require()` can hand to user code: the curated
+ * Nerve surface (any subset of the package's exports) or the part library. */
+export type SandboxModule = Partial<typeof Nerve> | typeof Connectors
+
+/** What a sandboxed file leaves in `module.exports.default`. User code is
+ * untyped, so only the discriminator is read before the entry check. */
+export interface DesignCandidate {
+  readonly kind?: string
+}
+
+/** `module.exports` of a sandboxed file: created empty here and populated
+ * by user code. `default` is the only slot the evaluator reads back. */
+export interface UserModuleExports {
+  default?: DesignCandidate
+}
+
+interface UserModule {
+  readonly exports: UserModuleExports
+}
 
 export interface EvaluateOptions {
   /** Bare-specifier module table (the worker's sandbox surface). */
-  readonly modules: Readonly<Record<string, unknown>>
+  readonly modules: Readonly<Record<string, SandboxModule>>
   /** TS → CJS transform (sucrase's, injected so this module stays lazy-free). */
   readonly transform: (source: string) => string
 }
@@ -87,10 +104,10 @@ export const evaluateFsMap = (
     )
   }
 
-  const cache = new Map<string, { exports: Record<string, unknown> }>()
+  const cache = new Map<string, UserModule>()
   const visiting: Array<string> = []
 
-  const loadModule = (path: string): unknown => {
+  const loadModule = (path: string): UserModuleExports => {
     const cached = cache.get(path)
     if (cached !== undefined) return cached.exports
     const at = visiting.indexOf(path)
@@ -100,8 +117,8 @@ export const evaluateFsMap = (
     visiting.push(path)
     try {
       const code = options.transform(files.get(path)!)
-      const mod = { exports: {} as Record<string, unknown> }
-      const requireFrom = (spec: string): unknown => {
+      const mod: UserModule = { exports: {} }
+      const requireFrom = (spec: string): SandboxModule | UserModuleExports => {
         if (!spec.startsWith(".") && !spec.startsWith("/")) {
           const m = options.modules[spec]
           if (m === undefined) {
@@ -127,10 +144,12 @@ export const evaluateFsMap = (
     }
   }
 
-  const exports = loadModule(entry) as { default?: unknown }
-  const design = exports.default
-  if (!isHarnessDesign(design)) {
+  const design = loadModule(entry).default
+  // Optional chaining also covers a primitive or null left in `default`.
+  if (design?.kind !== "harness") {
     throw new Error(`${entry} must default-export harness(...) (or a variant of one).`)
   }
-  return design
+  // SAFETY: kind === "harness" is set only by harness()/variant() from the
+  // sandboxed @grayhaven/nerve surface, so the object is a HarnessDesign.
+  return design as HarnessDesign
 }

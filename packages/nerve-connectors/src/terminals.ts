@@ -222,9 +222,9 @@ export const DeutschDTTerminals = {
 } as const satisfies Readonly<Record<string, TerminalPart>>
 
 /** Every terminal in the bundled library, keyed by MPN. */
-export const allTerminals: Readonly<Record<string, TerminalPart>> = {
+export const allTerminals = {
   ...MolexMicroFitTerminals,
   ...JstPHTerminals,
   ...JstXHTerminals,
   ...DeutschDTTerminals
-}
+} satisfies Readonly<Record<string, TerminalPart>>

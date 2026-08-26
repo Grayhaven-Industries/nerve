@@ -70,13 +70,16 @@ const INTERFACES: ReadonlyArray<{ file: string; names: ReadonlyArray<string> }> 
 const parse = (file: string): ts.SourceFile =>
   ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true)
 
+/** A JSDoc comment is plain text or, when it holds {@link} tags, a node list. */
+const isCommentNodes = (
+  comment: string | ts.NodeArray<ts.JSDocComment>
+): comment is ts.NodeArray<ts.JSDocComment> => Array.isArray(comment)
+
 const docOf = (node: ts.Node): string => {
   const jsDocs = ts.getJSDocCommentsAndTags(node)
   for (const d of jsDocs) {
     if (ts.isJSDoc(d) && d.comment !== undefined) {
-      return typeof d.comment === "string"
-        ? d.comment
-        : d.comment.map((c) => c.text).join("")
+      return isCommentNodes(d.comment) ? d.comment.map((c) => c.text).join("") : d.comment
     }
   }
   return ""

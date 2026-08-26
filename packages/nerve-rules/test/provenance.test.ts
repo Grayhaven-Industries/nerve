@@ -64,31 +64,38 @@ const fixture = () => {
 
 const baseOptions = (
   provenance?: ReadonlyArray<ReviewRuleProvenance>
-): ReviewReportOptions => ({
-  // Deliberately not named after this test file: the byte-identity assertion
-  // below searches the serialized report for the word "provenance".
-  source: { name: "fixture-harness.ts", format: "nerve-typescript" },
-  hirFingerprint: "sha256:deadbeef",
-  toolVersion: "0.0.0-test",
-  rules: {
+): ReviewReportOptions => {
+  const rules = {
     package: "@grayhaven/nerve-rules",
     version: "0.0.0-test",
-    codes: builtinRules.map((r) => r.code),
-    ...(provenance !== undefined ? { provenance } : {})
+    codes: builtinRules.map((r) => r.code)
   }
-})
+  return {
+    // Deliberately not named after this test file: the byte-identity assertion
+    // below searches the serialized report for the word "provenance".
+    source: { name: "fixture-harness.ts", format: "nerve-typescript" },
+    hirFingerprint: "sha256:deadbeef",
+    toolVersion: "0.0.0-test",
+    rules: provenance !== undefined ? { ...rules, provenance } : rules
+  }
+}
+
+/** `ReviewRuleProvenance` with its readonly lifted, so an entry can be built
+ * from only the fields a rule declares. */
+type ProvenanceDraft = { -readonly [K in keyof ReviewRuleProvenance]: ReviewRuleProvenance[K] }
 
 /** Provenance entries derived from the rules themselves, shuffled so the
  * sorting assertion cannot pass by accident of input order. */
 const entriesFrom = (rules: ReadonlyArray<Rule>): ReadonlyArray<ReviewRuleProvenance> =>
   [...rules]
     .reverse()
-    .map((r) => ({
-      code: r.code,
-      ...(r.ruleVersion !== undefined ? { ruleVersion: r.ruleVersion } : {}),
-      ...(r.standard !== undefined ? { standard: r.standard } : {}),
-      ...(r.clause !== undefined ? { clause: r.clause } : {})
-    }))
+    .map((r) => {
+      const entry: ProvenanceDraft = { code: r.code }
+      if (r.ruleVersion !== undefined) entry.ruleVersion = r.ruleVersion
+      if (r.standard !== undefined) entry.standard = r.standard
+      if (r.clause !== undefined) entry.clause = r.clause
+      return entry
+    })
 
 describe("built-in rule provenance", () => {
   it("gives every built-in rule an addressable rule version", () => {

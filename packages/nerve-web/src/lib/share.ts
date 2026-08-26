@@ -11,6 +11,7 @@
  * files (e.g. variants/long.ts) aren't silently dropped.
  */
 import { gzipSync, gunzipSync, strFromU8, strToU8 } from "fflate"
+import { jsonObject, jsonString, parseJson } from "./json.js"
 
 const VERSION = "v1"
 const ENTRY = "/main.harness.ts"
@@ -72,12 +73,13 @@ export const decodeShareFiles = (hash: string): Record<string, string> | undefin
   const payload = hash.startsWith("#") ? hash.slice(1) : hash
   if (payload.startsWith("v2.")) {
     try {
-      const obj = JSON.parse(strFromU8(gunzipCapped(fromBase64Url(payload.slice(3))))) as unknown
-      if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return undefined
+      const obj = jsonObject(parseJson(strFromU8(gunzipCapped(fromBase64Url(payload.slice(3))))))
+      if (obj === undefined) return undefined
       const files: Record<string, string> = {}
       for (const [k, v] of Object.entries(obj)) {
-        if (typeof v !== "string") return undefined
-        files[k] = v
+        const source = jsonString(v)
+        if (source === undefined) return undefined
+        files[k] = source
       }
       return Object.keys(files).length > 0 ? files : undefined
     } catch {
