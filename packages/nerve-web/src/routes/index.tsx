@@ -11,8 +11,10 @@ function Landing() {
       <section className="landing-copy">
         <h1>Check a harness before it reaches the floor.</h1>
         <p className="landing-sub">
-          Nerve is an open-source compiler for wiring harnesses. Bring in a design and it produces
-          the diagrams, parts lists, and checks a review needs.
+          Nerve is an open-source compiler for wiring harnesses. Describe the harness, and the
+          assistant writes the source; Nerve compiles it into the diagrams, parts lists, and
+          checks a review needs. The harness is the deliverable. The code is how the AI builds
+          it.
         </p>
         <div className="landing-links">
           <Link to="/showcase" className="landing-cta">

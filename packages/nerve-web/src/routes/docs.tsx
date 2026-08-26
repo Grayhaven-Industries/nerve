@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from "react"
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider
+} from "@/components/ui/sidebar"
 import { cn } from "../lib/utils.js"
 
 export const Route = createFileRoute("/docs")({
@@ -137,26 +149,38 @@ function DocsLayout() {
 
   return (
     <div className="docs">
-      <nav className="docs-nav">
-        {GROUPS.map((group) => (
-          <div key={group.label} className="docs-group">
-            <span className="docs-group-label">{group.label}</span>
-            {group.items.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                activeOptions={{ exact: item.exact === true }}
-                activeProps={{ className: "active" }}
-              >
-                {item.label}
-              </Link>
+      {/* shadcn sidebar, embedded (collapsible="none") inside the docs
+          split rather than fixed to the viewport: the app shell already
+          owns the frame, and the docs column scrolls on its own. */}
+      <SidebarProvider className="docs-sidebar-provider">
+        <Sidebar collapsible="none" className="docs-nav">
+          <SidebarContent>
+            {GROUPS.map((group) => (
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => (
+                      <SidebarMenuItem key={item.to}>
+                        <SidebarMenuButton asChild isActive={path === item.to}>
+                          <Link to={item.to} activeOptions={{ exact: item.exact === true }}>
+                            {item.label}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
             ))}
-          </div>
-        ))}
-        <a className="docs-llms" href="/llms.txt">
-          llms.txt
-        </a>
-      </nav>
+          </SidebarContent>
+          <SidebarFooter>
+            <a className="docs-llms" href="/llms.txt">
+              llms.txt
+            </a>
+          </SidebarFooter>
+        </Sidebar>
+      </SidebarProvider>
       <article className="docs-body" ref={bodyRef}>
         <div className="docs-content">
         {slug !== undefined && (

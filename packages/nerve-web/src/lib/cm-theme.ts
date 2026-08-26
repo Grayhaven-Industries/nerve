@@ -1,48 +1,67 @@
 /**
- * Grayscale CodeMirror theme on the tokenbase tokens: code renders as
- * foreground-on-card with no syntax hues — emphasis comes from weight and
- * gray steps. Surfaces mirror the app's luminance ladder (card -> muted),
- * and the two lint hues are the shared warning/destructive tokens.
+ * Grayhaven CodeMirror theme: code renders on the warm near-black card with
+ * a small, rationed set of syntax hues. Keywords carry the signal orange
+ * (the one accent the parent site licenses for meaning), strings sit in
+ * warm sand, types and numbers in a cool gray-blue, comments recede, and
+ * identifiers stay ivory — so the eye reads structure first, then names.
+ * Surfaces mirror the app's luminance ladder (card -> muted); the two lint
+ * hues are the shared warning/destructive tokens.
  */
 import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight"
 
-const grayscaleHighlight = HighlightStyle.define([
-  { tag: [tags.keyword, tags.moduleKeyword, tags.operatorKeyword], color: "#ededed", fontWeight: "600" },
-  { tag: [tags.string, tags.special(tags.string)], color: "#bfbfbf" },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "#8f8f8f" },
-  { tag: [tags.number, tags.bool, tags.null], color: "#d9d9d9" },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "#ededed" },
-  { tag: [tags.typeName, tags.className], color: "#d9d9d9" },
-  { tag: [tags.propertyName, tags.variableName, tags.definition(tags.variableName)], color: "#ededed" },
-  { tag: [tags.punctuation, tags.bracket, tags.operator], color: "#9a9a9a" }
+// Warm ink scale (oklch, hue 60) and the four syntax hues, as hex so the
+// editor does not depend on CSS custom properties being in scope.
+const INK = {
+  canvas: "#161513", // card
+  raised: "#1d1b18", // active line / gutter step
+  border: "#2a2723",
+  ivory: "#f4f2ec",
+  muted: "#9a948a",
+  faint: "#6f6a62"
+}
+const HUE = {
+  keyword: "#e8823f", // signal orange, lifted for text contrast on black
+  string: "#d9c49a", // warm sand
+  type: "#9fb4c7", // cool gray-blue
+  number: "#c8b9a0" // sand, dimmer
+}
+
+const grayhavenHighlight = HighlightStyle.define([
+  { tag: [tags.keyword, tags.moduleKeyword, tags.operatorKeyword, tags.controlKeyword], color: HUE.keyword },
+  { tag: [tags.string, tags.special(tags.string)], color: HUE.string },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: INK.muted, fontStyle: "italic" },
+  { tag: [tags.number, tags.bool, tags.null], color: HUE.number },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: INK.ivory, fontWeight: "500" },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: HUE.type },
+  { tag: [tags.definition(tags.variableName)], color: INK.ivory, fontWeight: "500" },
+  { tag: [tags.propertyName, tags.variableName], color: INK.ivory },
+  { tag: [tags.punctuation, tags.bracket, tags.operator], color: INK.muted }
 ])
 
-const grayscaleEditor = EditorView.theme(
+const grayhavenEditor = EditorView.theme(
   {
-    "&": { backgroundColor: "#191919", color: "#ededed" },
-    ".cm-content": { caretColor: "#ededed" },
-    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#ededed" },
+    "&": { backgroundColor: INK.canvas, color: INK.ivory },
+    ".cm-content": { caretColor: INK.ivory },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: INK.ivory },
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
-      { backgroundColor: "rgb(255 255 255 / 0.25)" },
-    ".cm-activeLine": { backgroundColor: "#242424" },
+      { backgroundColor: "rgb(244 242 236 / 0.22)" },
+    ".cm-activeLine": { backgroundColor: INK.raised },
     ".cm-gutters": {
-      backgroundColor: "#191919",
-      color: "#8f8f8f",
+      backgroundColor: INK.canvas,
+      color: INK.faint,
       border: "none",
-      borderRight: "1px solid #2a2a2a"
+      borderRight: `1px solid ${INK.border}`
     },
-    ".cm-activeLineGutter": { backgroundColor: "#242424", color: "#ededed" },
-    ".cm-matchingBracket": { backgroundColor: "rgb(255 255 255 / 0.15)", outline: "none" },
-    // basicSetup's selection-match highlight defaults to light green;
-    // grayscale doctrine: a quiet white step.
-    ".cm-selectionMatch": { backgroundColor: "rgb(255 255 255 / 0.12)" },
+    ".cm-activeLineGutter": { backgroundColor: INK.raised, color: INK.ivory },
+    ".cm-matchingBracket": { backgroundColor: "rgb(244 242 236 / 0.14)", outline: "none" },
+    ".cm-selectionMatch": { backgroundColor: "rgb(244 242 236 / 0.1)" },
     ".cm-tooltip": {
-      backgroundColor: "#1f1f1f",
-      border: "1px solid #2a2a2a",
-      borderRadius: "8px",
-      color: "#ededed",
+      backgroundColor: INK.raised,
+      border: `1px solid ${INK.border}`,
+      borderRadius: "0",
+      color: INK.ivory,
       fontFamily: '"Geist Mono Variable", monospace',
       fontSize: "11px"
     },
@@ -52,4 +71,4 @@ const grayscaleEditor = EditorView.theme(
   { dark: true }
 )
 
-export const grayscaleTheme = [grayscaleEditor, syntaxHighlighting(grayscaleHighlight)]
+export const grayscaleTheme = [grayhavenEditor, syntaxHighlighting(grayhavenHighlight)]

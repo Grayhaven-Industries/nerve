@@ -325,7 +325,7 @@ export function SourcePane({ projectId }: { projectId: string }) {
           lintGutter(),
           autocompletion({ override: [dslCompletions] }),
           // axe: role=textbox needs an accessible name.
-          EditorView.contentAttributes.of({ "aria-label": "Harness source editor" })
+          EditorView.contentAttributes.of({ "aria-label": "Harness source: the code the assistant writes to build the harness" })
         ]}
         theme={grayscaleTheme}
         onCreateEditor={(view) => {

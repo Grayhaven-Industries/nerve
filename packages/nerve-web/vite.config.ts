@@ -67,13 +67,40 @@ export default defineConfig({
       }
     }
   },
-  resolve: { alias: { "@": srcDir } },
+  resolve: {
+    alias: { "@": srcDir },
+    dedupe: ["@codemirror/state", "@codemirror/view", "@codemirror/language", "@lezer/common", "@lezer/highlight"]
+  },
   css: { devSourcemap: true },
   worker: { format: "es" },
   optimizeDeps: {
     // Default entry inference only crawls index.html; without the worker
     // entry, the first compile triggers a re-optimization full reload.
-    entries: ["index.html", "src/worker/compile.worker.ts"]
+    entries: ["index.html", "src/worker/compile.worker.ts"],
+    // CodeMirror is a facet system: every package must resolve to ONE copy of
+    // @codemirror/state, @codemirror/language and @lezer/highlight, or
+    // extensions silently miss each other — a HighlightStyle whose `tags`
+    // came from a second copy of @lezer/highlight matches nothing, and the
+    // editor renders with no token spans at all. Vite's dev optimizer
+    // discovers deps incrementally and can bundle the family twice, so the
+    // whole family is left out of pre-bundling (it ships as plain ESM) and
+    // deduped, in dev and in the build.
+    exclude: [
+      "@codemirror/state",
+      "@codemirror/view",
+      "@codemirror/language",
+      "@codemirror/lang-javascript",
+      "@codemirror/lint",
+      "@codemirror/autocomplete",
+      "@codemirror/commands",
+      "@codemirror/search",
+      "@lezer/common",
+      "@lezer/highlight",
+      "@lezer/javascript",
+      "@lezer/lr",
+      "@uiw/react-codemirror",
+      "@uiw/codemirror-extensions-basic-setup"
+    ]
   },
   server: {
     headers: axHeaders,

@@ -161,7 +161,8 @@ export function AiPane({ projectId }: { projectId: string }) {
         <div className="ai-setup">
           <span className="spec-tag">Assistant</span>
           <p>
-            Edits your harness for you; every change is compiled and checked before it lands.
+            Describe the harness and the assistant writes the source for it. Every change is
+            compiled and checked before it lands, and you review the harness it produces.
             Requests go directly from your browser to OpenAI. The key is stored locally and
             sent nowhere else.
           </p>

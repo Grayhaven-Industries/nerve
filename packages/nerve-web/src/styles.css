@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
+@import "@fontsource/chakra-petch/500.css";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "tw-animate-css";
@@ -7,19 +7,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Tokenbase design language: near-black canvas, hierarchy from weight and
-   color, hairlines that divide but never frame, no shadows — depth is a
-   small luminance step (background -> card -> popover). Geist for display,
-   Inter for UI, Geist Mono reserved for code, IDs, and numbers. */
+/* Grayhaven design language, the product flavor of grayhavenindustries.com
+   (August 2026): warm near-black canvas, hierarchy from weight and color,
+   hairlines that divide but never frame, no shadows, squared controls.
+   Chakra Petch 500 for headings and the wordmark, Geist for everything
+   else, Geist Mono reserved for code, IDs, and numbers. The sunset focus
+   ring is the one licensed accent in chrome — orange otherwise belongs to
+   the diagrams. */
 @theme static {
   --color-accent-hover: var(--foreground);
   --color-success: oklch(0.751 0.149 162.48);
   --color-warning: oklch(0.774 0.165 70.08);
   --color-info: oklch(0.76 0.141 237.323);
-  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
-  --font-heading: "Geist Variable", "Inter Variable", system-ui, sans-serif;
+  --font-sans: "Geist Variable", system-ui, -apple-system, sans-serif;
+  --font-heading: "Chakra Petch", "Geist Variable", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --radius-card: 14px;
+  --radius-card: 0px;
   --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
@@ -63,37 +66,39 @@
   /* Dark-only Tokenbase palette. The HTML carries .dark for shadcn, while
      :root repeats the same values so the visual contract does not depend on
      that implementation class. */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.946 0 0);
-  --card: oklch(0.213 0 0);
-  --card-foreground: oklch(0.946 0 0);
-  --popover: oklch(0.239 0 0);
-  --popover-foreground: oklch(0.946 0 0);
-  --primary: oklch(0.946 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.26 0 0);
-  --secondary-foreground: oklch(0.946 0 0);
-  --muted: oklch(0.26 0 0);
-  --muted-foreground: oklch(0.77 0 0);
-  --accent: oklch(0.26 0 0);
-  --accent-foreground: oklch(0.946 0 0);
+  /* The whole scale is warm-shifted a few degrees, matching the parent
+     site: warm ink, not neutral gray. */
+  --background: oklch(0.135 0.006 60);
+  --foreground: oklch(0.97 0.005 90);
+  --card: oklch(0.175 0.007 60);
+  --card-foreground: oklch(0.97 0.005 90);
+  --popover: oklch(0.2 0.008 60);
+  --popover-foreground: oklch(0.97 0.005 90);
+  --primary: oklch(0.97 0.005 90);
+  --primary-foreground: oklch(0.15 0.006 60);
+  --secondary: oklch(0.22 0.008 60);
+  --secondary-foreground: oklch(0.97 0.005 90);
+  --muted: oklch(0.22 0.008 60);
+  --muted-foreground: oklch(0.72 0.01 75);
+  --accent: oklch(0.22 0.008 60);
+  --accent-foreground: oklch(0.97 0.005 90);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.285 0 0);
-  --input: oklch(0.285 0 0);
+  --border: oklch(0.27 0.009 60);
+  --input: oklch(0.27 0.009 60);
   --ring: oklch(0.724 0.187 49.178);
   --chart-1: oklch(0.724 0.187 49.178);
   --chart-2: oklch(0.68 0.187 293.009);
   --chart-3: oklch(0.806 0.096 252.66);
   --chart-4: oklch(0.856 0.104 65.669);
   --chart-5: oklch(0.811 0.101 293.571);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.145 0 0);
-  --sidebar-foreground: oklch(0.946 0 0);
-  --sidebar-primary: oklch(0.946 0 0);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.26 0 0);
-  --sidebar-accent-foreground: oklch(0.946 0 0);
-  --sidebar-border: oklch(0.285 0 0);
+  --radius: 0rem;
+  --sidebar: oklch(0.135 0.006 60);
+  --sidebar-foreground: oklch(0.97 0.005 90);
+  --sidebar-primary: oklch(0.97 0.005 90);
+  --sidebar-primary-foreground: oklch(0.15 0.006 60);
+  --sidebar-accent: oklch(0.22 0.008 60);
+  --sidebar-accent-foreground: oklch(0.97 0.005 90);
+  --sidebar-border: oklch(0.27 0.009 60);
   --sidebar-ring: oklch(0.724 0.187 49.178);
 }
 
@@ -113,8 +118,9 @@ body {
   color: var(--text);
   background: var(--bg);
 }
-/* Display voice: Geist with tight tracking; body stays Inter. */
-h1, h2, h3 { font-family: var(--heading); }
+/* Display voice: Chakra Petch at 500 only, like every heading on the
+   parent site; body stays Geist. */
+h1, h2, h3 { font-family: var(--heading); font-weight: 500; }
 
 a { color: var(--fg-accent); text-decoration: none; }
 /* Prose links get the link-accessible recipe; chrome links stay bare. */
@@ -184,8 +190,11 @@ textarea:focus-visible, select:focus-visible {
   align-items: center;
   gap: 9px;
   flex-shrink: 0;
+  font-family: var(--heading);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text);
   white-space: nowrap;
   transition: color 200ms var(--ease-default);
@@ -199,6 +208,7 @@ textarea:focus-visible, select:focus-visible {
   display: inline-flex;
   align-items: center;
   font-size: 13px;
+  font-weight: 500;
   color: var(--fg-muted);
   transition: color var(--motion-fast) var(--ease-out);
 }
@@ -231,25 +241,20 @@ textarea:focus-visible, select:focus-visible {
   display: flex;
   overflow: hidden;
 }
-.docs-nav {
-  width: 200px;
+/* The docs nav is the shadcn Sidebar, embedded in the docs split. The
+   provider wants to be a viewport-tall app frame; here it is a column. */
+.docs-sidebar-provider {
+  min-height: 0;
+  height: 100%;
+  width: auto;
   flex: 0 0 auto;
+}
+.docs-nav {
+  width: 220px;
   border-right: 1px solid var(--border);
-  padding: 24px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  padding-top: 12px;
   overflow-y: auto;
 }
-.docs-nav a {
-  padding: 6px 24px;
-  font-size: 13px;
-  color: var(--fg-muted);
-  border-left: 2px solid transparent;
-  transition: color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
-}
-.docs-nav a:hover { color: var(--text); }
-.docs-nav a.active { color: var(--fg-accent); border-left-color: var(--fg-accent); }
 .docs-body {
   flex: 1;
   min-width: 0;
@@ -262,14 +267,14 @@ textarea:focus-visible, select:focus-visible {
 .docs-content { max-width: 760px; margin: 0 auto; }
 .docs-body h1 {
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.02em;
   text-wrap: balance;
   margin: 16px 0 0;
 }
 .docs-body h2 {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   margin: 36px 0 0;
 }
@@ -283,13 +288,6 @@ textarea:focus-visible, select:focus-visible {
 }
 .docs-body table.data { margin-top: 20px; }
 .docs-body table.data td.cell-text { white-space: normal; color: var(--fg-muted); }
-.docs-group { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
-.docs-group-label {
-  padding: 0 24px 4px;
-  font-size: 11px;
-  letter-spacing: 0.01em;
-  color: var(--fg-muted);
-}
 .docs-llms {
   margin-top: auto;
   padding: 12px 24px 0;
@@ -318,7 +316,7 @@ textarea:focus-visible, select:focus-visible {
 /* marked output: bare pre/table/inline-code get the doc voices. */
 .docs-body pre {
   background: var(--panel);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 16px 18px;
   margin: 16px 0 0;
   font-family: var(--mono);
@@ -329,13 +327,16 @@ textarea:focus-visible, select:focus-visible {
 }
 .docs-body pre code { background: none; padding: 0; font-size: inherit; }
 /* lezer classHighlighter tokens, grayscale doctrine (mirrors cm-theme). */
-.docs-body .tok-keyword, .docs-body .tok-moduleKeyword { color: #ffffff; font-weight: 600; }
-.docs-body .tok-string, .docs-body .tok-string2 { color: #bfbfbf; }
-.docs-body .tok-comment, .docs-body .tok-lineComment { color: var(--fg-muted); }
-.docs-body .tok-number, .docs-body .tok-bool { color: #d9d9d9; }
-.docs-body .tok-typeName, .docs-body .tok-className { color: #d9d9d9; }
-.docs-body .tok-propertyName, .docs-body .tok-variableName, .docs-body .tok-function { color: #ffffff; }
-.docs-body .tok-punctuation, .docs-body .tok-operator { color: hsl(0 0% 60%); }
+/* Same four hues as the editor theme (lib/cm-theme.ts): keywords in the
+   signal orange, strings in sand, types cool, comments receding. */
+.docs-body .tok-keyword, .docs-body .tok-moduleKeyword, .docs-body .tok-controlKeyword { color: #e8823f; }
+.docs-body .tok-string, .docs-body .tok-string2 { color: #d9c49a; }
+.docs-body .tok-comment, .docs-body .tok-lineComment { color: var(--fg-muted); font-style: italic; }
+.docs-body .tok-number, .docs-body .tok-bool { color: #c8b9a0; }
+.docs-body .tok-typeName, .docs-body .tok-className { color: #9fb4c7; }
+.docs-body .tok-propertyName, .docs-body .tok-variableName { color: var(--text); }
+.docs-body .tok-function { color: var(--text); font-weight: 500; }
+.docs-body .tok-punctuation, .docs-body .tok-operator { color: var(--fg-muted); }
 .docs-body table {
   width: 100%;
   border-collapse: collapse;
@@ -408,7 +409,7 @@ textarea:focus-visible, select:focus-visible {
 
 .doc-code {
   background: var(--panel);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 16px 18px;
   margin: 16px 0 0;
   font-family: var(--mono);
@@ -438,11 +439,9 @@ textarea:focus-visible, select:focus-visible {
     border-bottom: 1px solid var(--border);
   }
   .docs-nav::-webkit-scrollbar { display: none; }
-  .docs-group { flex-direction: row; align-items: center; gap: 2px; margin-bottom: 0; }
-  /* Group names are a sidebar affordance; in a strip they'd out-number the
+    /* Group names are a sidebar affordance; in a strip they'd out-number the
      links. The active colour carries the position instead. */
-  .docs-group-label { display: none; }
-  .docs-nav a { border-left: none; padding: 6px 10px; white-space: nowrap; }
+    .docs-nav a { border-left: none; padding: 6px 10px; white-space: nowrap; }
   .docs-llms { margin-top: 0; padding: 0 10px; white-space: nowrap; }
   /* Nav stacks on top here — drop the sidebar-balancing right pad. */
   .docs-body { padding: 32px 20px; }
@@ -469,9 +468,9 @@ textarea:focus-visible, select:focus-visible {
 }
 .landing-copy { min-width: 0; }
 .landing h1 {
-  font-size: clamp(30px, 3.8vw, 48px);
-  font-weight: 600;
-  line-height: 1.08;
+  font-size: clamp(32px, 4.5vw, 52px);
+  font-weight: 500;
+  line-height: 1.1;
   letter-spacing: -0.02em;
   text-wrap: balance;
   margin: 20px 0 0;
@@ -501,9 +500,23 @@ textarea:focus-visible, select:focus-visible {
   transition: color 0.2s var(--ease-default), border-color 0.2s var(--ease-default);
 }
 .landing-links a:hover { color: var(--accent-hover); border-color: var(--accent-hover); }
-/* Primary CTA: accented so it leads the row. */
-.landing-links a.landing-cta { color: var(--fg-accent); border-color: var(--fg-accent); }
-.landing-links a.landing-cta:hover { color: var(--accent-hover); border-color: var(--accent-hover); }
+/* Primary CTA: the parent site's squared spec-sheet button. */
+.landing-links a.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid transparent;
+  border-radius: 0;
+  font-weight: 500;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+.landing-links a.landing-cta:hover {
+  color: var(--primary-foreground);
+  background: color-mix(in oklch, var(--primary), black 12%);
+}
 .landing-links .sep { color: color-mix(in srgb, var(--fg-muted) 50%, transparent); }
 
 @keyframes spec-rise {
@@ -611,7 +624,7 @@ textarea:focus-visible, select:focus-visible {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0;
   font: inherit;
   font-size: 13px;
 }
@@ -721,7 +734,7 @@ textarea:focus-visible, select:focus-visible {
   overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--fg-muted);
   font-family: var(--mono);
   font-size: 11px;
@@ -836,7 +849,7 @@ textarea:focus-visible, select:focus-visible {
   color: var(--fg-muted);
   font-size: 13px;
   white-space: nowrap;
-  border-radius: 9999px;
+  border-radius: 0;
   transition: color var(--motion-fast) var(--ease-out), scale 100ms var(--ease-out);
 }
 .tabs a:hover { color: var(--text); }
@@ -849,7 +862,7 @@ textarea:focus-visible, select:focus-visible {
   position: absolute;
   inset-block: 0;
   left: 0;
-  border-radius: 9999px;
+  border-radius: 0;
   background: var(--muted-bg);
   pointer-events: none;
   transition: translate var(--motion-moderate) var(--ease-out),
@@ -893,7 +906,7 @@ textarea:focus-visible, select:focus-visible {
 .ai-hint { font-size: 12px; color: var(--fg-muted); line-height: 1.6; text-wrap: pretty; }
 .ai-msg.user .ai-text {
   background: var(--muted-bg);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 7px 10px;
   font-size: 14px;
   line-height: 1.5;
@@ -956,6 +969,7 @@ textarea:focus-visible, select:focus-visible {
   background: var(--fg-muted);
 }
 /* Stacked mode: the same handle, turned through 90°. */
+.workspace-split-stacked .ai-pane { border-right: 0; }
 .workspace-split-stacked .pane-handle {
   width: auto;
   height: 7px;
@@ -970,7 +984,6 @@ textarea:focus-visible, select:focus-visible {
   transform: translateX(-50%);
 }
 /* Panes stack, so each keeps its own hairline instead of a vertical rule. */
-.workspace-split-stacked .ai-pane { border-right: 0; }
 
 /* Drawings render as light "drawing sheets" on the dark workspace. */
 .sheet-wrap { display: flex; flex-direction: column; gap: 8px; }
@@ -987,7 +1000,7 @@ textarea:focus-visible, select:focus-visible {
 @container (max-width: 560px) {
   .sheet-hint { margin-left: 0; flex-basis: 100%; }
 }
-.diagram-pane { background: #fafafa; border-radius: 8px; overflow: auto; }
+.diagram-pane { background: #fafafa; border-radius: 0; overflow: auto; }
 .diagram-pane svg { display: block; }
 /* Label halos: paint the sheet background behind annotation glyphs so
    labels stay legible where wires cross (paint-order, view-layer only). */
@@ -1034,8 +1047,8 @@ textarea:focus-visible, select:focus-visible {
   list-style: none;
   width: 280px;
   background: var(--popover);
-  /* Concentric: 6px inner button radius + 4px padding. */
-  border-radius: 10px;
+  /* Squared, like every control in the Grayhaven language. */
+  border-radius: 0;
 }
 .search-results .hit-detail { color: var(--fg-muted); }
 
@@ -1060,7 +1073,7 @@ textarea:focus-visible, select:focus-visible {
   font-family: var(--mono);
   font-size: 10px;
   padding: 1px 7px;
-  border-radius: 9999px;
+  border-radius: 0;
   background: var(--muted-bg);
   color: var(--fg-muted);
 }
@@ -1105,7 +1118,7 @@ table.data td.cell-num { color: var(--fg-muted); }
 table.data td.cell-text { white-space: normal; }
 .table-empty {
   background: var(--panel);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 32px 16px;
   text-align: center;
   font-size: 13px;
@@ -1331,8 +1344,8 @@ table.data th.sortable:hover { color: var(--text); }
 }
 
 @theme inline {
-  --font-heading: "Geist Variable", "Inter Variable", system-ui, sans-serif;
-  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
+  --font-heading: "Chakra Petch", "Geist Variable", system-ui, sans-serif;
+  --font-sans: "Geist Variable", system-ui, -apple-system, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
