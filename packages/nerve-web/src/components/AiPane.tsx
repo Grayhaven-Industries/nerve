@@ -125,7 +125,8 @@ export function AiPane({ projectId }: { projectId: string }) {
               break
             }
           }
-          const pill: ToolPill = { name: e.tool.name, status: e.tool.status, ...(e.tool.detail !== undefined ? { detail: e.tool.detail } : {}) }
+          const { name, status, detail } = e.tool
+          const pill: ToolPill = detail === undefined ? { name, status } : { name, status, detail }
           if (e.tool.status === "running" || idx === -1) pills.push(pill)
           else pills[idx] = pill
           next[next.length - 1] = { ...last, pills }

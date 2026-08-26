@@ -43,16 +43,20 @@ const blocked: GateResult = {
   blockers: [{ code: "REV-GATE-004", message: "Error finding HK-WIRE-001 has no disposition." }]
 }
 
-const finding = (id: string, row: number | undefined, severity: "error" | "warning"): Finding => ({
-  id,
-  reviewRunId: "run-1",
-  code: "HK-WIRE-001",
-  severity,
-  ruleSeverity: severity,
-  message: "Duplicate wire id.",
-  target: "wire:W1",
-  ...(row === undefined ? {} : { sourceLocation: { filename: "wires.csv", row, column: "Wire" } })
-})
+const finding = (id: string, row: number | undefined, severity: "error" | "warning"): Finding => {
+  const base = {
+    id,
+    reviewRunId: "run-1",
+    code: "HK-WIRE-001",
+    severity,
+    ruleSeverity: severity,
+    message: "Duplicate wire id.",
+    target: "wire:W1"
+  }
+  return row === undefined
+    ? base
+    : { ...base, sourceLocation: { filename: "wires.csv", row, column: "Wire" } }
+}
 
 const base = {
   policy,

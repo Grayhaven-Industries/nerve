@@ -216,11 +216,17 @@ describe("layout invariants — generated branchy designs (property)", () => {
         )
       )
       const branches = Array.from({ length: Math.min(nBranch, nConn - 1) }, (_, i) =>
-        branch(`B${i + 1}`, {
-          ...(i > 0 ? { parent: `B${i}`, breakoutDistance: 50 } : {}),
-          path: [conns[i]!, conns[i + 1]!],
-          nominalLength: 100
-        })
+        branch(
+          `B${i + 1}`,
+          i > 0
+            ? {
+                parent: `B${i}`,
+                breakoutDistance: 50,
+                path: [conns[i]!, conns[i + 1]!],
+                nominalLength: 100
+              }
+            : { path: [conns[i]!, conns[i + 1]!], nominalLength: 100 }
+        )
       )
       return harness("layout-prop", {
         revision: "A",

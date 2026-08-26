@@ -83,14 +83,8 @@ export const appendAuditEntry = (
   entry: AuditEntryInput
 ): ReadonlyArray<AuditEntry> => {
   const previousHash = log[log.length - 1]?.hash
-  return [
-    ...log,
-    {
-      ...entry,
-      ...(previousHash === undefined ? {} : { previousHash }),
-      hash: linkHash(entry, previousHash)
-    }
-  ]
+  const linked = previousHash === undefined ? entry : { ...entry, previousHash }
+  return [...log, { ...linked, hash: linkHash(entry, previousHash) }]
 }
 
 /**

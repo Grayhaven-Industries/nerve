@@ -21,8 +21,10 @@ import {
   wire,
   type ConnectorPart,
   type Diagnostic,
+  type EndpointInput,
   type HarnessDesign,
-  type Hir
+  type Hir,
+  type WireProps
 } from "@grayhaven/nerve"
 import { rule, runRules } from "@grayhaven/nerve"
 import {
@@ -66,7 +68,7 @@ const fixture = (
   )
 }
 
-const fullWire = (id: string, from: never | ReturnType<ReturnType<typeof connector>["pin"]>, to: never | ReturnType<ReturnType<typeof connector>["pin"]>, extra: Record<string, unknown> = {}) =>
+const fullWire = (id: string, from: EndpointInput, to: EndpointInput, extra: WireProps = {}) =>
   wire(id, from, to, { gauge: "24AWG", color: "red", length: 100, ...extra })
 
 const j1 = connector("J1", part, { pins: { 1: "VBAT_24V", 2: "GND" } })
@@ -227,7 +229,7 @@ describe("HK-DOC-003 spliceMissingNotes", () => {
         revision: "A",
         units: "mm",
         connectors: [a],
-        wires: [fullWire("W1", a.pin(1), s as never)],
+        wires: [fullWire("W1", a.pin(1), s)],
         splices: [s]
       })
     )
@@ -296,7 +298,7 @@ describe("HK-MFG-004 gaugeOutsideConnectorRange (range 30AWG..18AWG)", () => {
         revision: "A",
         units: "mm",
         connectors: [noRange],
-        wires: [fullWire("W1", noRange.pin(1), noRange.pin(1) as never, { gauge: "10AWG" })]
+        wires: [fullWire("W1", noRange.pin(1), noRange.pin(1), { gauge: "10AWG" })]
       })
     )
     expect(only(hir, "gaugeOutsideConnectorRange")).toEqual([])
@@ -342,8 +344,8 @@ describe("HK-ELEC-001 differentialPairNotTwisted", () => {
         units: "mm",
         connectors: [a, b],
         wires: [
-          fullWire("W1", a.pin(1), b.pin(1), { signal: "CAN_H", ...(twists.h !== undefined ? { twistGroup: twists.h } : {}) }),
-          fullWire("W2", a.pin(2), b.pin(2), { signal: "CAN_L", ...(twists.l !== undefined ? { twistGroup: twists.l } : {}) })
+          fullWire("W1", a.pin(1), b.pin(1), twists.h !== undefined ? { signal: "CAN_H", twistGroup: twists.h } : { signal: "CAN_H" }),
+          fullWire("W2", a.pin(2), b.pin(2), twists.l !== undefined ? { signal: "CAN_L", twistGroup: twists.l } : { signal: "CAN_L" })
         ]
       })
     )
@@ -474,7 +476,7 @@ describe("HK-CONN-010 unconnectedAssignedPin", () => {
         revision: "A",
         units: "mm",
         connectors: [a],
-        wires: [fullWire("W1", a.pin(1), s as never)],
+        wires: [fullWire("W1", a.pin(1), s)],
         splices: [s]
       })
     )
@@ -501,7 +503,7 @@ describe("HK-CONN-011 wireSignalMismatch", () => {
         revision: "A",
         units: "mm",
         connectors: [a],
-        wires: [fullWire("W1", a.pin(1), a.pin(2) as never, { signal: "ANYTHING" })]
+        wires: [fullWire("W1", a.pin(1), a.pin(2), { signal: "ANYTHING" })]
       })
     )
     expect(only(unassigned, "wireSignalMismatch")).toEqual([])
@@ -890,14 +892,13 @@ describe("HK-CONN-015 reservedPinAssigned (broadened to terminal/seal/wire)", ()
   // The compiler only attaches terminals/seals to signal-bearing pins, so the
   // terminal/seal branches are exercised against directly-built HIR — the
   // shape a plugin or a cached harness.json could carry.
-  const hirWithReservedPin = (pin: { pin: string; terminal?: string; seal?: string }): Hir =>
-    ({
-      schemaVersion: "0.1.0",
-      harness: { id: "t", revision: "A", units: "mm", metadata: {} },
-      connectors: [{ ref: "J1", mpn: "RP", pinCount: 4, reservedPins: ["4"], pins: [pin] }],
-      wires: [], cables: [], branches: [], splices: [], labels: [], bom: [],
-      diagnostics: [], layoutHints: [], exports: {}
-    }) as unknown as Hir
+  const hirWithReservedPin = (pin: { pin: string; terminal?: string; seal?: string }): Hir => ({
+    schemaVersion: "0.1.0",
+    harness: { id: "t", revision: "A", units: "mm", metadata: {} },
+    connectors: [{ ref: "J1", mpn: "RP", pinCount: 4, reservedPins: ["4"], pins: [pin] }],
+    wires: [], cables: [], branches: [], splices: [], labels: [], bom: [],
+    diagnostics: [], layoutHints: [], exports: {}
+  })
 
   it("fires when a reserved pin has a terminal populated", () => {
     const diags = only(hirWithReservedPin({ pin: "4", terminal: "T-1" }), "reservedPinAssigned")
@@ -923,8 +924,8 @@ describe("HK-ELEC-008 emcAggressorVictimShareBranch", () => {
     return compileDesign(harness("t", {
       revision: "A", units: "mm", connectors: [a, b],
       wires: [
-        wire("W1", a.pin(1), b.pin(1), { gauge: "24AWG", color: "red", length: 10, ...(c1 ? { emcClass: c1 } : {}) }),
-        wire("W2", a.pin(2), b.pin(2), { gauge: "24AWG", color: "black", length: 10, ...(c2 ? { emcClass: c2 } : {}) })
+        wire("W1", a.pin(1), b.pin(1), c1 ? { gauge: "24AWG", color: "red", length: 10, emcClass: c1 } : { gauge: "24AWG", color: "red", length: 10 }),
+        wire("W2", a.pin(2), b.pin(2), c2 ? { gauge: "24AWG", color: "black", length: 10, emcClass: c2 } : { gauge: "24AWG", color: "black", length: 10 })
       ],
       branches: [branch("main", { path: [a, b], nominalLength: 10 })]
     })).hir
@@ -949,8 +950,8 @@ describe("HK-ELEC-009 wireTempBelowAmbient", () => {
     const b = connector("J2", { mpn: "TH-2B", pinCount: 2 }, { pins: { 1: "A" } })
     return compileDesign(harness("t", {
       revision: "A", units: "mm", connectors: [a, b],
-      wires: [wire("W1", a.pin(1), b.pin(1), { gauge: "24AWG", color: "red", length: 10, ...(rating !== undefined ? { temperatureRating: rating } : {}) })],
-      branches: [branch("main", { path: [a, b], nominalLength: 10, ...(ambient !== undefined ? { ambientTemperatureC: ambient } : {}) })]
+      wires: [wire("W1", a.pin(1), b.pin(1), rating !== undefined ? { gauge: "24AWG", color: "red", length: 10, temperatureRating: rating } : { gauge: "24AWG", color: "red", length: 10 })],
+      branches: [branch("main", ambient !== undefined ? { path: [a, b], nominalLength: 10, ambientTemperatureC: ambient } : { path: [a, b], nominalLength: 10 })]
     })).hir
   }
   it("errors when a wire's rating is below the branch ambient", () => {

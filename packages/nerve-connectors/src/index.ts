@@ -14,14 +14,14 @@ import { JstXH } from "./jst-xh.js"
 import { DeutschDT } from "./deutsch-dt.js"
 
 /** Every part in the bundled library, keyed by MPN. */
-export const allParts: Readonly<Record<string, ConnectorPart>> = {
+export const allParts = {
   ...MolexMicroFit,
   ...MolexMegaFit,
   ...AmassXT60,
   ...JstPH,
   ...JstXH,
   ...DeutschDT
-}
+} satisfies Readonly<Record<string, ConnectorPart>>
 
 /** The bundled verified library as a PartProvider (PRD §42). */
 export const nerveConnectorsProvider = staticProvider("nerve-connectors", allParts)

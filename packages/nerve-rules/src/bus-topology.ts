@@ -56,11 +56,11 @@ export const CAN_TERMINATION_OHMS = 120
 export const CAN_TERMINATION_BAND_OHMS = { min: 100, max: 130 } as const
 
 /** Total trunk length budget (m) by bit rate (kbit/s). */
-export const CAN_BUS_LENGTH_M_BY_KBPS: Readonly<Record<number, number>> = {
+export const CAN_BUS_LENGTH_M_BY_KBPS = {
   1000: 40,
   500: 100,
   125: 500
-}
+} satisfies Readonly<Record<number, number>>
 
 /**
  * Stub (drop) length budget (m) by bit rate (kbit/s).
@@ -71,11 +71,11 @@ export const CAN_BUS_LENGTH_M_BY_KBPS: Readonly<Record<number, number>> = {
  * the total length. They are stated here explicitly rather than computed so
  * that a reviewer can see and challenge them.
  */
-export const CAN_STUB_LENGTH_M_BY_KBPS: Readonly<Record<number, number>> = {
+export const CAN_STUB_LENGTH_M_BY_KBPS = {
   1000: 0.3,
   500: 0.75,
   125: 3.75
-}
+} satisfies Readonly<Record<number, number>>
 
 /** Tabulated bit rates, ascending. */
 const TABULATED_KBPS = [125, 500, 1000] as const
@@ -89,14 +89,12 @@ const TABULATED_KBPS = [125, 500, 1000] as const
  * Both budgets come from the same resolved rate so a finding and a margin can
  * never disagree about which row of the table applies.
  */
-const lengthBudget = (
-  kbps: number
-): { readonly rate: number; readonly stubM: number; readonly totalM: number } => {
+const lengthBudget = (kbps: number) => {
   const rate = TABULATED_KBPS.find((r) => kbps <= r) ?? 1000
   return {
     rate,
-    stubM: CAN_STUB_LENGTH_M_BY_KBPS[rate]!,
-    totalM: CAN_BUS_LENGTH_M_BY_KBPS[rate]!
+    stubM: CAN_STUB_LENGTH_M_BY_KBPS[rate],
+    totalM: CAN_BUS_LENGTH_M_BY_KBPS[rate]
   }
 }
 
@@ -537,9 +535,7 @@ const longestRunM = (bus: CanBus, units: Hir["harness"]["units"]): number | unde
   if (bus.edges.some((e) => e.length === undefined)) return undefined
 
   /** Farthest node from `start` within its component, and every node reached. */
-  const farthest = (
-    start: string
-  ): { readonly node: string; readonly dist: number; readonly reached: ReadonlySet<string> } => {
+  const farthest = (start: string) => {
     const dist = new Map<string, number>([[start, 0]])
     const queue = [start]
     let best = { node: start, dist: 0 }
@@ -606,6 +602,17 @@ const longestRunM = (bus: CanBus, units: Hir["harness"]["units"]): number | unde
  * is no ratio, and falling back to the strictest row would hand an optimizer a
  * slope derived from a rate the design never claimed.
  */
+/** Structured values behind an HK-ELEC-021 finding; `declaredKbps` only when
+ * the bus declared more than one rate. */
+type StubTooLongData = {
+  bus: string
+  stubLengthM: number
+  limitM: number
+  bitRateKbps: number
+  budgetFromKbps: number
+  declaredKbps?: string
+}
+
 export const canStubTooLong: Rule = rule(
   "canStubTooLong",
   (ctx) => {
@@ -656,19 +663,20 @@ export const canStubTooLong: Rule = rule(
           unit: "m"
         })
         if (lengthM <= stubM) continue
+        const data: StubTooLongData = {
+          bus: bus.key,
+          stubLengthM: round(lengthM),
+          limitM: stubM,
+          bitRateKbps: kbps,
+          budgetFromKbps: rate
+        }
+        if (declared.length > 1) data.declaredKbps = declared.join(", ")
         ctx.report({
           severity: Err,
           message: `Stub to ${nodeLabel(leaf)} on CAN bus ${bus.key} is ${round(lengthM)}m. At ${kbps}kbit/s a drop off the trunk must stay under ${stubM}m.`,
           target: nodeRef(leaf),
           targets: stub.wires.map(refs.wire),
-          data: {
-            bus: bus.key,
-            stubLengthM: round(lengthM),
-            limitM: stubM,
-            bitRateKbps: kbps,
-            budgetFromKbps: rate,
-            ...(declared.length > 1 ? { declaredKbps: declared.join(", ") } : {})
-          }
+          data
         })
       }
     }

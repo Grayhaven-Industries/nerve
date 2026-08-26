@@ -5,13 +5,18 @@
  */
 import { describe, expect, it } from "vitest"
 import { compileDesign } from "@grayhaven/nerve"
-import { exportTscircuitCircuitJson, importTscircuitPinout, validateContract } from "../src/contracts.js"
+import {
+  exportTscircuitCircuitJson,
+  importTscircuitPinout,
+  validateContract,
+  type TscircuitElement
+} from "../src/contracts.js"
 import motor from "../../../examples/motor-controller/src/main.harness.js"
 
-const board = (signals: ReadonlyArray<string>): Array<Record<string, unknown>> => [
+const board = (signals: ReadonlyArray<string>): Array<TscircuitElement> => [
   { type: "source_component", ftype: "simple_chip", source_component_id: "sc1", name: "J1", manufacturer_part_number: "43020-0800" },
   { type: "source_component", ftype: "simple_chip", source_component_id: "sc2", name: "U1" },
-  ...signals.map((sig, i) => ({
+  ...signals.map((sig, i): TscircuitElement => ({
     type: "source_port",
     source_port_id: `sp${i}`,
     source_component_id: "sc1",

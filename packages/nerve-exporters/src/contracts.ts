@@ -6,6 +6,7 @@
  * validate their signal dictionary, and `validateContract` catches the
  * classic swapped-pin mistake between board and harness revisions.
  */
+import { Option, Schema } from "effect"
 import {
   DiagnosticSeverity,
   HIR_SCHEMA_VERSION,
@@ -13,6 +14,27 @@ import {
   type Diagnostic,
   type Hir
 } from "@grayhaven/nerve"
+import { draft } from "./draft.js"
+
+/** Where an imported contract came from, as recorded in the artifact. */
+export interface ContractSource {
+  readonly format: string
+  readonly name?: string
+  readonly component?: string
+  readonly designRevision?: string
+  readonly formatVersion?: string
+  readonly generator?: string
+  readonly contentFingerprint?: string
+}
+
+export interface ContractPin {
+  readonly pin: string
+  readonly signal?: string
+  /** Explicit ECAD no-connect state. Omitted means the source did not say. */
+  readonly connection?: "net" | "unconnected"
+  /** Pin/pad identifier in the source system when it differs from `pin`. */
+  readonly sourcePin?: string
+}
 
 export interface ConnectorContract {
   readonly contractVersion: "0.1.0"
@@ -21,23 +43,8 @@ export interface ConnectorContract {
   readonly connector: string
   readonly mpn: string
   readonly matingSide?: string
-  readonly source?: {
-    readonly format: string
-    readonly name?: string
-    readonly component?: string
-    readonly designRevision?: string
-    readonly formatVersion?: string
-    readonly generator?: string
-    readonly contentFingerprint?: string
-  }
-  readonly pinout: ReadonlyArray<{
-    readonly pin: string
-    readonly signal?: string
-    /** Explicit ECAD no-connect state. Omitted means the source did not say. */
-    readonly connection?: "net" | "unconnected"
-    /** Pin/pad identifier in the source system when it differs from `pin`. */
-    readonly sourcePin?: string
-  }>
+  readonly source?: ContractSource
+  readonly pinout: ReadonlyArray<ContractPin>
 }
 
 export interface ConnectorContractImportMeta {
@@ -177,10 +184,11 @@ export const importPinoutCsv = (
     hirSchema: HIR_SCHEMA_VERSION,
     connector: meta.connector,
     mpn: meta.mpn ?? "unknown",
-    pinout: body.map(([pin, signal]) => ({
-      pin: pin ?? "",
-      ...(signal !== undefined && signal !== "" ? { signal } : {})
-    }))
+    pinout: body.map(([pin, signal]): ContractPin => {
+      const entry = draft<ContractPin>({ pin: pin ?? "" })
+      if (signal !== undefined && signal !== "") entry.signal = signal
+      return entry
+    })
   }
 }
 
@@ -263,6 +271,10 @@ const parseSExpression = (text: string): SExpression => {
 const isList = (value: SExpression): value is ReadonlyArray<SExpression> =>
   Array.isArray(value)
 
+/** A present atom (a bare or quoted token); lists and missing slots are not. */
+const isAtom = (value: SExpression | undefined): value is string =>
+  value !== undefined && !isList(value)
+
 const childrenNamed = (
   list: ReadonlyArray<SExpression>,
   name: string
@@ -279,13 +291,15 @@ const propertyValue = (
   const property = childrenNamed(footprint, "property").find(
     (entry) => entry[1] === key
   )
-  if (typeof property?.[2] === "string") return property[2]
+  const value = property?.[2]
+  if (isAtom(value)) return value
   const legacyType = key === "Reference" ? "reference" : key === "Value" ? "value" : undefined
   if (legacyType === undefined) return undefined
   const legacy = childrenNamed(footprint, "fp_text").find(
     (entry) => entry[1] === legacyType
   )
-  return typeof legacy?.[2] === "string" ? legacy[2] : undefined
+  const legacyValue = legacy?.[2]
+  return isAtom(legacyValue) ? legacyValue : undefined
 }
 
 /**
@@ -308,11 +322,13 @@ export const importKiCadPcbPinout = (
   if (footprint === undefined) return undefined
 
   const customProperties = new Map(
-    childrenNamed(footprint, "property").flatMap((entry) =>
-      typeof entry[1] === "string" && typeof entry[2] === "string"
-        ? [[entry[1].toLowerCase().replace(/[^a-z0-9]/g, ""), entry[2]] as const]
+    childrenNamed(footprint, "property").flatMap((entry) => {
+      const name = entry[1]
+      const value = entry[2]
+      return isAtom(name) && isAtom(value)
+        ? [[name.toLowerCase().replace(/[^a-z0-9]/g, ""), value] as const]
         : []
-    )
+    })
   )
   const mpn =
     meta.mpn ??
@@ -322,7 +338,7 @@ export const importKiCadPcbPinout = (
 
   const scalarChild = (list: ReadonlyArray<SExpression>, name: string): string | undefined => {
     const value = childrenNamed(list, name)[0]?.[1]
-    return typeof value === "string" ? value : undefined
+    return isAtom(value) ? value : undefined
   }
   const titleBlock = childrenNamed(root, "title_block")[0]
   const designRevision = titleBlock === undefined ? undefined : scalarChild(titleBlock, "rev")
@@ -339,9 +355,9 @@ export const importKiCadPcbPinout = (
   const pinout = childrenNamed(footprint, "pad")
     .flatMap((pad) => {
       const pin = pad[1]
-      if (typeof pin !== "string" || pin === "") return []
-      const net = childrenNamed(pad, "net")[0]
-      const signal = typeof net?.[2] === "string" && net[2] !== "" ? net[2] : undefined
+      if (!isAtom(pin) || pin === "") return []
+      const netName = childrenNamed(pad, "net")[0]?.[2]
+      const signal = isAtom(netName) && netName !== "" ? netName : undefined
       return [{
         pin,
         sourcePin: pin,
@@ -365,21 +381,23 @@ export const importKiCadPcbPinout = (
     pinout
   })
 
+  // Assembled in serialized key order; optional facts appear only when the
+  // board file carried them.
+  const source = draft<ContractSource>({ format: "kicad-pcb" })
+  if (meta.sourceName !== undefined) source.name = meta.sourceName
+  source.component = wanted
+  if (designRevision !== undefined) source.designRevision = designRevision
+  if (formatVersion !== undefined) source.formatVersion = formatVersion
+  if (generator !== undefined) source.generator = generator
+  source.contentFingerprint = `fnv1a64:${fnv1a64(normalizedSource)}`
+
   return {
     contractVersion: "0.1.0",
     harness: { id: "kicad-pcb", revision: designRevision ?? "-" },
     hirSchema: HIR_SCHEMA_VERSION,
     connector: meta.connector,
     mpn,
-    source: {
-      format: "kicad-pcb",
-      ...(meta.sourceName !== undefined ? { name: meta.sourceName } : {}),
-      component: wanted,
-      ...(designRevision !== undefined ? { designRevision } : {}),
-      ...(formatVersion !== undefined ? { formatVersion } : {}),
-      ...(generator !== undefined ? { generator } : {}),
-      contentFingerprint: `fnv1a64:${fnv1a64(normalizedSource)}`
-    },
+    source,
     pinout
   }
 }
@@ -413,6 +431,46 @@ export const findContractImporter = (
 }
 
 /**
+ * The tscircuit Circuit JSON elements the contract importer reads, as
+ * circuit-json@0.0.433 defines them. Excess properties in a real board file
+ * are ignored on decode; elements of any other type are dropped.
+ */
+export const TscircuitSourceComponent = Schema.Struct({
+  type: Schema.Literal("source_component"),
+  source_component_id: Schema.String,
+  name: Schema.String,
+  ftype: Schema.optional(Schema.String),
+  manufacturer_part_number: Schema.optional(Schema.String),
+  display_value: Schema.optional(Schema.String)
+})
+export type TscircuitSourceComponent = Schema.Schema.Type<typeof TscircuitSourceComponent>
+
+export const TscircuitSourcePort = Schema.Struct({
+  type: Schema.Literal("source_port"),
+  source_port_id: Schema.String,
+  source_component_id: Schema.String,
+  name: Schema.String,
+  pin_number: Schema.optional(Schema.Number),
+  port_hints: Schema.optional(Schema.Array(Schema.String))
+})
+export type TscircuitSourcePort = Schema.Schema.Type<typeof TscircuitSourcePort>
+
+export const TscircuitElement = Schema.Union(TscircuitSourceComponent, TscircuitSourcePort)
+export type TscircuitElement = Schema.Schema.Type<typeof TscircuitElement>
+
+const decodeTscircuitElement = Schema.decodeUnknownOption(TscircuitElement)
+
+/**
+ * Parse a Circuit JSON file at the I/O boundary: the elements the importer
+ * understands come back typed, every other element is dropped. Throws on
+ * text that is not a JSON array.
+ */
+export const parseTscircuitCircuitJson = (text: string): ReadonlyArray<TscircuitElement> =>
+  Schema.decodeUnknownSync(Schema.Array(Schema.Unknown))(JSON.parse(text)).flatMap(
+    (element) => Option.toArray(decodeTscircuitElement(element))
+  )
+
+/**
  * Import a connector pinout from tscircuit Circuit JSON (PRD §37).
  * Circuit JSON is a flat array of typed elements; we read the named
  * `source_component` (the PCB-side connector, e.g. "J1") and its
@@ -420,42 +478,42 @@ export const findContractImporter = (
  * is not a pinN/number alias) falling back to the port name.
  */
 export const importTscircuitPinout = (
-  circuitJson: ReadonlyArray<Record<string, unknown>>,
+  circuitJson: ReadonlyArray<TscircuitElement>,
   meta: { readonly connector: string; readonly component?: string }
 ): ConnectorContract | undefined => {
   const wanted = meta.component ?? meta.connector
   const component = circuitJson.find(
-    (el) => el["type"] === "source_component" && el["name"] === wanted
+    (el): el is TscircuitSourceComponent => el.type === "source_component" && el.name === wanted
   )
   if (component === undefined) return undefined
-  const componentId = component["source_component_id"]
+  const componentId = component.source_component_id
   const ports = circuitJson.filter(
-    (el) => el["type"] === "source_port" && el["source_component_id"] === componentId
+    (el): el is TscircuitSourcePort =>
+      el.type === "source_port" && el.source_component_id === componentId
   )
   const isAlias = (hint: string, pin: number | undefined): boolean =>
     /^(pin)?\d+$/i.test(hint) && (pin === undefined || hint.replace(/^pin/i, "") === String(pin))
   const pinout = ports
-    .map((port) => {
-      const pinNumber = typeof port["pin_number"] === "number" ? port["pin_number"] : undefined
-      const hints = Array.isArray(port["port_hints"]) ? (port["port_hints"] as Array<string>) : []
-      const name = typeof port["name"] === "string" ? port["name"] : undefined
+    .map((port): ContractPin => {
+      const pinNumber = port.pin_number
+      const hints = port.port_hints ?? []
+      const name = port.name
       const signal =
-        hints.find((h) => !isAlias(h, pinNumber)) ??
-        (name !== undefined && !isAlias(name, pinNumber) ? name : undefined)
-      return {
-        pin: pinNumber !== undefined ? String(pinNumber) : (name ?? ""),
-        ...(signal !== undefined ? { signal: signal.toUpperCase() } : {})
-      }
+        hints.find((h) => !isAlias(h, pinNumber)) ?? (!isAlias(name, pinNumber) ? name : undefined)
+      const entry = draft<ContractPin>({
+        pin: pinNumber !== undefined ? String(pinNumber) : name
+      })
+      if (signal !== undefined) entry.signal = signal.toUpperCase()
+      return entry
     })
     .filter((p) => p.pin !== "")
     .sort((a, b) => Number(a.pin) - Number(b.pin))
-  const mpn = component["manufacturer_part_number"]
   return {
     contractVersion: "0.1.0",
     harness: { id: "tscircuit", revision: "-" },
     hirSchema: HIR_SCHEMA_VERSION,
     connector: meta.connector,
-    mpn: typeof mpn === "string" ? mpn : "unknown",
+    mpn: component.manufacturer_part_number ?? "unknown",
     pinout
   }
 }
@@ -469,29 +527,34 @@ export const importTscircuitPinout = (
 export const exportTscircuitCircuitJson = (
   hir: Hir,
   connectorRef?: string
-): Array<Record<string, unknown>> => {
+): Array<TscircuitElement> => {
   const connectors =
     connectorRef !== undefined
       ? hir.connectors.filter((c) => c.ref === connectorRef)
       : hir.connectors
-  return connectors.flatMap((c) => [
-    {
+  return connectors.flatMap((c): Array<TscircuitElement> => {
+    const component = draft<TscircuitSourceComponent>({
       type: "source_component",
       ftype: "simple_chip",
       source_component_id: `nerve_${c.ref}`,
       name: c.ref,
-      manufacturer_part_number: c.mpn,
-      ...(c.matingMpn !== undefined ? { display_value: `mates ${c.matingMpn}` } : {})
-    },
-    ...c.pins.map((p) => ({
-      type: "source_port",
-      source_port_id: `nerve_${c.ref}_pin${p.pin}`,
-      source_component_id: `nerve_${c.ref}`,
-      name: `pin${p.pin}`,
-      pin_number: Number(p.pin),
-      port_hints: [...(p.signal !== undefined ? [p.signal] : []), `pin${p.pin}`]
-    }))
-  ])
+      manufacturer_part_number: c.mpn
+    })
+    if (c.matingMpn !== undefined) component.display_value = `mates ${c.matingMpn}`
+    return [
+      component,
+      ...c.pins.map(
+        (p): TscircuitSourcePort => ({
+          type: "source_port",
+          source_port_id: `nerve_${c.ref}_pin${p.pin}`,
+          source_component_id: `nerve_${c.ref}`,
+          name: `pin${p.pin}`,
+          pin_number: Number(p.pin),
+          port_hints: [...(p.signal !== undefined ? [p.signal] : []), `pin${p.pin}`]
+        })
+      )
+    ]
+  })
 }
 
 export const contractJson = (contract: ConnectorContract): string =>

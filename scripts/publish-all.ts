@@ -15,6 +15,7 @@
 import { spawnSync } from "node:child_process"
 import { copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { parseJsonObject, parsePackageManifest, type JsonValue } from "./json.js"
 
 // Dependency order: dependencies publish before dependents.
 const PACKAGES = [
@@ -47,8 +48,9 @@ for (const name of PACKAGES) {
   const pkgPath = join(dir, "package.json")
   const backupPath = join(dir, "package.json.publish-backup")
   const original = readFileSync(pkgPath, "utf8")
-  const pkg = JSON.parse(original) as Record<string, unknown>
-  const publishConfig = (pkg["publishConfig"] ?? {}) as Record<string, unknown>
+  const pkg = parseJsonObject(original)
+  const manifest = parsePackageManifest(original)
+  const publishConfig = manifest.publishConfig ?? {}
 
   // Idempotency: skip anything the registry already has at this exact
   // version, so re-running after a mid-list failure just publishes the
@@ -56,8 +58,8 @@ for (const name of PACKAGES) {
   // registry confirmation skips; a network error (or 404) falls through to
   // the publish attempt, which fails loudly on a real conflict anyway.
   if (!packOnly) {
-    const npmName = pkg["name"] as string
-    const version = pkg["version"] as string
+    const npmName = manifest.name
+    const version = manifest.version ?? ""
     const view = spawnSync("bun", ["pm", "view", `${npmName}@${version}`, "version"], {
       encoding: "utf8"
     })
@@ -73,7 +75,8 @@ for (const name of PACKAGES) {
     continue
   }
 
-  const transformed: Record<string, unknown> = { ...pkg }
+  const transformed: Record<string, JsonValue> = {}
+  for (const [key, value] of Object.entries(pkg)) transformed[key] = value
   for (const [key, value] of Object.entries(publishConfig)) {
     if (!NPM_KEYS.has(key)) transformed[key] = value
   }

@@ -7,8 +7,19 @@
  * instructions. Deterministic: pinned creation dates, fixed producer
  * metadata, no randomness.
  */
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, type RGB } from "pdf-lib"
+import {
+  PDFDocument,
+  PDFFont,
+  PDFPage,
+  StandardFonts,
+  rgb,
+  type PDFPageDrawLineOptions,
+  type PDFPageDrawRectangleOptions,
+  type PDFPageDrawSVGOptions,
+  type RGB
+} from "pdf-lib"
 import { hasErrors, type Hir } from "@grayhaven/nerve"
+import { draft } from "./draft.js"
 import {
   bomTable,
   cutListTable,
@@ -33,24 +44,24 @@ const PAGE_W = 792
 const PAGE_H = 612
 const MARGIN = 40
 
-const NAMED_COLORS: Record<string, [number, number, number]> = {
-  red: [0.85, 0.1, 0.1],
-  black: [0.13, 0.13, 0.13],
-  blue: [0.1, 0.2, 0.85],
-  green: [0.1, 0.6, 0.2],
-  white: [0.72, 0.72, 0.72],
-  yellow: [0.79, 0.66, 0],
-  orange: [0.9, 0.5, 0.1],
-  gray: [0.5, 0.5, 0.5],
-  grey: [0.5, 0.5, 0.5],
-  brown: [0.5, 0.33, 0.2],
-  purple: [0.5, 0.2, 0.7],
-  pink: [0.9, 0.4, 0.6]
-}
+const NAMED_COLORS = new Map<string, readonly [number, number, number]>([
+  ["red", [0.85, 0.1, 0.1]],
+  ["black", [0.13, 0.13, 0.13]],
+  ["blue", [0.1, 0.2, 0.85]],
+  ["green", [0.1, 0.6, 0.2]],
+  ["white", [0.72, 0.72, 0.72]],
+  ["yellow", [0.79, 0.66, 0]],
+  ["orange", [0.9, 0.5, 0.1]],
+  ["gray", [0.5, 0.5, 0.5]],
+  ["grey", [0.5, 0.5, 0.5]],
+  ["brown", [0.5, 0.33, 0.2]],
+  ["purple", [0.5, 0.2, 0.7]],
+  ["pink", [0.9, 0.4, 0.6]]
+])
 
 const parseColor = (color: string | undefined): RGB => {
   if (color === undefined) return rgb(0.4, 0.4, 0.4)
-  const named = NAMED_COLORS[color.toLowerCase()]
+  const named = NAMED_COLORS.get(color.toLowerCase())
   if (named !== undefined) return rgb(...named)
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color)?.[1]
   if (hex !== undefined) {
@@ -85,43 +96,45 @@ const drawDrawing = (page: PDFPage, drawing: Drawing, fonts: Fonts): void => {
 
   for (const item of d.items) {
     switch (item.kind) {
-      case "rect":
-        page.drawRectangle({
+      case "rect": {
+        const rect = draft<PDFPageDrawRectangleOptions>({
           x: ox + item.x,
           y: flip(item.y + item.h),
           width: item.w,
-          height: item.h,
-          ...(item.fill !== undefined && item.fill !== "none"
-            ? { color: parseColor(item.fill) }
-            : {}),
-          ...(item.stroke !== undefined
-            ? {
-                borderColor: parseColor(item.stroke),
-                borderWidth: item.strokeWidth ?? 1
-              }
-            : {})
+          height: item.h
         })
+        if (item.fill !== undefined && item.fill !== "none") rect.color = parseColor(item.fill)
+        if (item.stroke !== undefined) {
+          rect.borderColor = parseColor(item.stroke)
+          rect.borderWidth = item.strokeWidth ?? 1
+        }
+        page.drawRectangle(rect)
         break
-      case "line":
-        page.drawLine({
+      }
+      case "line": {
+        const line = draft<PDFPageDrawLineOptions>({
           start: { x: ox + item.x1, y: flip(item.y1) },
           end: { x: ox + item.x2, y: flip(item.y2) },
           thickness: item.strokeWidth ?? 1,
-          color: parseColor(item.stroke),
-          ...(item.dash !== undefined ? { dashArray: [...item.dash] } : {})
+          color: parseColor(item.stroke)
         })
+        if (item.dash !== undefined) line.dashArray = [...item.dash]
+        page.drawLine(line)
         break
-      case "path":
+      }
+      case "path": {
         // drawSvgPath interprets the path in SVG coordinates (y down) from
         // the given origin.
-        page.drawSvgPath(item.d, {
+        const path = draft<PDFPageDrawSVGOptions>({
           x: ox,
           y: PAGE_H - oyTop,
           borderColor: parseColor(item.stroke),
-          borderWidth: item.strokeWidth ?? 1,
-          ...(item.dash !== undefined ? { borderDashArray: [...item.dash] } : {})
+          borderWidth: item.strokeWidth ?? 1
         })
+        if (item.dash !== undefined) path.borderDashArray = [...item.dash]
+        page.drawSvgPath(item.d, path)
         break
+      }
       case "text": {
         const font = item.weight === "bold" ? fonts.bold : fonts.mono
         const size = item.size ?? 12

@@ -250,7 +250,7 @@ describe("a pinout that cannot be true of its part (HK-CONN-007)", () => {
 describe("HIR schema round trip", () => {
   it("survives encode and decode with the pinout intact", () => {
     const { hir } = compileWith(sensor)
-    const decoded = decodeHir(JSON.parse(JSON.stringify(hir)) as unknown)
+    const decoded = decodeHir(JSON.parse(JSON.stringify(hir)))
 
     expect(decoded.connectors.find((c) => c.ref === "J1")!.pinout).toStrictEqual({
       1: "V+",

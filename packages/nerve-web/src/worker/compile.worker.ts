@@ -47,18 +47,19 @@ import motorController from "@grayhaven/example-motor-controller"
 import sensorSplice from "@grayhaven/example-sensor-splice"
 import robotPlatform from "@grayhaven/example-robot-platform"
 import type { CompileRequest, CompileResponse } from "../lib/compile-types.js"
+import type { SandboxModule } from "../lib/fs-eval.js"
 
-const designs: Readonly<Record<string, HarnessDesign>> = {
-  "motor-controller": motorController,
-  "sensor-splice": sensorSplice,
-  "robot-platform": robotPlatform
-}
+const designs = new Map<string, HarnessDesign>([
+  ["motor-controller", motorController],
+  ["sensor-splice", sensorSplice],
+  ["robot-platform", robotPlatform]
+])
 
 /** Modules visible to editor-authored code. The nerve surface is a curated
  * named-import object (not `import *`): a namespace import would mark the
  * barrel's Effect Schema codecs as used and drag ~160KB of effect into the
  * worker. Everything except decodeHir/encodeHir/Hir codecs is exposed. */
-const SANDBOX_MODULES: Readonly<Record<string, unknown>> = {
+const SANDBOX_MODULES = {
   "@grayhaven/nerve": {
     branch,
     cable,
@@ -87,7 +88,7 @@ const SANDBOX_MODULES: Readonly<Record<string, unknown>> = {
     wire
   },
   "@grayhaven/nerve-connectors": connectorsModule
-}
+} satisfies Readonly<Record<string, SandboxModule>>
 
 /** Multi-file evaluation (PRD §9.6): fsMap + entrypoint via fs-eval. */
 const evaluateProject = async (
@@ -119,7 +120,7 @@ self.onmessage = async (event: MessageEvent<CompileRequest>) => {
         : source !== undefined
           ? // Single-string compat: callers that predate fsMap.
             await evaluateProject({ "/main.harness.ts": source }, "/main.harness.ts")
-          : designs[projectId]
+          : designs.get(projectId)
   } catch (cause) {
     self.postMessage({
       id,

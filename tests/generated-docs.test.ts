@@ -22,9 +22,7 @@ describe("generated DSL reference", () => {
   const fresh = extractDslMeta()
 
   it("dsl-meta.json matches the source extraction", () => {
-    const committed = JSON.parse(
-      readFileSync(join(WEB, "src", "docs", "dsl-meta.json"), "utf8")
-    ) as unknown
+    const committed = JSON.parse(readFileSync(join(WEB, "src", "docs", "dsl-meta.json"), "utf8"))
     expect(committed, REGEN).toEqual(JSON.parse(JSON.stringify(fresh)))
   })
 
@@ -59,12 +57,12 @@ describe("generated DSL reference", () => {
 })
 
 describe("generated rules reference", () => {
-  // The rules page renders RULE_SUMMARIES[name] ?? "-" on a page that
+  // The rules page renders RULE_SUMMARIES.get(name) ?? "-" on a page that
   // advertises it cannot drift — a missing summary ships a blank "Checks"
   // cell. Every built-in rule must carry one (caught HK-MFG-007 and
   // HK-CONN-016/017 shipping blank).
   it("every built-in rule has a one-line summary", () => {
-    const missing = builtinRules.filter((r) => RULE_SUMMARIES[r.name] === undefined)
+    const missing = builtinRules.filter((r) => !RULE_SUMMARIES.has(r.name))
     expect(
       missing.map((r) => `${r.code} ${r.name}`),
       "add these to packages/nerve-web/src/docs/rule-summaries.ts"

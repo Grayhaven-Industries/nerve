@@ -108,17 +108,20 @@ describe("compiler → platform seam (real harness)", async () => {
   const compiled = await Effect.runPromise(compileFile(HARNESS))
 
   /** The compiler's real diagnostics, as platform findings. */
-  const findings: ReadonlyArray<Finding> = compiled.diagnostics.map((d, i) => ({
-    id: `f-${i}`,
-    reviewRunId: "run-1",
-    code: d.code,
-    severity: d.severity,
-    ruleSeverity: d.severity,
-    message: d.message,
-    ...(d.target === undefined ? {} : { target: d.target }),
-    ...(d.targets === undefined ? {} : { targets: d.targets }),
-    ...(d.data === undefined ? {} : { data: d.data })
-  }))
+  const findings: ReadonlyArray<Finding> = compiled.diagnostics.map((d, i) => {
+    let finding: Finding = {
+      id: `f-${i}`,
+      reviewRunId: "run-1",
+      code: d.code,
+      severity: d.severity,
+      ruleSeverity: d.severity,
+      message: d.message
+    }
+    if (d.target !== undefined) finding = { ...finding, target: d.target }
+    if (d.targets !== undefined) finding = { ...finding, targets: d.targets }
+    if (d.data !== undefined) finding = { ...finding, data: d.data }
+    return finding
+  })
 
   const hirHash = fingerprint(JSON.parse(JSON.stringify(compiled.hir)))
   const candidate: ReleaseCandidate = {
@@ -190,10 +193,8 @@ describe("compiler → platform seam (real harness)", async () => {
       expect(code).toBeDefined()
     })
 
-    const strict: Policy = {
-      ...basePolicy,
-      ...(code === undefined ? {} : { severityOverrides: { [code]: "error" as const } })
-    }
+    const strict: Policy =
+      code === undefined ? basePolicy : { ...basePolicy, severityOverrides: { [code]: "error" } }
     const affected = findings.filter((f) => f.code === code)
 
     it("blocks, and the pull-request check goes red", () => {
@@ -221,6 +222,7 @@ describe("compiler → platform seam (real harness)", async () => {
       const result = evaluateReadyForApproval(gateInput({ policy: strict }))
       const targeted = affected.filter((f) => f.target !== undefined)
       for (const f of targeted) {
+        // SAFETY: `targeted` keeps only findings whose target is defined.
         expect(result.blockers.some((b) => b.message.includes(f.target as string))).toBe(true)
       }
     })
@@ -232,12 +234,19 @@ describe("compiler → platform seam (real harness)", async () => {
       ownerId: "engineer-1",
       decidedBy: "engineer-2",
       decidedAt: AT,
-      scope: {
-        harnessId: "motor-controller",
-        code: f.code,
-        ...(f.target === undefined ? {} : { target: f.target }),
-        sourceSetFingerprint: assembly.sourceSet.fingerprint
-      }
+      scope:
+        f.target === undefined
+          ? {
+              harnessId: "motor-controller",
+              code: f.code,
+              sourceSetFingerprint: assembly.sourceSet.fingerprint
+            }
+          : {
+              harnessId: "motor-controller",
+              code: f.code,
+              target: f.target,
+              sourceSetFingerprint: assembly.sourceSet.fingerprint
+            }
     }))
 
     it("clears once every promoted finding is waived in scope", () => {

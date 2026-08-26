@@ -31,7 +31,7 @@ describe("Button", () => {
 
   it("disabled is a DOM attribute, not just paint", () => {
     render(<Button disabled>Busy</Button>)
-    expect((screen.getByRole("button", { name: "Busy" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Busy" }).disabled).toBe(true)
   })
 })
 

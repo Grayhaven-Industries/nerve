@@ -23,7 +23,9 @@ const actions: ReadonlyArray<Action> = [
 ]
 
 /** Actions each role holds org-wide; anything absent must be denied. */
-const held: { readonly [R in Role]: ReadonlyArray<Action> } = {
+type HeldActions = { readonly [R in Role]: ReadonlyArray<Action> }
+
+const held: HeldActions = {
   viewer: ["project:read"],
   reviewer: ["project:read", "review:disposition", "review:approve"],
   engineer: [

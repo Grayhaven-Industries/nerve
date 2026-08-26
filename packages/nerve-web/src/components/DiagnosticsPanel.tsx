@@ -7,7 +7,7 @@ import { selectionFromTarget, setSelection } from "../lib/selection.js"
 
 // Inline remedy per HK code: the JSON carries code -> rule name, the
 // one-line summaries are keyed by name (same join as the rules reference).
-const ruleSummaries = new Map(rulesMeta.map((r) => [r.code, RULE_SUMMARIES[r.name] ?? r.name]))
+const ruleSummaries = new Map(rulesMeta.map((r) => [r.code, RULE_SUMMARIES.get(r.name) ?? r.name]))
 
 export function DiagnosticsPanel({
   diagnostics

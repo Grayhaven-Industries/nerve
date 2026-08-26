@@ -363,6 +363,11 @@ export const encodeHir = Schema.encodeSync(Hir)
  * guard (tests/hir-shape.test.ts) and generated schema docs; useful to
  * external validators too.
  */
-export const hirJsonSchema = (): unknown =>
-  JSON.parse(JSON.stringify(JSONSchema.make(Hir)))
+export type HirJsonSchema = JSONSchema.JsonSchema7Root
+export const hirJsonSchema = (): HirJsonSchema => {
+  const schema = JSONSchema.make(Hir)
+  // SAFETY: a JSON round trip of the generated schema only drops keys whose value
+  // is `undefined`, all of which JsonSchema7Root declares optional.
+  return JSON.parse(JSON.stringify(schema)) as HirJsonSchema
+}
 

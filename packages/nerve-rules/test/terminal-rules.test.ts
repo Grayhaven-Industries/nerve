@@ -77,10 +77,10 @@ const narrowContact = {
 /** `terminals` on J1 only: J2 is the same wire landing in the same housing
  * with no contact record, so one fixture exercises both paths. */
 const gaugeFixture = (gauge: string, opts: { terminal: boolean }): Hir => {
-  const a = connector("J1", housing, {
-    pins: { 1: "VBAT_24V", 2: "GND" },
-    ...(opts.terminal ? { terminals: { 1: narrowContact, 2: narrowContact } } : {})
-  })
+  const pins = { 1: "VBAT_24V", 2: "GND" }
+  const a = opts.terminal
+    ? connector("J1", housing, { pins, terminals: { 1: narrowContact, 2: narrowContact } })
+    : connector("J1", housing, { pins })
   const b = connector("J2", housing, { pins: { 1: "VBAT_24V", 2: "GND" } })
   return compile(
     harness("gauge-fixture", {
@@ -208,11 +208,10 @@ const odFixture = (outerDiameter: number | undefined): Hir => {
       connectors: [a, b],
       wires: [
         wire("W1", a.pin(1), b.pin(1), {
-          part: {
-            mpn: "WIRE-20-PVC",
-            gauge: "20AWG",
-            ...(outerDiameter !== undefined ? { outerDiameter } : {})
-          },
+          part:
+            outerDiameter !== undefined
+              ? { mpn: "WIRE-20-PVC", gauge: "20AWG", outerDiameter }
+              : { mpn: "WIRE-20-PVC", gauge: "20AWG" },
           gauge: "20AWG",
           color: "red",
           length: 100,
@@ -304,10 +303,10 @@ const ratedContact = { mpn: "CT-RATED", currentRatingA: 4 }
 
 const currentFixture = (opts: { terminal: boolean }): Hir => {
   const part: ConnectorPart = { ...housing, mpn: "HSG-RATED-2", currentLimitA: 10 }
-  const a = connector("J1", part, {
-    pins: { 1: "VBAT_24V" },
-    ...(opts.terminal ? { terminals: { 1: ratedContact } } : {})
-  })
+  const pins = { 1: "VBAT_24V" }
+  const a = opts.terminal
+    ? connector("J1", part, { pins, terminals: { 1: ratedContact } })
+    : connector("J1", part, { pins })
   const b = connector("J2", part, { pins: { 1: "VBAT_24V" } })
   return compile(
     harness("current-fixture", {
@@ -425,15 +424,20 @@ const straddle = (
             currentEstimate: 2.4
           })
         ),
-        ...extra.map((e, i) =>
-          wire(`X${String(i + 1).padStart(2, "0")}`, a.pin(loaded + i + 1), b.pin(loaded + i + 1), {
+        ...extra.map((e, i) => {
+          const props = {
             gauge: e.gauge,
             color: "white",
             length: 100,
-            signal: `NET_${loaded + i + 1}`,
-            ...(e.currentEstimate !== undefined ? { currentEstimate: e.currentEstimate } : {})
-          })
-        )
+            signal: `NET_${loaded + i + 1}`
+          }
+          return wire(
+            `X${String(i + 1).padStart(2, "0")}`,
+            a.pin(loaded + i + 1),
+            b.pin(loaded + i + 1),
+            e.currentEstimate !== undefined ? { ...props, currentEstimate: e.currentEstimate } : props
+          )
+        })
       ],
       branches: [branch("main", { path: [a, b], nominalLength: 100 })]
     })

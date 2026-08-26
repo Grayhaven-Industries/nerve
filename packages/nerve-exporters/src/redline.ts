@@ -14,6 +14,7 @@
  */
 import { DiagnosticSeverity, type Diagnostic, type Hir, type VariantOptions } from "@grayhaven/nerve"
 import type { BuildRecord } from "./build-record.js"
+import { draft } from "./draft.js"
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -79,11 +80,10 @@ export const resolveRedline = (
 ): Redline => ({
   ...redline,
   status: resolution.accept ? "accepted" : "rejected",
-  resolution: {
-    ...(resolution.by !== undefined ? { by: resolution.by } : {}),
-    reason: resolution.reason,
-    resolvedAt: resolution.resolvedAt
-  }
+  resolution:
+    resolution.by !== undefined
+      ? { by: resolution.by, reason: resolution.reason, resolvedAt: resolution.resolvedAt }
+      : { reason: resolution.reason, resolvedAt: resolution.resolvedAt }
 })
 
 /**
@@ -108,7 +108,7 @@ export const redlinesFromBuildRecord = (
     .filter((verdict) => verdict.verdict === "out-of-tolerance")
     .map((verdict) => {
       const delta = verdict.measuredLength - (verdict.designLength ?? 0)
-      return createRedline({
+      const finding = draft<Omit<Redline, "status" | "resolution">>({
         id: `${options?.idPrefix ?? "RL"}-${verdict.wire}`,
         target: `wire:${verdict.wire}`,
         type: "incorrect-length",
@@ -118,9 +118,10 @@ export const redlinesFromBuildRecord = (
           `(${delta > 0 ? "+" : ""}${delta}).`,
         proposedValue: String(verdict.measuredLength),
         release: record.release,
-        serial: record.serial,
-        ...(options?.reportedBy !== undefined ? { reportedBy: options.reportedBy } : {})
+        serial: record.serial
       })
+      if (options?.reportedBy !== undefined) finding.reportedBy = options.reportedBy
+      return createRedline(finding)
     })
     .sort((a, b) => cmp(a.id, b.id))
 
@@ -153,7 +154,7 @@ export const suggestPatch = (
 const mergeOverrides = <T extends object>(
   overrides: ReadonlyArray<Readonly<Record<string, T>> | undefined>
 ): Readonly<Record<string, T>> | undefined => {
-  const merged = new Map<string, Record<string, unknown>>()
+  const merged = new Map<string, T>()
   for (const override of overrides) {
     if (override === undefined) continue
     for (const [id, props] of Object.entries(override)) {
@@ -164,9 +165,9 @@ const mergeOverrides = <T extends object>(
   const out: Record<string, T> = {}
   for (const id of [...merged.keys()].sort(cmp)) {
     const props = merged.get(id)!
-    const sorted: Record<string, unknown> = {}
-    for (const key of Object.keys(props).sort(cmp)) sorted[key] = props[key]
-    out[id] = sorted as unknown as T
+    // SAFETY: the entries are exactly those of `props: T`, re-inserted in
+    // sorted key order; no key or value is added, dropped, or changed.
+    out[id] = Object.fromEntries(Object.entries(props).sort(([a], [b]) => cmp(a, b))) as T
   }
   return out
 }
@@ -185,9 +186,9 @@ export const mergePatches = (
   const branches = mergeOverrides(patches.map((p) => p.branches?.override))
   const labels = mergeOverrides(patches.map((p) => p.labels?.override))
   const wires = mergeOverrides(patches.map((p) => p.wires?.override))
-  return {
-    ...(branches !== undefined ? { branches: { override: branches } } : {}),
-    ...(labels !== undefined ? { labels: { override: labels } } : {}),
-    ...(wires !== undefined ? { wires: { override: wires } } : {})
-  }
+  const patch = draft<Partial<VariantOptions>>({})
+  if (branches !== undefined) patch.branches = { override: branches }
+  if (labels !== undefined) patch.labels = { override: labels }
+  if (wires !== undefined) patch.wires = { override: wires }
+  return patch
 }

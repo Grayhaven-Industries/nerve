@@ -15,16 +15,15 @@ import { compileDesign, connector, harness, wire } from "@grayhaven/nerve"
 import type { ConnectorPart } from "@grayhaven/nerve"
 import { auditProvenance, provenanceAuditJson } from "../src/index.js"
 
-const housing = (
-  mpn: string,
-  provenance?: ConnectorPart["provenance"]
-): ConnectorPart => ({
-  mpn,
-  pinCount: 2,
-  // A limit a rule turns into a verdict — the whole point of the audit.
-  wireGaugeRange: { min: "24AWG", max: "20AWG" },
-  ...(provenance !== undefined ? { provenance } : {})
-})
+const housing = (mpn: string, provenance?: ConnectorPart["provenance"]): ConnectorPart => {
+  const part = {
+    mpn,
+    pinCount: 2,
+    // A limit a rule turns into a verdict — the whole point of the audit.
+    wireGaugeRange: { min: "24AWG", max: "20AWG" }
+  }
+  return provenance === undefined ? part : { ...part, provenance }
+}
 
 const compile = (parts: ReadonlyArray<ConnectorPart>) => {
   const [a, b] = [

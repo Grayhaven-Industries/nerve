@@ -58,18 +58,20 @@ const GROUPS: ReadonlyArray<DocGroup> = [
 const FLAT = GROUPS.flatMap((g) => g.items)
 
 // Route path → agent-readable markdown mirror (generated at build).
-const MD_SLUGS: Record<string, string> = {
-  "/docs": "quickstart",
-  "/docs/dsl": "dsl",
-  "/docs/sdk": "sdk",
-  "/docs/rules": "rules",
-  "/docs/hir": "hir",
-  "/docs/library": "library",
-  "/docs/cli": "cli",
-  "/docs/artifacts": "artifacts",
-  "/docs/ai": "ai",
-  "/docs/lifecycle": "lifecycle"
-}
+const MD_SLUGS = new Map<string, string>(
+  Object.entries({
+    "/docs": "quickstart",
+    "/docs/dsl": "dsl",
+    "/docs/sdk": "sdk",
+    "/docs/rules": "rules",
+    "/docs/hir": "hir",
+    "/docs/library": "library",
+    "/docs/cli": "cli",
+    "/docs/artifacts": "artifacts",
+    "/docs/ai": "ai",
+    "/docs/lifecycle": "lifecycle"
+  })
+)
 
 /** Copy the page's agent-readable markdown mirror to the clipboard. */
 function CopyMarkdown({ slug }: { slug: string }) {
@@ -119,7 +121,7 @@ function AiActions({ slug }: { slug: string }) {
 function DocsLayout() {
   const { pathname } = useLocation()
   const path = pathname.replace(/\/$/, "") || "/docs"
-  const slug = MD_SLUGS[path]
+  const slug = MD_SLUGS.get(path)
   const idx = FLAT.findIndex((i) => i.to === path)
   const prev = idx > 0 ? FLAT[idx - 1] : undefined
   const next = idx >= 0 && idx < FLAT.length - 1 ? FLAT[idx + 1] : undefined

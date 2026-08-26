@@ -129,14 +129,20 @@ export const rule = (
   name: string,
   run: (ctx: RuleContext) => void,
   options: RuleOptions = {}
-): Rule => ({
-  name,
-  code: options.code ?? `HK-RULE-${name.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
-  ...(options.standard !== undefined ? { standard: options.standard } : {}),
-  ...(options.clause !== undefined ? { clause: options.clause } : {}),
-  ...(options.ruleVersion !== undefined ? { ruleVersion: options.ruleVersion } : {}),
-  run
-})
+): Rule => {
+  let provenance: RuleProvenance = {}
+  if (options.standard !== undefined) provenance = { ...provenance, standard: options.standard }
+  if (options.clause !== undefined) provenance = { ...provenance, clause: options.clause }
+  if (options.ruleVersion !== undefined) {
+    provenance = { ...provenance, ruleVersion: options.ruleVersion }
+  }
+  return {
+    name,
+    code: options.code ?? `HK-RULE-${name.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+    ...provenance,
+    run
+  }
+}
 
 /**
  * Per-rule severity configuration (PRD §10.5 config example):
@@ -191,14 +197,15 @@ export const runRulesWithMargins = (
         return electrical()
       },
       report: ({ severity, message, target, targets, data, code }) => {
-        diagnostics.push({
+        let diagnostic: Diagnostic = {
           code: code ?? r.code,
           severity: override ?? severity,
-          message,
-          ...(target !== undefined ? { target } : {}),
-          ...(targets !== undefined && targets.length > 0 ? { targets } : {}),
-          ...(data !== undefined && Object.keys(data).length > 0 ? { data } : {})
-        })
+          message
+        }
+        if (target !== undefined) diagnostic = { ...diagnostic, target }
+        if (targets !== undefined && targets.length > 0) diagnostic = { ...diagnostic, targets }
+        if (data !== undefined && Object.keys(data).length > 0) diagnostic = { ...diagnostic, data }
+        diagnostics.push(diagnostic)
       },
       measure: ({ target, quantity, measured, limit, unit, code }) => {
         // A non-finite or non-positive limit cannot be normalised, and a

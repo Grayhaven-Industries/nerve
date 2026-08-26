@@ -28,11 +28,14 @@ const build = (wireBranch?: string) => {
       units: "mm",
       connectors: [src, dst],
       wires: [
-        wire("W1", src.pin(1), dst.pin(1), {
-          gauge: "20AWG",
-          length: 100,
-          ...(wireBranch !== undefined ? { branch: wireBranch } : {})
-        })
+        wire(
+          "W1",
+          src.pin(1),
+          dst.pin(1),
+          wireBranch !== undefined
+            ? { gauge: "20AWG", length: 100, branch: wireBranch }
+            : { gauge: "20AWG", length: 100 }
+        )
       ],
       branches: [
         // Deliberately omits SRC, exactly the shape that makes path

@@ -7,6 +7,7 @@
  * Coordinate system: y increases downward (SVG convention); the PDF
  * renderer flips.
  */
+import { draft } from "./draft.js"
 
 /** Optional data-* attributes (sorted at render time — deterministic). */
 export interface DrawData {
@@ -153,39 +154,45 @@ export const renderSvg = (drawing: Drawing): string => {
  * serialize as 38.4, not 38.400000000000006). */
 export const scaleDrawing = (drawing: Drawing, s: number): Drawing => {
   const n = (v: number): number => round2(v * s)
-  return {
+  const sheet = draft<Pick<Drawing, "width" | "height" | "background">>({
     width: n(drawing.width),
-    height: n(drawing.height),
-    ...(drawing.background !== undefined ? { background: drawing.background } : {}),
+    height: n(drawing.height)
+  })
+  if (drawing.background !== undefined) sheet.background = drawing.background
+  return {
+    ...sheet,
     items: drawing.items.map((item): DrawItem => {
       switch (item.kind) {
-        case "rect":
-          return {
+        case "rect": {
+          const rect = draft<DrawRect>({
             ...item,
             x: n(item.x),
             y: n(item.y),
             w: n(item.w),
-            h: n(item.h),
-            ...(item.rx !== undefined ? { rx: n(item.rx) } : {}),
-            ...(item.strokeWidth !== undefined ? { strokeWidth: n(item.strokeWidth) } : {})
-          }
-        case "line":
-          return {
+            h: n(item.h)
+          })
+          if (item.rx !== undefined) rect.rx = n(item.rx)
+          if (item.strokeWidth !== undefined) rect.strokeWidth = n(item.strokeWidth)
+          return rect
+        }
+        case "line": {
+          const line = draft<DrawLine>({
             ...item,
             x1: n(item.x1),
             y1: n(item.y1),
             x2: n(item.x2),
-            y2: n(item.y2),
-            ...(item.strokeWidth !== undefined ? { strokeWidth: n(item.strokeWidth) } : {}),
-            ...(item.dash !== undefined ? { dash: item.dash.map(n) } : {})
-          }
-        case "path":
-          return {
-            ...item,
-            d: scalePathData(item.d, s),
-            ...(item.strokeWidth !== undefined ? { strokeWidth: n(item.strokeWidth) } : {}),
-            ...(item.dash !== undefined ? { dash: item.dash.map(n) } : {})
-          }
+            y2: n(item.y2)
+          })
+          if (item.strokeWidth !== undefined) line.strokeWidth = n(item.strokeWidth)
+          if (item.dash !== undefined) line.dash = item.dash.map(n)
+          return line
+        }
+        case "path": {
+          const path = draft<DrawPath>({ ...item, d: scalePathData(item.d, s) })
+          if (item.strokeWidth !== undefined) path.strokeWidth = n(item.strokeWidth)
+          if (item.dash !== undefined) path.dash = item.dash.map(n)
+          return path
+        }
         case "text":
           return {
             ...item,

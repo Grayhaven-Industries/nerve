@@ -18,10 +18,11 @@
  * `^3.16.0` in this package): `Schema.decodeUnknownSync(S)(value)` validates
  * and throws `ParseError`.
  */
-import { Schema } from "effect"
+import { Predicate, Schema } from "effect"
 import type { Diagnostic } from "@grayhaven/nerve"
 import type {
   ImportRowResult,
+  JsonValue,
   ParsedWireList,
   WireListColumnMap,
   WireListImportResult
@@ -174,7 +175,7 @@ export interface UploadedFile {
   /** Required for `csv`/`xlsx` (ING-003). */
   readonly mappingVersion?: string | undefined
   /** The saved column map itself, validated against the importer's decoder. */
-  readonly columnMap?: unknown
+  readonly columnMap?: JsonValue
   readonly uploadedBy: string
   readonly uploadedAt: string
 }
@@ -405,19 +406,21 @@ export const assembleSourceSet = (
   for (const upload of input.uploads) assertColumnMap(upload)
 
   const storage = resolveContentStorage(input.uploads, input.knownContent ?? new Map())
-  const files: ReadonlyArray<SourceFile> = input.uploads.map((upload, index) => ({
-    filename: upload.filename,
-    mediaType: upload.mediaType,
-    byteLength: upload.bytes.byteLength,
-    contentHash: storage[index]!.contentHash,
-    kind: upload.kind,
-    importAdapterVersion: upload.importAdapterVersion,
-    ...(upload.mappingVersion !== undefined
-      ? { mappingVersion: upload.mappingVersion }
-      : {}),
-    uploadedBy: upload.uploadedBy,
-    uploadedAt: upload.uploadedAt
-  }))
+  const files: ReadonlyArray<SourceFile> = input.uploads.map((upload, index) => {
+    const identity = {
+      filename: upload.filename,
+      mediaType: upload.mediaType,
+      byteLength: upload.bytes.byteLength,
+      contentHash: storage[index]!.contentHash,
+      kind: upload.kind,
+      importAdapterVersion: upload.importAdapterVersion
+    }
+    const mapped =
+      upload.mappingVersion === undefined
+        ? identity
+        : { ...identity, mappingVersion: upload.mappingVersion }
+    return { ...mapped, uploadedBy: upload.uploadedBy, uploadedAt: upload.uploadedAt }
+  })
 
   const sorted = sortSourceFiles(files)
   const candidate = {
@@ -591,17 +594,12 @@ const columnDiagnostic = (diagnostic: Diagnostic): ColumnDiagnostic => ({
  * a `sourceRow` describe the file itself (a mapped column that is missing
  * outright) and are kept separately rather than dropped.
  */
-const splitDiagnostics = (
-  diagnostics: ReadonlyArray<Diagnostic>
-): {
-  readonly byRow: ReadonlyMap<number, ReadonlyArray<ColumnDiagnostic>>
-  readonly fileLevel: ReadonlyArray<ColumnDiagnostic>
-} => {
+const splitDiagnostics = (diagnostics: ReadonlyArray<Diagnostic>) => {
   const byRow = new Map<number, Array<ColumnDiagnostic>>()
   const fileLevel: Array<ColumnDiagnostic> = []
   for (const diagnostic of diagnostics) {
     const row = diagnostic.data?.["sourceRow"]
-    if (typeof row !== "number") {
+    if (!Predicate.isNumber(row)) {
       fileLevel.push(columnDiagnostic(diagnostic))
       continue
     }

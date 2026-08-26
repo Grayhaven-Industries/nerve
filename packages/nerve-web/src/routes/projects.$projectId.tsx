@@ -92,6 +92,9 @@ function ExportButton({ projectId }: { projectId: string }) {
     setFailed(false)
     try {
       const zip = await exportPacket(projectId)
+      // SAFETY: the zip arrives from the worker by structured clone, which
+      // always yields an ArrayBuffer-backed view (never a SharedArrayBuffer),
+      // so it is a valid BufferSource.
       const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: "application/zip" }))
       const a = document.createElement("a")
       a.href = url

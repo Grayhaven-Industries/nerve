@@ -8,6 +8,7 @@
  */
 import { diffHir, type Hir, type HirDiff } from "@grayhaven/nerve"
 import { coverage, generateTestPlan } from "./test-plan.js"
+import { draft } from "./draft.js"
 
 /** FNV-1a 64-bit content fingerprint (integrity check, not cryptographic). */
 export const hirFingerprint = (hir: Hir): string => {
@@ -108,7 +109,7 @@ export const createRelease = (hir: Hir, options: CreateReleaseOptions): Release 
   if (validationErrors.length > 0 || additionalCoverageErrors > 0) {
     throw new ReleaseBlockedError(validationErrors.length + additionalCoverageErrors)
   }
-  return {
+  const release = draft<Release>({
     releaseId: `${hir.harness.id}@${hir.harness.revision}`,
     harness: { id: hir.harness.id, revision: hir.harness.revision },
     eco: options.eco,
@@ -119,14 +120,13 @@ export const createRelease = (hir: Hir, options: CreateReleaseOptions): Release 
       connectors: hir.connectors.length,
       wires: hir.wires.length,
       tests: plan.tests.length
-    },
-    ...(options.previous !== undefined
-      ? {
-          supersedes: options.previous.releaseId,
-          impact: computeImpact(options.previous.hir, hir)
-        }
-      : {})
+    }
+  })
+  if (options.previous !== undefined) {
+    release.supersedes = options.previous.releaseId
+    release.impact = computeImpact(options.previous.hir, hir)
   }
+  return release
 }
 
 export const releaseJson = (release: Release): string =>

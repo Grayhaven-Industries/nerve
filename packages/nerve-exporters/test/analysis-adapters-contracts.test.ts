@@ -84,6 +84,8 @@ describe("shop-floor adapters (PRD §31)", () => {
   })
 
   it("rejects unknown HIR schema versions", () => {
+    // SAFETY: the test feeds a schema version the HIR type cannot name, so the
+    // adapter's runtime version check is what rejects it.
     const future = { ...hir, schemaVersion: "9.9.9" as never }
     const { diagnostics } = genericTesterJson.generate(future)
     expect(diagnostics[0]?.code).toBe("HK-ADAPT-001")

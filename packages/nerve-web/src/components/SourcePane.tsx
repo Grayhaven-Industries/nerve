@@ -19,6 +19,13 @@ import {
   setCompileResult
 } from "../lib/compile-client.js"
 import { registerEditor } from "../lib/editor-registry.js"
+
+declare global {
+  interface Window {
+    /** Automation hook (e2e tests, agent tooling): the live editor view. */
+    __nerveEditor?: EditorView
+  }
+}
 import {
   ENTRY_FILE,
   getFiles,
@@ -333,7 +340,7 @@ export function SourcePane({ projectId }: { projectId: string }) {
           registerEditor(view)
           // Automation hook: e2e tests and agent tooling drive real editor
           // transactions through this instead of poking minified internals.
-          ;(window as unknown as { __nerveEditor?: EditorView }).__nerveEditor = view
+          window.__nerveEditor = view
         }}
         onChange={onChange}
         style={{ flex: 1, minHeight: 0, overflow: "auto", fontSize: 13 }}

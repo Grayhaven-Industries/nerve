@@ -29,7 +29,16 @@ export type Canonical =
   | boolean
   | null
   | ReadonlyArray<Canonical>
-  | { readonly [key: string]: Canonical }
+  | CanonicalRecord
+
+export type CanonicalRecord = { readonly [key: string]: Canonical }
+
+const isCanonicalArray = (value: Canonical): value is ReadonlyArray<Canonical> =>
+  Array.isArray(value)
+
+/** `Object(x) === x` holds for every object and no primitive. */
+const isCanonicalRecord = (value: Canonical): value is CanonicalRecord =>
+  Object(value) === value && !Array.isArray(value)
 
 /**
  * Encode a value canonically: object keys sorted by code unit, no
@@ -39,34 +48,29 @@ export type Canonical =
  * sequence, so callers that want order-independence must sort before
  * hashing rather than relying on the encoder to do it for them.
  */
-export const canonicalize = (value: unknown): string => {
+export const canonicalize = (value: Canonical): string => {
   if (value === null) return "null"
-  if (typeof value === "boolean") return value ? "true" : "false"
-  if (typeof value === "string") return JSON.stringify(value)
-  if (typeof value === "number") {
-    // NaN and the infinities have no JSON form; allowing them would make the
-    // digest depend on how the serializer happened to degrade them.
-    if (!Number.isFinite(value)) {
-      throw new Error(`Cannot fingerprint non-finite number: ${String(value)}.`)
-    }
-    // Normalize -0 to 0 so a signed zero cannot fork an otherwise identical
-    // measurement into two fingerprints.
-    return JSON.stringify(value === 0 ? 0 : value)
-  }
-  if (Array.isArray(value)) {
+  if (value === true || value === false) return value ? "true" : "false"
+  if (isCanonicalArray(value)) {
     return `[${value.map((item) => canonicalize(item)).join(",")}]`
   }
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>
+  if (isCanonicalRecord(value)) {
     const parts: Array<string> = []
-    for (const key of Object.keys(record).sort()) {
-      const member = record[key]
+    for (const key of Object.keys(value).sort()) {
+      const member = value[key]
       if (member === undefined) continue
       parts.push(`${JSON.stringify(key)}:${canonicalize(member)}`)
     }
     return `{${parts.join(",")}}`
   }
-  throw new Error(`Cannot fingerprint value of type ${typeof value}.`)
+  // NaN and the infinities have no JSON form; allowing them would make the
+  // digest depend on how the serializer happened to degrade them.
+  if (value === Infinity || value === -Infinity || Number.isNaN(value)) {
+    throw new Error(`Cannot fingerprint non-finite number: ${String(value)}.`)
+  }
+  // Normalize -0 to 0 so a signed zero cannot fork an otherwise identical
+  // measurement into two fingerprints. Strings serialize as-is.
+  return JSON.stringify(value === 0 ? 0 : value)
 }
 
 /** Fingerprint a structured record. */

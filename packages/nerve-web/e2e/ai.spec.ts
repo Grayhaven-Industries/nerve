@@ -121,10 +121,7 @@ test("a tool call patches the editor", async ({ page }) => {
   // The editor document reflects the AI's edit (same automation hook as smoke).
   await expect.poll(
     async () =>
-      page.evaluate(() =>
-        (window as unknown as { __nerveEditor?: { state: { doc: { toString(): string } } } })
-          .__nerveEditor?.state.doc.toString()
-      ),
+      page.evaluate(() => window.__nerveEditor?.state.doc.toString()),
     { timeout: 20_000 }
   ).toContain("MOTOR CTRL B")
   // The real worker compiled the patched source clean.

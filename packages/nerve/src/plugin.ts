@@ -11,6 +11,7 @@
  * First plugin surface: rule packs (the §38 standards-pack vehicle).
  * Importers/exporters/renderers join as their host seams stabilize.
  */
+import { Schema } from "effect"
 import type { Rule } from "./rules.js"
 
 export interface NervePlugin {
@@ -24,8 +25,11 @@ export interface NervePlugin {
 /** Identity helper for typed plugin modules: `export default definePlugin({...})`. */
 export const definePlugin = (plugin: NervePlugin): NervePlugin => plugin
 
-export const isNervePlugin = (value: unknown): value is NervePlugin =>
-  typeof value === "object" &&
-  value !== null &&
-  typeof (value as NervePlugin).name === "string" &&
-  Array.isArray((value as NervePlugin).hirSchemaVersions)
+/** The runtime surface a loaded module must carry to be treated as a plugin. */
+const PluginSurface = Schema.Struct({
+  name: Schema.String,
+  hirSchemaVersions: Schema.Array(Schema.Unknown)
+})
+const hasPluginSurface = Schema.is(PluginSurface)
+
+export const isNervePlugin = <T>(value: T): value is T & NervePlugin => hasPluginSurface(value)

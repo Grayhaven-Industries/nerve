@@ -12,6 +12,7 @@ import {
   rule,
   type Hir,
   type HirEndpoint,
+  type ElectricalConstraintFinding,
   type ElectricalConstraintKind,
   type PinElectrical,
   type Rule,
@@ -31,6 +32,7 @@ import {
   requiredAwgForCurrent,
   estimateBundleDiameterMm,
   INSULATED_OD_MM_BY_AWG,
+  type GaugeTable,
   signalNominalVolts,
   sleeveCapacityMm
 } from "./wire-data.js"
@@ -319,27 +321,29 @@ export const gaugeOutsideConnectorRange: Rule = rule(
         if (thinnest === undefined || thickest === undefined) continue
         // Larger AWG number = thinner wire.
         if (awg > thinnest || awg < thickest) {
-          ctx.report({
-            severity: Err,
-            message:
-              terminalRange !== undefined
-                ? `Wire ${w.id} uses ${w.gauge} but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} accepts ${range.max} to ${range.min}.`
-                : `Wire ${w.id} uses ${w.gauge} but connector ${end.connector} accepts ${range.max} to ${range.min}.`,
-            target: refs.pin(end.connector, end.pin),
-            // Only on the terminal path: the housing finding stays the exact
-            // object it has always been, data-free.
-            ...(terminalRange !== undefined
-              ? {
-                  data: {
-                    gauge: w.gauge!,
-                    rangeSource: "terminal",
-                    terminal: terminal!.mpn,
-                    acceptsMin: range.min,
-                    acceptsMax: range.max
-                  }
-                }
-              : {})
-          })
+          const target = refs.pin(end.connector, end.pin)
+          // Only on the terminal path: the housing finding stays the exact
+          // object it has always been, data-free.
+          if (terminalRange !== undefined) {
+            ctx.report({
+              severity: Err,
+              message: `Wire ${w.id} uses ${w.gauge} but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} accepts ${range.max} to ${range.min}.`,
+              target,
+              data: {
+                gauge: w.gauge!,
+                rangeSource: "terminal",
+                terminal: terminal!.mpn,
+                acceptsMin: range.min,
+                acceptsMax: range.max
+              }
+            })
+          } else {
+            ctx.report({
+              severity: Err,
+              message: `Wire ${w.id} uses ${w.gauge} but connector ${end.connector} accepts ${range.max} to ${range.min}.`,
+              target
+            })
+          }
         }
       }
     }
@@ -525,7 +529,7 @@ const bundleConductorCounts = (
 export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
   "gaugeCurrentMismatch",
   (ctx) => {
-    const table = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
+    const table: GaugeTable = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
     const conductorsByBranch = bundleConductorCounts(ctx.hir, table)
     // One derated table per distinct factor: `requiredAwgForCurrent` has to
     // search the SAME table the verdict came from, or the gauge it recommends
@@ -571,19 +575,21 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
           factor < 1 && conductors !== undefined && w.branch !== undefined
             ? ` Branch ${w.branch} bundles ${conductors} conductors, so the limit derates ${factor}×.`
             : ""
+        const data: GaugeCurrentData = {
+          gauge: w.gauge,
+          currentEstimateA: w.currentEstimate,
+          ampacityA: ampacity
+        }
+        if (required !== undefined) data.requiredGauge = `${required}AWG`
+        if (bundleNote !== "") {
+          data.bundleConductors = conductors!
+          data.deratingFactor = factor
+        }
         ctx.report({
           severity: Err,
           message: `Wire ${w.id} uses ${w.gauge} but its ${w.currentEstimate}A estimate${suffix}.${bundleNote}`,
           target: refs.wire(w.id),
-          data: {
-            gauge: w.gauge,
-            currentEstimateA: w.currentEstimate,
-            ampacityA: ampacity,
-            ...(required !== undefined ? { requiredGauge: `${required}AWG` } : {}),
-            ...(bundleNote !== ""
-              ? { bundleConductors: conductors!, deratingFactor: factor }
-              : {})
-          }
+          data
         })
       }
     }
@@ -592,6 +598,18 @@ export const gaugeCurrentMismatchWith = (shop?: ShopProfile): Rule => rule(
 )
 
 export const gaugeCurrentMismatch: Rule = gaugeCurrentMismatchWith()
+
+/** Structured values behind an HK-WIRE-004 finding. The optional keys appear
+ * only when the table had a fitting gauge, or when bundle derating moved the
+ * limit. */
+type GaugeCurrentData = {
+  gauge: string
+  currentEstimateA: number
+  ampacityA: number
+  requiredGauge?: string
+  bundleConductors?: number
+  deratingFactor?: number
+}
 
 export const differentialPairNotTwisted: Rule = rule(
   "differentialPairNotTwisted",
@@ -870,24 +888,32 @@ export const connectorCurrentExceeded: Rule = rule(
           unit: "A"
         })
         if (w.currentEstimate > limit) {
-          ctx.report({
-            severity: Err,
-            message:
-              contactRating !== undefined
-                ? `Wire ${w.id} estimates ${w.currentEstimate}A but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} is rated ${limit}A.`
-                : `Wire ${w.id} estimates ${w.currentEstimate}A but connector ${end.connector} (${c.mpn}) contacts are rated ${limit}A.`,
-            target: refs.pin(end.connector, end.pin),
-            targets: [refs.wire(w.id)],
-            data: {
-              currentEstimateA: w.currentEstimate,
-              currentLimitA: limit,
-              // Only on the terminal path: the housing finding keeps exactly
-              // the two keys it has always carried.
-              ...(contactRating !== undefined
-                ? { limitSource: "terminal", terminal: terminal!.mpn }
-                : {})
-            }
-          })
+          const target = refs.pin(end.connector, end.pin)
+          const targets = [refs.wire(w.id)]
+          // Only on the terminal path: the housing finding keeps exactly
+          // the two data keys it has always carried.
+          if (contactRating !== undefined) {
+            ctx.report({
+              severity: Err,
+              message: `Wire ${w.id} estimates ${w.currentEstimate}A but terminal ${terminal!.mpn} at ${end.connector}.${end.pin} is rated ${limit}A.`,
+              target,
+              targets,
+              data: {
+                currentEstimateA: w.currentEstimate,
+                currentLimitA: limit,
+                limitSource: "terminal",
+                terminal: terminal!.mpn
+              }
+            })
+          } else {
+            ctx.report({
+              severity: Err,
+              message: `Wire ${w.id} estimates ${w.currentEstimate}A but connector ${end.connector} (${c.mpn}) contacts are rated ${limit}A.`,
+              target,
+              targets,
+              data: { currentEstimateA: w.currentEstimate, currentLimitA: limit }
+            })
+          }
         }
       }
     }
@@ -1063,21 +1089,28 @@ export const breakoutTighterThanBendRadiusWith = (shop?: ShopProfile): Rule => r
         unit: ctx.hir.harness.units
       })
       if (b.breakoutDistance < minBend) {
-        ctx.report({
-          severity: Err,
-          message:
-            computed !== undefined
-              ? // `~` because the printed figure is rounded off a measured
-                // centerline; `data` and the margin carry it unrounded.
-                `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but its routed centerline bends to a computed ~${computed.toFixed(1)}mm radius.`
-              : `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but the bundle needs a ${minBend}mm bend radius.`,
-          target: refs.branch(b.id),
-          data: {
-            breakoutDistanceMm: b.breakoutDistance,
-            minBendRadiusMm: minBend,
-            ...(computed !== undefined ? { radiusSource: "computed" } : {})
-          }
-        })
+        const target = refs.branch(b.id)
+        if (computed !== undefined) {
+          ctx.report({
+            severity: Err,
+            // `~` because the printed figure is rounded off a measured
+            // centerline; `data` and the margin carry it unrounded.
+            message: `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but its routed centerline bends to a computed ~${computed.toFixed(1)}mm radius.`,
+            target,
+            data: {
+              breakoutDistanceMm: b.breakoutDistance,
+              minBendRadiusMm: minBend,
+              radiusSource: "computed"
+            }
+          })
+        } else {
+          ctx.report({
+            severity: Err,
+            message: `Branch ${b.id} breaks out ${b.breakoutDistance}mm from its parent but the bundle needs a ${minBend}mm bend radius.`,
+            target,
+            data: { breakoutDistanceMm: b.breakoutDistance, minBendRadiusMm: minBend }
+          })
+        }
       }
     }
   },
@@ -1091,7 +1124,7 @@ export const breakoutTighterThanBendRadius: Rule = breakoutTighterThanBendRadius
 export const bundleOverSleeveCapacityWith = (shop?: ShopProfile): Rule => rule(
   "bundleOverSleeveCapacity",
   (ctx) => {
-    const odTable = { ...INSULATED_OD_MM_BY_AWG, ...shop?.insulatedOdMmByAwg }
+    const odTable: GaugeTable = { ...INSULATED_OD_MM_BY_AWG, ...shop?.insulatedOdMmByAwg }
     for (const b of ctx.hir.branches) {
       if (b.sleeve === undefined) continue
       const capacity = shop?.sleeveCapacityMm?.[b.sleeve] ?? sleeveCapacityMm(b.sleeve)
@@ -1540,7 +1573,7 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
   (ctx) => {
     const protections = ctx.hir.protections ?? []
     if (protections.length === 0) return
-    const table = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
+    const table: GaugeTable = { ...AMPACITY_BY_AWG, ...shop?.ampacityByAwg }
     const wireById = new Map(ctx.hir.wires.map((w) => [w.id, w]))
     const spliceWires = wiresBySplice(ctx.hir)
     for (const [index, p] of protections.entries()) {
@@ -1580,20 +1613,34 @@ export const overcurrentExceedsConductorWith = (shop?: ShopProfile): Rule => rul
         unit: "A"
       })
       if (p.ratingA > governing.ampacity) {
-        ctx.report({
-          severity: Err,
-          message: governing.declared
-            ? `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A. The wire fails before the device trips.`
-            : `${p.kind} ${p.id} is rated ${p.ratingA}A but wire ${governing.wireId} downstream of its protected run carries only ${governing.ampacity}A. The wire fails before the device trips.`,
-          target: `protection:${p.id}`,
-          targets: [refs.wire(governing.wireId)],
-          data: {
-            ratingA: p.ratingA,
-            conductorAmpacityA: governing.ampacity,
-            governingWire: governing.wireId,
-            ...(governing.declared ? {} : { governingWireSource: "downstream" })
-          }
-        })
+        const target = `protection:${p.id}`
+        const targets = [refs.wire(governing.wireId)]
+        if (governing.declared) {
+          ctx.report({
+            severity: Err,
+            message: `${p.kind} ${p.id} is rated ${p.ratingA}A but its thinnest protected wire ${governing.wireId} carries only ${governing.ampacity}A. The wire fails before the device trips.`,
+            target,
+            targets,
+            data: {
+              ratingA: p.ratingA,
+              conductorAmpacityA: governing.ampacity,
+              governingWire: governing.wireId
+            }
+          })
+        } else {
+          ctx.report({
+            severity: Err,
+            message: `${p.kind} ${p.id} is rated ${p.ratingA}A but wire ${governing.wireId} downstream of its protected run carries only ${governing.ampacity}A. The wire fails before the device trips.`,
+            target,
+            targets,
+            data: {
+              ratingA: p.ratingA,
+              conductorAmpacityA: governing.ampacity,
+              governingWire: governing.wireId,
+              governingWireSource: "downstream"
+            }
+          })
+        }
       }
     }
   },
@@ -1640,6 +1687,16 @@ export const uncoveredNet: Rule = rule(
   { code: "HK-ELEC-011", ruleVersion: RULE_VERSION }
 )
 
+/** A report adapted from an analyzer finding, built up field by field so an
+ * absent target, targets, or data stays absent rather than `undefined`. */
+type ElectricalFindingReport = {
+  severity: typeof Err | typeof Warn
+  message: string
+  target?: string
+  targets?: ReadonlyArray<string>
+  data?: NonNullable<ElectricalConstraintFinding["data"]>
+}
+
 /** Adapt one core electrical-analysis finding kind into an independently
  * configurable built-in rule. The analyzer owns inference; this layer only
  * assigns the stable rule name, code, and default severity. */
@@ -1658,13 +1715,11 @@ const electricalFindingRule = (
     for (const finding of ctx.electrical.findings) {
       if (finding.kind !== kind) continue
       const [target, ...targets] = finding.pins
-      ctx.report({
-        severity,
-        message: finding.message,
-        ...(target !== undefined ? { target } : {}),
-        ...(targets.length > 0 ? { targets } : {}),
-        ...(finding.data !== undefined ? { data: finding.data } : {})
-      })
+      const report: ElectricalFindingReport = { severity, message: finding.message }
+      if (target !== undefined) report.target = target
+      if (targets.length > 0) report.targets = targets
+      if (finding.data !== undefined) report.data = finding.data
+      ctx.report(report)
     }
     measure?.(ctx)
   },

@@ -8,6 +8,7 @@
  */
 import { endpointLabel } from "./hir/core.js"
 import type { Hir } from "./hir/schema.js"
+import { isString } from "./is-string.js"
 
 export interface FieldChange {
   readonly field: string
@@ -45,13 +46,16 @@ export interface HirDiff {
   readonly bom: SectionDiff
 }
 
-const show = (v: unknown): string =>
-  v === undefined ? "(none)" : typeof v === "string" ? v : JSON.stringify(v)
+/** What a compared HIR field can hold: scalars, or a joined list rendered by its getter. */
+type FieldValue = string | number | undefined
+
+const show = (v: FieldValue): string =>
+  v === undefined ? "(none)" : isString(v) ? v : JSON.stringify(v)
 
 const fieldChanges = <T>(
   a: T,
   b: T,
-  fields: ReadonlyArray<readonly [string, (x: T) => unknown]>
+  fields: ReadonlyArray<readonly [string, (x: T) => FieldValue]>
 ): Array<FieldChange> => {
   const changes: Array<FieldChange> = []
   for (const [field, get] of fields) {
@@ -66,7 +70,7 @@ const sectionDiff = <T>(
   as: ReadonlyArray<T>,
   bs: ReadonlyArray<T>,
   key: (x: T) => string,
-  fields: ReadonlyArray<readonly [string, (x: T) => unknown]>
+  fields: ReadonlyArray<readonly [string, (x: T) => FieldValue]>
 ): SectionDiff => {
   const aMap = new Map(as.map((x) => [key(x), x]))
   const bMap = new Map(bs.map((x) => [key(x), x]))

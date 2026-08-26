@@ -5,6 +5,8 @@ export {
   parseXlsxWireList,
   wireListColumnMapJson,
   type ImportRowResult,
+  type JsonObject,
+  type JsonValue,
   type ParsedWireList,
   type WireListColumnMap,
   type WireListImportOptions,

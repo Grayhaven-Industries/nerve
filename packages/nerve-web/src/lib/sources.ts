@@ -13,6 +13,7 @@
  * legacy callers speak entry-file).
  */
 import { Debouncer } from "@tanstack/pacer"
+import { jsonString, parseJson } from "./json.js"
 import motorControllerSource from "../../../../examples/motor-controller/src/main.harness.ts?raw"
 import motorControllerLongSource from "../../../../examples/motor-controller/src/variants/long.ts?raw"
 import sensorSpliceSource from "../../../../examples/sensor-splice/src/main.harness.ts?raw"
@@ -42,18 +43,20 @@ export default harness("my-harness", {
 })
 `
 
-const initial: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  "motor-controller": {
-    [ENTRY_FILE]: motorControllerSource,
-    // The §8.4 SKU variant: imports ../main.harness.js — the multi-file
-    // resolution proof case (compiles via CLI jiti AND the web sandbox).
-    "/variants/long.ts": motorControllerLongSource
-  },
-  "sensor-splice": { [ENTRY_FILE]: sensorSpliceSource },
-  "robot-platform": { [ENTRY_FILE]: robotPlatformSource },
-  // The user's scratch pad — starter baseline, persisted like any edit.
-  scratch: { [ENTRY_FILE]: SCRATCH_STARTER }
-}
+const initial = new Map<string, Readonly<Record<string, string>>>(
+  Object.entries({
+    "motor-controller": {
+      [ENTRY_FILE]: motorControllerSource,
+      // The §8.4 SKU variant: imports ../main.harness.js — the multi-file
+      // resolution proof case (compiles via CLI jiti AND the web sandbox).
+      "/variants/long.ts": motorControllerLongSource
+    },
+    "sensor-splice": { [ENTRY_FILE]: sensorSpliceSource },
+    "robot-platform": { [ENTRY_FILE]: robotPlatformSource },
+    // The user's scratch pad — starter baseline, persisted like any edit.
+    scratch: { [ENTRY_FILE]: SCRATCH_STARTER }
+  })
+)
 
 const edited = new Map<string, string>() // `${projectId} ${path}` → source
 
@@ -78,7 +81,7 @@ const store = (projectId: string): Storage =>
 const writePersist = (projectId: string, path: string, source: string): void => {
   try {
     // Edits matching the bundled source don't need persisting.
-    if (source === initial[projectId]?.[path]) {
+    if (source === initial.get(projectId)?.[path]) {
       store(projectId).removeItem(storageKey(projectId, path))
     } else {
       store(projectId).setItem(storageKey(projectId, path), source)
@@ -115,7 +118,7 @@ const fromStorage = (projectId: string, path: string): string | undefined => {
  * project does not — its only source is the URL fragment, so "Reset"
  * would wipe it to an empty string irrecoverably. */
 export const hasBundledSource = (projectId: string): boolean =>
-  initial[projectId] !== undefined
+  initial.has(projectId)
 
 // Projects with no bundled baseline (the shared project, opened from a
 // link) register their file set here so tabs/compile see every file.
@@ -131,9 +134,10 @@ const hydrateShared = (): void => {
   try {
     const raw = sessionStorage.getItem(SHARED_FILES_KEY)
     if (raw === null) return
-    const paths = JSON.parse(raw) as unknown
-    if (Array.isArray(paths) && paths.every((p): p is string => typeof p === "string")) {
-      registered.set("shared", paths)
+    const paths = parseJson(raw)
+    if (Array.isArray(paths)) {
+      const files = paths.map(jsonString)
+      if (files.every((p): p is string => p !== undefined)) registered.set("shared", files)
     }
   } catch {
     // Privacy-mode/parse failures degrade to the pre-reload behavior.
@@ -169,7 +173,7 @@ export const registerProjectFiles = (
 /** Project file listing, entry first (stable order for tabs). */
 export const listFiles = (projectId: string): ReadonlyArray<string> => {
   if (projectId === "shared") hydrateShared()
-  const paths = Object.keys(initial[projectId] ?? {})
+  const paths = Object.keys(initial.get(projectId) ?? {})
   const registeredPaths = registered.get(projectId) ?? []
   const all = new Set([ENTRY_FILE, ...paths, ...registeredPaths])
   return [ENTRY_FILE, ...[...all].filter((p) => p !== ENTRY_FILE).sort()]
@@ -178,13 +182,13 @@ export const listFiles = (projectId: string): ReadonlyArray<string> => {
 export const getFileSource = (projectId: string, path: string): string =>
   edited.get(editKey(projectId, path)) ??
   fromStorage(projectId, path) ??
-  initial[projectId]?.[path] ??
+  initial.get(projectId)?.[path] ??
   ""
 
 /** The bundled baseline for one file; "" for files with no bundled source
  * (the shared project's, which are dirty the moment they hold any text). */
 const baselineSource = (projectId: string, path: string): string =>
-  initial[projectId]?.[path] ?? ""
+  initial.get(projectId)?.[path] ?? ""
 
 // The dirty set for a project, seeded on first use. The seed is the same
 // full scan `isDirty` used to run, but it runs ONCE per project instead of
@@ -248,7 +252,7 @@ const notify = (projectId: string, origin: SourceOrigin): void => {
 // Multi-tab sync: without this, two tabs on one project silently clobber
 // each other through the debounced localStorage writer (last writer wins).
 const channel =
-  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("nerve-sources") : undefined
+  globalThis.BroadcastChannel !== undefined ? new BroadcastChannel("nerve-sources") : undefined
 if (channel !== undefined) {
   channel.onmessage = (
     e: MessageEvent<{ projectId: string; path?: string; source: string }>
@@ -292,5 +296,5 @@ export const resetSource = (projectId: string): string => {
   }
   // Every file is back to its baseline by construction, so the set is empty.
   dirtyPaths.set(projectId, new Set())
-  return initial[projectId]?.[ENTRY_FILE] ?? ""
+  return initial.get(projectId)?.[ENTRY_FILE] ?? ""
 }

@@ -15,6 +15,15 @@ import { isPinEndpoint, type Hir, type HirConnector, type HirWire } from "@grayh
 import { renderSvg, textWidth, type DrawItem, type Drawing } from "./drawing.js"
 
 const CAV_R = 9
+
+/** data-* attributes for a cavity: the wire lands only when one is populated. */
+type CavityData = { connector: string; pin: string; wire?: string }
+
+const cavityData = (connector: string, pin: string, wire: HirWire | undefined): CavityData => {
+  const data: CavityData = { connector, pin }
+  if (wire !== undefined) data.wire = wire.id
+  return data
+}
 const PITCH = 26
 const CARD_PAD = 18
 const HEADER = 46
@@ -116,7 +125,7 @@ export const pinoutDrawing = (hir: Hir): Drawing => {
       { kind: "text", x: MARGIN + 12, y: y + 36, text: headerText, size: 10, fill: "#777" }
     )
 
-    const cavCenter = (cv: CavityInfo): { x: number; y: number } => ({
+    const cavCenter = (cv: CavityInfo) => ({
       x: gridX + cv.col * PITCH + PITCH / 2,
       y: gridY + cv.row * PITCH + PITCH / 2
     })
@@ -125,11 +134,7 @@ export const pinoutDrawing = (hir: Hir): Drawing => {
     for (const cv of cavities) {
       const { x: cx, y: cy } = cavCenter(cv)
       const populated = cv.wire !== undefined
-      const data = {
-        connector: c.ref,
-        pin: cv.pin,
-        ...(cv.wire !== undefined ? { wire: cv.wire.id } : {})
-      }
+      const data = cavityData(c.ref, cv.pin, cv.wire)
       items.push(
         {
           kind: "path",
@@ -167,11 +172,7 @@ export const pinoutDrawing = (hir: Hir): Drawing => {
           ? gridY - 10 - levelIdx * LABEL_H
           : gridY + gridH + 10 + levelIdx * LABEL_H
       const startY = dir === "up" ? cy - CAV_R : cy + CAV_R
-      const data = {
-        connector: c.ref,
-        pin: cv.pin,
-        ...(cv.wire !== undefined ? { wire: cv.wire.id } : {})
-      }
+      const data = cavityData(c.ref, cv.pin, cv.wire)
       items.push(
         // cavity → lane (short, stays inside the column), lane vertical to
         // the label level, then horizontal to the label.

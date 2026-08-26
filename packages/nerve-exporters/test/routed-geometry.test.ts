@@ -64,7 +64,7 @@ const unroutedHir = compileDesign(design).hir
 /** An L in the XY plane: 300 across, 200 up, 500 of centerline against a
  * `nominalLength` of 420 — a drawing that still believes the asserted number
  * is impossible to mistake for one that measured the route. */
-const L_SHAPE: ReadonlyArray<Point3> = [
+const L_ROUTE: ReadonlyArray<Point3> = [
   { x: 0, y: 0, z: 0 },
   { x: 300, y: 0, z: 0 },
   { x: 300, y: 200, z: 0 }
@@ -84,19 +84,13 @@ const STRAIGHT_3D: ReadonlyArray<Point3> = [
  * `routedMinBendRadius` omitted rather than zeroed for a straight run. */
 const route = (hir: Hir, id: string, waypoints: ReadonlyArray<Point3>): Hir => {
   const radius = minBendRadius(waypoints)
+  const routed = (b: HirBranch): HirBranch =>
+    radius !== undefined
+      ? { ...b, waypoints, routedLength: polylineLength(waypoints), routedMinBendRadius: radius }
+      : { ...b, waypoints, routedLength: polylineLength(waypoints) }
   return {
     ...hir,
-    branches: hir.branches.map(
-      (b): HirBranch =>
-        b.id === id
-          ? {
-              ...b,
-              waypoints,
-              routedLength: polylineLength(waypoints),
-              ...(radius !== undefined ? { routedMinBendRadius: radius } : {})
-            }
-          : b
-    )
+    branches: hir.branches.map((b): HirBranch => (b.id === id ? routed(b) : b))
   }
 }
 
@@ -171,14 +165,14 @@ describe("unrouted branches (the common case) are untouched", () => {
 })
 
 describe("a routed trunk is drawn along its centerline", () => {
-  const hir = route(unroutedHir, "trunk", L_SHAPE)
+  const hir = route(unroutedHir, "trunk", L_ROUTE)
 
   it("follows the projected waypoints, not the topological run", () => {
     const points = trunkPoints(hir, "trunk")
-    expect(points).toHaveLength(L_SHAPE.length)
+    expect(points).toHaveLength(L_ROUTE.length)
     // Segment for segment, the drawing is the route.
     for (const [i, drawn] of segmentLengths(points).entries()) {
-      expect(drawn).toBeCloseTo(segmentLengths(L_SHAPE)[i]!, MM_DIGITS)
+      expect(drawn).toBeCloseTo(segmentLengths(L_ROUTE)[i]!, MM_DIGITS)
     }
     // ...and so it is NOT the 420 straight run the topology would have drawn.
     expect(polylineLength(points)).toBeCloseTo(500, MM_DIGITS)
@@ -199,7 +193,7 @@ describe("a routed trunk is drawn along its centerline", () => {
 
   it("hangs the connector nodes off the routed path, not off nominalLength", () => {
     const drawing = boardDrawing(hir)
-    const nodeAt = (ref: string): { readonly x: number; readonly y: number } => {
+    const nodeAt = (ref: string) => {
       const text = drawing.items.find(
         (i): i is Extract<typeof i, { kind: "text" }> => i.kind === "text" && i.text === ref
       )!
@@ -217,7 +211,7 @@ describe("a routed trunk is drawn along its centerline", () => {
 
 describe("annotated length says which kind of number it is", () => {
   it("prefers routedLength and marks it as measured", () => {
-    const svg = boardSvg(route(unroutedHir, "trunk", L_SHAPE))
+    const svg = boardSvg(route(unroutedHir, "trunk", L_ROUTE))
     expect(svg).toContain("500 mm routed")
     expect(svg).toContain('data-length-source="routed"')
     // The trunk's asserted 420 is no longer presented as its length...
@@ -235,9 +229,9 @@ describe("annotated length says which kind of number it is", () => {
   })
 
   it("reports the routed bend radius when there is one", () => {
-    const radius = minBendRadius(L_SHAPE)!
+    const radius = minBendRadius(L_ROUTE)!
     expect(radius).toBeGreaterThan(0)
-    expect(boardSvg(route(unroutedHir, "trunk", L_SHAPE))).toContain(
+    expect(boardSvg(route(unroutedHir, "trunk", L_ROUTE))).toContain(
       `min bend R ${Math.round(radius * 10) / 10} mm`
     )
   })
@@ -273,7 +267,7 @@ describe("a straight routed run renders cleanly", () => {
 
 describe("determinism", () => {
   for (const [name, waypoints] of [
-    ["planar L", L_SHAPE],
+    ["planar L", L_ROUTE],
     ["straight 3D", STRAIGHT_3D]
   ] as const) {
     it(`same HIR twice, same bytes for both views (${name})`, () => {
@@ -296,7 +290,7 @@ describe("formboard sheets stay 1:1 for a routed branch", () => {
   // paper — that is what the unroll trades away — and the foreshortening test
   // below pins the trade down so a switch to a plane projection fails here.
   it("prints one sheet unit per millimetre", () => {
-    const sheet = formboardSheets(route(unroutedHir, "trunk", L_SHAPE), {
+    const sheet = formboardSheets(route(unroutedHir, "trunk", L_ROUTE), {
       paper: "letter"
     }).sheets[0]!
     const m = /width="([\d.]+)mm"[^>]*viewBox="[\d.-]+ [\d.-]+ ([\d.]+) /.exec(sheet.svg)!
@@ -304,7 +298,7 @@ describe("formboard sheets stay 1:1 for a routed branch", () => {
   })
 
   for (const [name, waypoints] of [
-    ["planar L", L_SHAPE],
+    ["planar L", L_ROUTE],
     ["straight 3D", STRAIGHT_3D]
   ] as const) {
     it(`drawn path length equals routedLength (${name})`, () => {
@@ -333,7 +327,7 @@ describe("formboard sheets stay 1:1 for a routed branch", () => {
   })
 
   it("says on the page which projection the template is", () => {
-    for (const sheet of formboardSheets(route(unroutedHir, "trunk", L_SHAPE), { paper: "letter" })
+    for (const sheet of formboardSheets(route(unroutedHir, "trunk", L_ROUTE), { paper: "letter" })
       .sheets) {
       expect(sheet.svg).toContain("arc-length unroll, 1:1 along the path only")
     }

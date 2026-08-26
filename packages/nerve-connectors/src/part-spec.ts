@@ -75,14 +75,14 @@ let mpnIndexCache: ReadonlyMap<string, string> | undefined
 const mpnIndex = (): ReadonlyMap<string, string> =>
   (mpnIndexCache ??= new Map(Object.keys(allParts).map((mpn) => [mpn.toLowerCase(), mpn])))
 
+const isSpecName = (s: string): s is PartSpecName => Object.hasOwn(SPECS, s)
+const isLibraryMpn = (s: string): s is keyof typeof allParts => Object.hasOwn(allParts, s)
+
 /** Resolve a compact spec or a raw MPN to a library part. Throws with the menu on a miss. */
 export const part = (spec: AutocompleteString<PartSpecName>): ConnectorPart => {
   const normalized = normalizeSpec(spec)
-  const mpn =
-    (SPECS as Readonly<Record<string, string>>)[normalized] ??
-    mpnIndex().get(normalized) ??
-    spec
-  const found = allParts[mpn]
+  const mpn = isSpecName(normalized) ? SPECS[normalized] : (mpnIndex().get(normalized) ?? spec)
+  const found = isLibraryMpn(mpn) ? allParts[mpn] : undefined
   if (found === undefined) {
     // The full menu + the verbatim input is a TESTED error contract —
     // agents and humans recover from it without reading source.
@@ -94,7 +94,7 @@ export const part = (spec: AutocompleteString<PartSpecName>): ConnectorPart => {
 }
 
 /** Every compact spec and its MPN, for docs and tooling. */
-export const partSpecs: Readonly<Record<string, string>> = SPECS
+export const partSpecs = SPECS
 
 export interface PartInfo {
   /** Compact spec(s) that resolve to this part, shortest first. */

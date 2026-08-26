@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { globSync } from "node:fs"
 import { describe, expect, it } from "vitest"
+import { parsePackageManifest } from "../scripts/json.js"
 
 const ROOT = join(import.meta.dirname, "..")
 
@@ -19,11 +20,7 @@ describe("release integrity", () => {
     const pkgs = globSync("packages/*/package.json", { cwd: ROOT })
     expect(pkgs.length).toBeGreaterThanOrEqual(8)
     for (const rel of pkgs) {
-      const pkg = JSON.parse(readFileSync(join(ROOT, rel), "utf8")) as {
-        name: string
-        version?: string
-        private?: boolean
-      }
+      const pkg = parsePackageManifest(readFileSync(join(ROOT, rel), "utf8"))
       if (pkg.version === undefined) continue
       // The lockfile records each workspace as: "name": "<name>",\n "version": "<v>"
       const block = new RegExp(

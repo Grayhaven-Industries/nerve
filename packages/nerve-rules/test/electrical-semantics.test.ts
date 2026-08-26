@@ -28,14 +28,15 @@ const semanticNet = (
   left?: PinElectrical,
   right?: PinElectrical
 ): Hir => {
-  const a = connector("J1", part, {
-    pins: { 1: "NET" },
-    ...(left !== undefined ? { electrical: { 1: left } } : {})
-  })
-  const b = connector("J2", part, {
-    pins: { 1: "NET" },
-    ...(right !== undefined ? { electrical: { 1: right } } : {})
-  })
+  const pins = { 1: "NET" }
+  const a =
+    left !== undefined
+      ? connector("J1", part, { pins, electrical: { 1: left } })
+      : connector("J1", part, { pins })
+  const b =
+    right !== undefined
+      ? connector("J2", part, { pins, electrical: { 1: right } })
+      : connector("J2", part, { pins })
   return compileDesign(
     harness("electrical-semantics", {
       revision: "A",
@@ -122,16 +123,21 @@ describe("typed electrical semantic rules", () => {
       expect(finding).toBeDefined()
 
       const diagnostics = runRules(fixture.hir, [fixture.rule])
-      expect(diagnostics).toEqual([
-        {
-          code: fixture.code,
-          severity: fixture.severity,
-          message: finding!.message,
-          target: finding!.pins[0],
-          ...(finding!.pins.length > 1 ? { targets: finding!.pins.slice(1) } : {}),
-          ...(finding!.data !== undefined ? { data: finding!.data } : {})
-        }
-      ])
+      expect(diagnostics).toHaveLength(1)
+      const [diagnostic] = diagnostics
+      expect(diagnostic?.code).toBe(fixture.code)
+      expect(diagnostic?.severity).toBe(fixture.severity)
+      expect(diagnostic?.message).toBe(finding!.message)
+      expect(diagnostic?.target).toBe(finding!.pins[0])
+      // Absent keys, not `undefined` ones: a second pin becomes `targets`, and
+      // `data` rides along only when the analyzer attached some.
+      const keys = Object.keys(diagnostic ?? {}).sort()
+      const expectedKeys = ["code", "message", "severity", "target"]
+      if (finding!.pins.length > 1) expectedKeys.push("targets")
+      if (finding!.data !== undefined) expectedKeys.push("data")
+      expect(keys).toEqual(expectedKeys.sort())
+      expect(diagnostic?.targets).toEqual(finding!.pins.length > 1 ? finding!.pins.slice(1) : undefined)
+      expect(diagnostic?.data).toEqual(finding!.data)
     })
   }
 

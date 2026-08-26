@@ -56,9 +56,9 @@ export const reviewStates: ReadonlyArray<ReviewState> = ReviewState.literals
  * fails to compile here until someone decides what may follow it, which is
  * the decision that should never be made by omission.
  */
-export const reviewTransitions: {
-  readonly [S in ReviewState]: ReadonlyArray<ReviewState>
-} = {
+export type ReviewTransitions = { readonly [S in ReviewState]: ReadonlyArray<ReviewState> }
+
+export const reviewTransitions: ReviewTransitions = {
   /**
    * A clean import skips `import-needs-attention` — that state describes an
    * import that needs a human, not a stage every submission passes through.
@@ -655,7 +655,10 @@ export const evidenceReuseAllowed = (
  * generated from. BOM outranks manufacturing and test because a wrong part is
  * bought and installed before any downstream check runs.
  */
-const domainRisk: { readonly [D in RevisionDomain]: number } = {
+type DomainWeights = { readonly [D in RevisionDomain]: number }
+type DomainCounts = { [D in RevisionDomain]: number }
+
+const domainRisk: DomainWeights = {
   "interface-contract": 5,
   engineering: 4,
   bom: 3,
@@ -671,7 +674,9 @@ const domainRisk: { readonly [D in RevisionDomain]: number } = {
  * ranks lowest of the real changes: it brings new evidence to review, but it
  * invalidates none of the evidence already approved.
  */
-const kindRisk: { readonly [K in RevisionChangeKind]: number } = {
+type KindWeights = { readonly [K in RevisionChangeKind]: number }
+
+const kindRisk: KindWeights = {
   removed: 3,
   changed: 2,
   added: 1,
@@ -746,7 +751,7 @@ export const diffRevisions = (
       (left.ref < right.ref ? -1 : left.ref > right.ref ? 1 : 0)
   )
 
-  const changedByDomain: { [D in RevisionDomain]: number } = {
+  const changedByDomain: DomainCounts = {
     engineering: 0,
     manufacturing: 0,
     test: 0,

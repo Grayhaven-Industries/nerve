@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
+import { Schema } from "effect"
 import { startDev } from "@grayhaven/nerve-cli"
 
 const FIXTURE = join(
@@ -21,15 +22,22 @@ const sink = () => {
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
+/** What /state.json reports, decoded at the fetch boundary. */
+const DevState = Schema.Struct({
+  fingerprint: Schema.String,
+  errors: Schema.Number,
+  warnings: Schema.Number,
+  compileError: Schema.optionalWith(Schema.String, { exact: true })
+})
+const readState = async (url: string) =>
+  Schema.decodeUnknownSync(DevState)(await (await fetch(`${url}/state.json`)).json())
+
 describe("nerve dev server", () => {
   it("serves live views, reports state, and picks up edits (fresh module cache)", async () => {
     const io = sink()
     const dev = await startDev(harnessPath, { io, port: 0 })
     try {
-      const state1 = (await (await fetch(`${dev.url}/state.json`)).json()) as {
-        fingerprint: string
-        errors: number
-      }
+      const state1 = await readState(dev.url)
       expect(state1.fingerprint).not.toBe("")
       expect(state1.errors).toBe(0)
 
@@ -49,9 +57,7 @@ describe("nerve dev server", () => {
         readFileSync(harnessPath, "utf8").replace('revision: "A"', 'revision: "B"')
       )
       await dev.rebuild()
-      const state2 = (await (await fetch(`${dev.url}/state.json`)).json()) as {
-        fingerprint: string
-      }
+      const state2 = await readState(dev.url)
       expect(state2.fingerprint).not.toBe(state1.fingerprint)
       const html = await (await fetch(`${dev.url}/`)).text()
       expect(html).toContain("rev B")
@@ -64,16 +70,11 @@ describe("nerve dev server", () => {
     const io = sink()
     const dev = await startDev(harnessPath, { io, port: 0 })
     try {
-      const good = (await (await fetch(`${dev.url}/state.json`)).json()) as {
-        fingerprint: string
-      }
+      const good = await readState(dev.url)
       const source = readFileSync(harnessPath, "utf8")
       writeFileSync(harnessPath, source + "\nthis is not typescript at all (")
       await dev.rebuild()
-      const state = (await (await fetch(`${dev.url}/state.json`)).json()) as {
-        fingerprint: string
-        compileError?: string
-      }
+      const state = await readState(dev.url)
       expect(state.compileError).toBeDefined()
       // Last good render stays up.
       expect(state.fingerprint).toBe(good.fingerprint)
@@ -81,9 +82,7 @@ describe("nerve dev server", () => {
       // Recovery: restore the file, rebuild, error clears.
       writeFileSync(harnessPath, source)
       await dev.rebuild()
-      const recovered = (await (await fetch(`${dev.url}/state.json`)).json()) as {
-        compileError?: string
-      }
+      const recovered = await readState(dev.url)
       expect(recovered.compileError).toBeUndefined()
     } finally {
       await dev.close()
@@ -97,7 +96,7 @@ describe("nerve dev server", () => {
     const io = sink()
     const dev = await startDev(harnessPath, { io, port: 0 })
     try {
-      const before = (await (await fetch(`${dev.url}/state.json`)).json()) as { fingerprint: string }
+      const before = await readState(dev.url)
       // Change the revision regardless of its current value (earlier tests
       // share this fixture) so the HIR — and thus the fingerprint — moves.
       const src = readFileSync(harnessPath, "utf8")
@@ -106,7 +105,7 @@ describe("nerve dev server", () => {
       let after = before
       for (let i = 0; i < 80 && after.fingerprint === before.fingerprint; i++) {
         await new Promise((r) => setTimeout(r, 100))
-        after = (await (await fetch(`${dev.url}/state.json`)).json()) as { fingerprint: string }
+        after = await readState(dev.url)
       }
       expect(after.fingerprint).not.toBe(before.fingerprint)
       expect(await (await fetch(`${dev.url}/`)).text()).toContain("rev WATCH")

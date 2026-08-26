@@ -16,6 +16,7 @@
 import type { Hir } from "@grayhaven/nerve"
 import { generateTestPlan, type HarnessTest } from "./test-plan.js"
 import type { Release } from "./release.js"
+import { draft } from "./draft.js"
 
 export interface Measurement {
   readonly id: string
@@ -136,10 +137,13 @@ const judgeLengths = (
       }
       const tolerance = wires.get(obs.wire)?.lengthTolerance ?? defaultLengthTolerance
       const delta = obs.measuredLength - designLength
-      return {
+      const design = draft<Pick<LengthVerdict, "wire" | "designLength" | "tolerance">>({
         wire: obs.wire,
-        designLength,
-        ...(tolerance !== undefined ? { tolerance } : {}),
+        designLength
+      })
+      if (tolerance !== undefined) design.tolerance = tolerance
+      return {
+        ...design,
         measuredLength: obs.measuredLength,
         delta,
         verdict: Math.abs(delta) <= (tolerance ?? 0) ? "in-tolerance" : "out-of-tolerance"
@@ -179,17 +183,30 @@ export const createBuildRecord = (
     options.lengths !== undefined
       ? judgeLengths(hir, options.lengths, options.defaultLengthTolerance)
       : undefined
-  return {
+  // Assembled in serialized key order: each optional field is added only
+  // when present, in the position the record has always carried it.
+  const identity = draft<
+    Pick<BuildRecord, "recordVersion" | "release" | "hirFingerprint" | "serial" | "lot">
+  >({
     recordVersion: "0.1.0",
     release: release.releaseId,
     hirFingerprint: release.hirFingerprint,
-    serial: options.serial,
-    ...(options.lot !== undefined ? { lot: options.lot } : {}),
-    operator: options.operator,
-    ...(options.workstation !== undefined ? { workstation: options.workstation } : {}),
-    buildDate: options.buildDate,
-    ...(options.materialLots !== undefined ? { materialLots: options.materialLots } : {}),
-    ...(options.tools !== undefined ? { tools: options.tools } : {}),
+    serial: options.serial
+  })
+  if (options.lot !== undefined) identity.lot = options.lot
+  const station = draft<Pick<BuildRecord, "operator" | "workstation">>({
+    operator: options.operator
+  })
+  if (options.workstation !== undefined) station.workstation = options.workstation
+  const materials = draft<Pick<BuildRecord, "buildDate" | "materialLots" | "tools">>({
+    buildDate: options.buildDate
+  })
+  if (options.materialLots !== undefined) materials.materialLots = options.materialLots
+  if (options.tools !== undefined) materials.tools = options.tools
+  const record = draft<BuildRecord>({
+    ...identity,
+    ...station,
+    ...materials,
     testProgramVersion: `${release.releaseId}#${plan.tests.length}`,
     results,
     summary: {
@@ -197,20 +214,19 @@ export const createBuildRecord = (
       fail,
       notRun,
       status: fail > 0 ? "fail" : notRun > 0 ? "incomplete" : "pass"
-    },
-    ...(lengths !== undefined
-      ? {
-          lengths,
-          lengthSummary: {
-            inTolerance: lengths.filter((l) => l.verdict === "in-tolerance").length,
-            outOfTolerance: lengths.filter((l) => l.verdict === "out-of-tolerance").length,
-            noDesignLength: lengths.filter((l) => l.verdict === "no-design-length").length
-          }
-        }
-      : {}),
-    ...(options.rework !== undefined ? { rework: options.rework } : {}),
-    ...(options.deviations !== undefined ? { deviations: options.deviations } : {})
+    }
+  })
+  if (lengths !== undefined) {
+    record.lengths = lengths
+    record.lengthSummary = {
+      inTolerance: lengths.filter((l) => l.verdict === "in-tolerance").length,
+      outOfTolerance: lengths.filter((l) => l.verdict === "out-of-tolerance").length,
+      noDesignLength: lengths.filter((l) => l.verdict === "no-design-length").length
+    }
   }
+  if (options.rework !== undefined) record.rework = options.rework
+  if (options.deviations !== undefined) record.deviations = options.deviations
+  return record
 }
 
 export const buildRecordJson = (record: BuildRecord): string =>

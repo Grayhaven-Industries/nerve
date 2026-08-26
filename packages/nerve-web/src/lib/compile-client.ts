@@ -103,10 +103,8 @@ export const compileSource = (
   if (source === undefined && !isDirty(projectId) && hasBundledDesign(projectId)) {
     return requestCompile(projectId, {}, signal)
   }
-  const fsMap = {
-    ...getFiles(projectId),
-    ...(source !== undefined ? { [ENTRY_FILE]: source } : {})
-  }
+  const files = getFiles(projectId)
+  const fsMap = source === undefined ? files : { ...files, [ENTRY_FILE]: source }
   return requestCompile(projectId, { fsMap, entrypoint: ENTRY_FILE }, signal)
 }
 
@@ -151,13 +149,11 @@ export const exportPacket = (projectId: string): Promise<Uint8Array> =>
   new Promise((resolve, reject) => {
     const id = ++nextId
     pendingExports.set(id, { resolve, reject })
-    getWorker().postMessage({
-      id,
-      kind: "export",
-      projectId,
-      // Exports are entry-based; the fsMap rides along for cross-file imports.
-      ...(isDirty(projectId) ? { fsMap: getFiles(projectId), entrypoint: ENTRY_FILE } : {})
-    } satisfies CompileRequest)
+    // Exports are entry-based; the fsMap rides along for cross-file imports.
+    const request: CompileRequest = isDirty(projectId)
+      ? { id, kind: "export", projectId, fsMap: getFiles(projectId), entrypoint: ENTRY_FILE }
+      : { id, kind: "export", projectId }
+    getWorker().postMessage(request)
   })
 
 export const compileKeys = {

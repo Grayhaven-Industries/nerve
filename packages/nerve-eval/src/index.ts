@@ -35,30 +35,56 @@ export interface EvalManifest {
   readonly cases: ReadonlyArray<EvalCase>
 }
 
-const record = (value: unknown, path: string): Record<string, unknown> => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${path} must be an object.`)
-  }
-  return value as Record<string, unknown>
+/**
+ * A parsed JSON document, as `JSON.parse` yields it. The manifest decoder
+ * accepts nothing wider: every field is read off one of these members.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ReadonlyArray<JsonValue>
+  | JsonObject
+
+export interface JsonObject {
+  readonly [key: string]: JsonValue
 }
 
-const string = (value: unknown, path: string): string => {
-  if (typeof value !== "string" || value.trim() === "") {
+/** `Object(x) === x` holds for every object and no primitive. */
+const isJsonObject = (value: JsonValue): value is JsonObject =>
+  Object(value) === value && !Array.isArray(value)
+
+const isJsonArray = (value: JsonValue): value is ReadonlyArray<JsonValue> =>
+  Array.isArray(value)
+
+/** Strict equality against its own string form singles out the strings. */
+const isJsonString = (value: JsonValue): value is string => value === String(value)
+
+/** Only numbers satisfy either predicate; `Number.isFinite` never coerces. */
+const isJsonNumber = (value: JsonValue): value is number =>
+  Number.isFinite(value) || Number.isNaN(value)
+
+const record = (value: JsonValue | undefined, path: string): JsonObject => {
+  if (value === undefined || !isJsonObject(value)) {
+    throw new Error(`${path} must be an object.`)
+  }
+  return value
+}
+
+const string = (value: JsonValue | undefined, path: string): string => {
+  if (value === undefined || !isJsonString(value) || value.trim() === "") {
     throw new Error(`${path} must be a non-empty string.`)
   }
   return value
 }
 
-const array = (value: unknown, path: string): ReadonlyArray<unknown> => {
-  if (!Array.isArray(value)) throw new Error(`${path} must be an array.`)
+const array = (value: JsonValue | undefined, path: string): ReadonlyArray<JsonValue> => {
+  if (value === undefined || !isJsonArray(value)) throw new Error(`${path} must be an array.`)
   return value
 }
 
-const onlyKeys = (
-  value: Readonly<Record<string, unknown>>,
-  allowed: ReadonlyArray<string>,
-  path: string
-): void => {
+const onlyKeys = (value: JsonObject, allowed: ReadonlyArray<string>, path: string): void => {
   const allowedSet = new Set(allowed)
   const unknown = Object.keys(value).filter((key) => !allowedSet.has(key))
   if (unknown.length > 0) {
@@ -66,10 +92,10 @@ const onlyKeys = (
   }
 }
 
-const optionalString = (value: unknown, path: string): string | undefined =>
+const optionalString = (value: JsonValue | undefined, path: string): string | undefined =>
   value === undefined ? undefined : string(value, path)
 
-const assertion = (value: unknown, path: string): EvalAssertion => {
+const assertion = (value: JsonValue | undefined, path: string): EvalAssertion => {
   const input = record(value, path)
   onlyKeys(input, ["code", "target", "minimumCount"], path)
   const code = string(input["code"], `${path}.code`)
@@ -80,18 +106,16 @@ const assertion = (value: unknown, path: string): EvalAssertion => {
   const count = input["minimumCount"]
   if (
     count !== undefined &&
-    (typeof count !== "number" || !Number.isInteger(count) || count < 1)
+    (!isJsonNumber(count) || !Number.isInteger(count) || count < 1)
   ) {
     throw new Error(`${path}.minimumCount must be a positive integer.`)
   }
-  return {
-    code,
-    ...(target !== undefined ? { target } : {}),
-    ...(count !== undefined ? { minimumCount: Number(count) } : {})
-  }
+  const coded = { code }
+  const targeted = target === undefined ? coded : { ...coded, target }
+  return count === undefined ? targeted : { ...targeted, minimumCount: count }
 }
 
-const provenance = (value: unknown, path: string): EvalProvenance => {
+const provenance = (value: JsonValue | undefined, path: string): EvalProvenance => {
   const input = record(value, path)
   onlyKeys(input, ["kind", "source", "rights", "reviewedByRole", "reviewedOn"], path)
   const kind = string(input["kind"], `${path}.kind`)
@@ -112,16 +136,12 @@ const provenance = (value: unknown, path: string): EvalProvenance => {
       `${path} must name reviewedByRole and reviewedOn before a case can be field-verified.`
     )
   }
-  return {
-    kind,
-    source: string(input["source"], `${path}.source`),
-    rights,
-    ...(reviewedByRole !== undefined ? { reviewedByRole } : {}),
-    ...(reviewedOn !== undefined ? { reviewedOn } : {})
-  }
+  const sourced: EvalProvenance = { kind, source: string(input["source"], `${path}.source`), rights }
+  const reviewed = reviewedByRole === undefined ? sourced : { ...sourced, reviewedByRole }
+  return reviewedOn === undefined ? reviewed : { ...reviewed, reviewedOn }
 }
 
-const evalCase = (value: unknown, path: string): EvalCase => {
+const evalCase = (value: JsonValue | undefined, path: string): EvalCase => {
   const input = record(value, path)
   onlyKeys(
     input,
@@ -156,19 +176,19 @@ const evalCase = (value: unknown, path: string): EvalCase => {
   if (expected.length === 0 && (forbidden?.length ?? 0) === 0) {
     throw new Error(`${path} must contain at least one expected or forbidden finding.`)
   }
-  return {
+  const described = {
     id,
     title: string(input["title"], `${path}.title`),
     fixture,
     rationale: string(input["rationale"], `${path}.rationale`),
     provenance: provenance(input["provenance"], `${path}.provenance`),
-    expectedFindings: expected,
-    ...(forbidden !== undefined ? { forbiddenFindings: forbidden } : {})
+    expectedFindings: expected
   }
+  return forbidden === undefined ? described : { ...described, forbiddenFindings: forbidden }
 }
 
 /** Decode an untrusted JSON manifest before any fixture module is executed. */
-export const decodeEvalManifest = (value: unknown): EvalManifest => {
+export const decodeEvalManifest = (value: JsonValue): EvalManifest => {
   const input = record(value, "manifest")
   onlyKeys(input, ["$schema", "corpusVersion", "cases"], "manifest")
   if (input["corpusVersion"] !== "0.1.0") {
@@ -183,11 +203,8 @@ export const decodeEvalManifest = (value: unknown): EvalManifest => {
     ids.add(testCase.id)
   }
   const schema = optionalString(input["$schema"], "manifest.$schema")
-  return {
-    ...(schema !== undefined ? { $schema: schema } : {}),
-    corpusVersion: "0.1.0",
-    cases
-  }
+  const versioned = { corpusVersion: "0.1.0", cases } as const
+  return schema === undefined ? versioned : { $schema: schema, ...versioned }
 }
 
 export interface AssertionResult extends EvalAssertion {
@@ -421,25 +438,25 @@ const marginsSection = (margins: ReadonlyArray<Margin>): ReviewMargins => {
     (lowest, m) => (lowest === undefined || m.margin < lowest.margin ? m : lowest),
     undefined
   )
-  return {
-    summary: {
-      measured: measurements.length,
-      overBudget: measurements.filter((m) => m.margin < 0).length,
-      ...(worst !== undefined
-        ? {
-            worst: {
-              target: worst.target,
-              quantity: worst.quantity,
-              code: worst.code,
-              margin: worst.margin,
-              utilization: worst.utilization,
-              unit: worst.unit
-            }
-          }
-        : {})
-    },
-    measurements
+  const counts = {
+    measured: measurements.length,
+    overBudget: measurements.filter((m) => m.margin < 0).length
   }
+  const summary =
+    worst === undefined
+      ? counts
+      : {
+          ...counts,
+          worst: {
+            target: worst.target,
+            quantity: worst.quantity,
+            code: worst.code,
+            margin: worst.margin,
+            utilization: worst.utilization,
+            unit: worst.unit
+          }
+        }
+  return { summary, measurements }
 }
 
 /**
@@ -457,12 +474,14 @@ const sortedProvenance = (
   }
   return [...byCode.values()]
     .sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
-    .map((entry) => ({
-      code: entry.code,
-      ...(entry.ruleVersion !== undefined ? { ruleVersion: entry.ruleVersion } : {}),
-      ...(entry.standard !== undefined ? { standard: entry.standard } : {}),
-      ...(entry.clause !== undefined ? { clause: entry.clause } : {})
-    }))
+    .map((entry) => {
+      const coded = { code: entry.code }
+      const versioned =
+        entry.ruleVersion === undefined ? coded : { ...coded, ruleVersion: entry.ruleVersion }
+      const governed =
+        entry.standard === undefined ? versioned : { ...versioned, standard: entry.standard }
+      return entry.clause === undefined ? governed : { ...governed, clause: entry.clause }
+    })
 }
 
 export const createReviewReport = (
@@ -479,7 +498,12 @@ export const createReviewReport = (
       a.code.localeCompare(b.code) ||
       a.message.localeCompare(b.message)
   )
-  return {
+  const ruleSet = { ...ruleIdentity, codes: [...new Set(options.rules.codes)].sort() }
+  const rules =
+    ruleProvenance === undefined
+      ? ruleSet
+      : { ...ruleSet, provenance: sortedProvenance(ruleProvenance) }
+  const reviewed = {
     reportVersion: "0.1.0",
     reportType: "deterministic-harness-review",
     source: options.source,
@@ -492,13 +516,7 @@ export const createReviewReport = (
     engine: {
       tool: "@grayhaven/nerve-cli",
       version: options.toolVersion,
-      rules: {
-        ...ruleIdentity,
-        codes: [...new Set(options.rules.codes)].sort(),
-        ...(ruleProvenance !== undefined
-          ? { provenance: sortedProvenance(ruleProvenance) }
-          : {})
-      }
+      rules
     },
     summary: {
       errors: findings.filter((finding) => finding.severity === "error").length,
@@ -506,9 +524,16 @@ export const createReviewReport = (
       info: findings.filter((finding) => finding.severity === "info").length,
       findings: findings.length
     },
-    findings,
-    // Spread so an unsupplied margins option never reaches the output at all.
-    ...(options.margins !== undefined ? { margins: marginsSection(options.margins) } : {}),
+    findings
+  } as const
+  // Added only when supplied, so an unsupplied margins option never reaches
+  // the output at all.
+  const measured =
+    options.margins === undefined
+      ? reviewed
+      : { ...reviewed, margins: marginsSection(options.margins) }
+  return {
+    ...measured,
     limitations: [...(options.limitations ?? [])],
     disclaimer:
       "This report records deterministic checks performed on the supplied facts. It is not a certification and does not replace qualified engineering review."

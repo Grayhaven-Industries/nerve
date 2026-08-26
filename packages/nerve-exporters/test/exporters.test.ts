@@ -252,6 +252,7 @@ describe("manufacturing packet (PRD §9.8)", () => {
 
   it("cover sheet carries revision metadata, not timestamps", async () => {
     const { files } = await buildPacket(hir)
+    // SAFETY: buildPacket writes COVER.txt as a string (coverSheet), never bytes.
     const cover = files.get("COVER.txt") as string
     expect(cover).toContain("Revision:     A")
     expect(cover).not.toMatch(/\d{4}-\d{2}-\d{2}/)

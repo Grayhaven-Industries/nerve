@@ -58,7 +58,9 @@ const absent = (value: string | undefined): boolean =>
   value === undefined || value.trim() === ""
 
 /** How each state reads in a message, so the text stays plain. */
-const stateNames: { readonly [S in Disposition["state"]]: string } = {
+type StateNames = { readonly [S in Disposition["state"]]: string }
+
+const stateNames: StateNames = {
   "fixed-in-new-run": "fixed in new run",
   "accepted-risk": "accepted risk",
   "false-positive": "false positive",

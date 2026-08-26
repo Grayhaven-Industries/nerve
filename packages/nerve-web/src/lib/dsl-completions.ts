@@ -7,7 +7,7 @@
  */
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete"
 import dslMeta from "../docs/dsl-meta.json"
-import partsMeta from "../docs/parts-meta.json"
+import { PARTS_META, type PartMetaRow } from "../docs/parts-meta.js"
 
 const fn = (label: string, detail: string, info: string): Completion => ({
   label,
@@ -41,11 +41,12 @@ const OPTIONS: ReadonlyArray<Completion> = (() => {
   for (const i of dslMeta.interfaces) {
     for (const p of i.props) {
       if (!seen.has(p.name)) {
-        seen.set(p.name, {
-          label: p.name,
-          type: "property",
-          ...(p.doc !== "" ? { info: p.doc } : {})
-        })
+        seen.set(
+          p.name,
+          p.doc === ""
+            ? { label: p.name, type: "property" }
+            : { label: p.name, type: "property", info: p.doc }
+        )
       }
     }
   }
@@ -58,16 +59,8 @@ const OPTIONS: ReadonlyArray<Completion> = (() => {
 // Inside part("…"): complete the spec menu (generated from the shipped
 // library). label=spec, detail=MPN, info=description — the editor teaches
 // the catalog.
-const PART_SPECS: ReadonlyArray<Completion> = (
-  partsMeta as ReadonlyArray<{
-    spec?: string
-    mpn: string
-    family?: string
-    description?: string
-    verification?: string
-  }>
-)
-  .filter((p): p is typeof p & { spec: string } => p.spec !== undefined)
+const PART_SPECS: ReadonlyArray<Completion> = PARTS_META
+  .filter((p): p is PartMetaRow & { readonly spec: string } => p.spec !== undefined)
   .map((p) => ({
     label: p.spec,
     type: "constant",

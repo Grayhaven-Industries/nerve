@@ -39,6 +39,8 @@ describe("Bill of Process (PRD §28)", () => {
   it("covers cut, twist, crimp, populate, sleeve, label, inspect, test", () => {
     const ops = new Set(bop.operations.map((o) => o.op))
     for (const expected of ["cut-strip", "twist", "crimp", "populate", "sleeve", "label", "inspect", "test"]) {
+      // SAFETY: the set holds Operation["op"] literals; the probe is a plain
+      // string on purpose, so a renamed op fails the assertion, not the build.
       expect(ops.has(expected as never), expected).toBe(true)
     }
   })

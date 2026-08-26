@@ -40,19 +40,19 @@ interface NodeOpts {
   readonly on?: string
 }
 
+/** `PinElectrical` with its readonly lifted, so a fixture can add only the
+ * semantics it was asked for. */
+type PinElectricalDraft = { -readonly [K in keyof PinElectrical]: PinElectrical[K] }
+
 /** A CAN node: a connector carrying one CAN_H/CAN_L pair, optionally terminated. */
 const node = (ref: string, opts: NodeOpts = {}): ConnectorInstance => {
   const pins = opts.pins ?? { 1: "CAN_H", 2: "CAN_L" }
-  const electrical: PinElectrical = {
-    ...(opts.terminationOhms !== undefined ? { terminationOhms: opts.terminationOhms } : {}),
-    ...(opts.bitRateKbps !== undefined ? { bitRateKbps: opts.bitRateKbps } : {})
-  }
-  return connector(ref, part, {
-    pins,
-    ...(Object.keys(electrical).length > 0
-      ? { electrical: { [opts.on ?? "1"]: electrical } }
-      : {})
-  })
+  const electrical: PinElectricalDraft = {}
+  if (opts.terminationOhms !== undefined) electrical.terminationOhms = opts.terminationOhms
+  if (opts.bitRateKbps !== undefined) electrical.bitRateKbps = opts.bitRateKbps
+  return Object.keys(electrical).length > 0
+    ? connector(ref, part, { pins, electrical: { [opts.on ?? "1"]: electrical } })
+    : connector(ref, part, { pins })
 }
 
 const build = (opts: {
@@ -96,10 +96,7 @@ const linearBus = (
  * `dropLength` is in mm; `kbps` is declared on J1 unless left undefined.
  */
 const teeBus = (dropLength: number | undefined, kbps: number | undefined): Hir => {
-  const j1 = node("J1", {
-    terminationOhms: 120,
-    ...(kbps !== undefined ? { bitRateKbps: kbps } : {})
-  })
+  const j1 = node("J1", { terminationOhms: 120, bitRateKbps: kbps })
   const j2 = node("J2", { terminationOhms: 120 })
   const j3 = node("J3", { pins: { 1: "CAN_H" } })
   const s1 = splice("S1", { type: "crimp" })
@@ -109,10 +106,12 @@ const teeBus = (dropLength: number | undefined, kbps: number | undefined): Hir =
     wires: [
       wire("W1", j1.pin(1), s1, { signal: "CAN_H", length: 1000 }),
       wire("W2", s1, j2.pin(1), { signal: "CAN_H", length: 1000 }),
-      wire("W3", s1, j3.pin(1), {
-        signal: "CAN_H",
-        ...(dropLength !== undefined ? { length: dropLength } : {})
-      }),
+      wire(
+        "W3",
+        s1,
+        j3.pin(1),
+        dropLength !== undefined ? { signal: "CAN_H", length: dropLength } : { signal: "CAN_H" }
+      ),
       wire("W4", j1.pin(2), j2.pin(2), { signal: "CAN_L", length: 2000 })
     ]
   })

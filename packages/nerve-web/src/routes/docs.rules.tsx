@@ -33,7 +33,7 @@ function RulesReference() {
             <tr key={r.code}>
               <td className="cell-code">{r.code}</td>
               <td className="cell-code">{r.name}</td>
-              <td className="cell-text">{RULE_SUMMARIES[r.name] ?? "-"}</td>
+              <td className="cell-text">{RULE_SUMMARIES.get(r.name) ?? "-"}</td>
             </tr>
           ))}
         </tbody>

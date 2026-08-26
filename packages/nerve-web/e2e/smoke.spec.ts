@@ -51,12 +51,7 @@ test("a broken harness surfaces HK diagnostics + lint gutter", async ({ page }) 
   // Drive a real editor transaction through the automation hook (CodeMirror
   // virtualizes the DOM, so scraping text is lossy).
   const seeded = await page.evaluate(() => {
-    const view = (window as unknown as {
-      __nerveEditor?: {
-        state: { doc: { toString(): string } }
-        dispatch(spec: { changes: { from: number; to: number; insert: string } }): void
-      }
-    }).__nerveEditor
+    const view = window.__nerveEditor
     if (view === undefined) return false
     const doc = view.state.doc.toString()
     const idx = doc.indexOf('1: "V5", 2: "GND", 3: "CAN_H"')
@@ -141,12 +136,7 @@ test("reset is undoable: Undo reset restores pre-reset edits", async ({ page }) 
   // Drive a real editor transaction through the automation hook (CodeMirror
   // virtualizes the DOM, so scraping text is lossy).
   const seeded = await page.evaluate(() => {
-    const view = (window as unknown as {
-      __nerveEditor?: {
-        state: { doc: { toString(): string } }
-        dispatch(spec: { changes: { from: number; to: number; insert: string } }): void
-      }
-    }).__nerveEditor
+    const view = window.__nerveEditor
     if (view === undefined) return false
     view.dispatch({ changes: { from: 0, to: 0, insert: "// undo-me\n" } })
     return true
@@ -160,20 +150,14 @@ test("reset is undoable: Undo reset restores pre-reset edits", async ({ page }) 
   await expect(undoButton).toBeVisible({ timeout: 15_000 })
   await expect.poll(
     async () =>
-      page.evaluate(() =>
-        (window as unknown as { __nerveEditor: { state: { doc: { toString(): string } } } })
-          .__nerveEditor.state.doc.toString()
-      ),
+      page.evaluate(() => window.__nerveEditor!.state.doc.toString()),
     { timeout: 15_000 }
   ).not.toContain("// undo-me")
   await undoButton.click()
   // Undo restores every file's pre-reset content; the button is one-shot.
   await expect.poll(
     async () =>
-      page.evaluate(() =>
-        (window as unknown as { __nerveEditor: { state: { doc: { toString(): string } } } })
-          .__nerveEditor.state.doc.toString()
-      ),
+      page.evaluate(() => window.__nerveEditor!.state.doc.toString()),
     { timeout: 15_000 }
   ).toContain("// undo-me")
   await expect(undoButton).not.toBeVisible()

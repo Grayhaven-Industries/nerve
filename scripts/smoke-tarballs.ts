@@ -28,6 +28,16 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { Schema } from "effect"
+import {
+  decodeDependencyBlock,
+  isJsonObject,
+  isJsonString,
+  parseJsonObject,
+  parsePackageManifest,
+  type JsonObject,
+  type JsonValue
+} from "./json.js"
 
 const ROOT = join(import.meta.dirname, "..")
 
@@ -43,36 +53,35 @@ run("bun", ["scripts/publish-all.ts", "--pack"], ROOT, { PACK_DEST: packsFrom })
 // Map tarball -> its embedded package.json (never trust filename parsing).
 interface PackedPkg {
   readonly tgz: string
-  readonly pkg: Record<string, unknown>
+  readonly pkg: JsonObject
   readonly entries: ReadonlySet<string>
 }
 const packed = new Map<string, PackedPkg>()
 for (const f of readdirSync(packsFrom).filter((f) => f.endsWith(".tgz"))) {
   const tgz = join(packsFrom, f)
-  const pkg = JSON.parse(
-    execFileSync("tar", ["-xzOf", tgz, "package/package.json"], { encoding: "utf8" })
-  ) as Record<string, unknown>
+  const text = execFileSync("tar", ["-xzOf", tgz, "package/package.json"], { encoding: "utf8" })
+  const pkg = parseJsonObject(text)
   const entries = new Set(
     execFileSync("tar", ["-tzf", tgz], { encoding: "utf8" }).trim().split("\n")
   )
-  packed.set(pkg["name"] as string, { tgz, pkg, entries })
+  packed.set(parsePackageManifest(text).name, { tgz, pkg, entries })
 }
 
 // Workspace truth: name -> version from packages/*/package.json.
 const workspaceVersions = new Map<string, string>()
 for (const rel of globSync("packages/*/package.json", { cwd: ROOT })) {
-  const pkg = JSON.parse(readFileSync(join(ROOT, rel), "utf8")) as {
-    name: string
-    version?: string
-  }
+  const pkg = parsePackageManifest(readFileSync(join(ROOT, rel), "utf8"))
   if (pkg.version !== undefined) workspaceVersions.set(pkg.name, pkg.version)
 }
 
 // ----------------------------------------------- 2. tarball integrity
-const collectPaths = (value: unknown, out: string[]): void => {
-  if (typeof value === "string") {
+const collectPaths = (value: JsonValue | undefined, out: string[]): void => {
+  if (value === undefined) return
+  if (isJsonString(value)) {
     if (value.startsWith("./")) out.push(value.slice(2))
-  } else if (value !== null && typeof value === "object") {
+  } else if (Array.isArray(value)) {
+    for (const v of value) collectPaths(v, out)
+  } else if (isJsonObject(value)) {
     for (const v of Object.values(value)) collectPaths(v, out)
   }
 }
@@ -83,7 +92,7 @@ for (const [name, { pkg, entries }] of packed) {
   // block (a workspace: leak or stale pin in peer/dev/optional deps breaks
   // installs too, and ships in the published package.json).
   for (const block of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
-    const deps = (pkg[block] ?? {}) as Record<string, string>
+    const deps = decodeDependencyBlock(pkg[block] ?? {})
     for (const [dep, spec] of Object.entries(deps)) {
       if (!dep.startsWith("@grayhaven/")) continue
       if (spec.startsWith("workspace:")) {
@@ -207,10 +216,16 @@ run(
   ],
   consumer
 )
-const jplHir = JSON.parse(readFileSync(join(consumer, "jpl-import", "harness.json"), "utf8")) as {
-  harness: { id: string; metadata: Record<string, string> }
-  wires: Array<{ length?: number }>
-}
+const ImportedHir = Schema.Struct({
+  harness: Schema.Struct({
+    id: Schema.String,
+    metadata: Schema.Record({ key: Schema.String, value: Schema.String })
+  }),
+  wires: Schema.Array(Schema.Struct({ length: Schema.optional(Schema.Number) }))
+})
+const jplHir = Schema.decodeUnknownSync(ImportedHir)(
+  JSON.parse(readFileSync(join(consumer, "jpl-import", "harness.json"), "utf8"))
+)
 if (
   jplHir.harness.id !== "jpl-front-encoder" ||
   jplHir.harness.metadata["sourceTitle"] !== "Front Encoder Cable (x2)" ||

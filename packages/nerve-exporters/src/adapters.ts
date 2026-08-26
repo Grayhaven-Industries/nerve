@@ -17,6 +17,7 @@ import {
   type Hir
 } from "@grayhaven/nerve"
 import { toCsv } from "./csv.js"
+import { draft } from "./draft.js"
 import { hirFingerprint } from "./release.js"
 import { generateTestPlan, type HarnessTest, type TestPoint } from "./test-plan.js"
 
@@ -133,6 +134,18 @@ export const genericLabelPrinterCsv: MachineAdapter = {
   }
 }
 
+/** One tester program step. `hirRefs` lists every implicated object for a
+ * net-continuity check; single-object checks carry only `hirRef`. */
+interface TesterStep {
+  readonly id: string
+  readonly mode: "continuity" | "isolation"
+  readonly from: TestPoint
+  readonly to: TestPoint
+  readonly thresholdOhms: number
+  readonly hirRef: string | null
+  readonly hirRefs?: ReadonlyArray<string>
+}
+
 /** Continuity tester: machine-readable program derived from the test plan. */
 export const genericTesterJson: MachineAdapter = {
   id: "generic-tester-json",
@@ -148,24 +161,27 @@ export const genericTesterJson: MachineAdapter = {
       harness: hir.harness.id,
       revision: hir.harness.revision,
       hirSchema: hir.schemaVersion,
-      steps: plan.tests.map((t) => ({
-        id: t.id,
-        mode: t.expected === "closed" ? "continuity" : "isolation",
-        from: t.from,
-        to: t.to,
-        thresholdOhms: t.expected === "closed" ? 2 : 100000,
-        hirRef:
-          t.type === "continuity"
-            ? refs.wire(t.wire)
-            : t.type === "splice"
-              ? refs.splice(t.splice)
-              : t.type === "net-continuity"
-                ? refs.wire(t.wires[0]!)
-                : null,
-        ...(t.type === "net-continuity"
-          ? { hirRefs: [...t.wires.map(refs.wire), ...t.splices.map(refs.splice)] }
-          : {})
-      }))
+      steps: plan.tests.map((t): TesterStep => {
+        const step = draft<TesterStep>({
+          id: t.id,
+          mode: t.expected === "closed" ? "continuity" : "isolation",
+          from: t.from,
+          to: t.to,
+          thresholdOhms: t.expected === "closed" ? 2 : 100000,
+          hirRef:
+            t.type === "continuity"
+              ? refs.wire(t.wire)
+              : t.type === "splice"
+                ? refs.splice(t.splice)
+                : t.type === "net-continuity"
+                  ? refs.wire(t.wires[0]!)
+                  : null
+        })
+        if (t.type === "net-continuity") {
+          step.hirRefs = [...t.wires.map(refs.wire), ...t.splices.map(refs.splice)]
+        }
+        return step
+      })
     }
     return {
       files: new Map([["tester.program.json", JSON.stringify(program, null, 2) + "\n"]]),

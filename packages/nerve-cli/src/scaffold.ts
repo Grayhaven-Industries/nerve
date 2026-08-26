@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { Predicate } from "effect"
 import type { Io } from "./index.js"
 
 /** This CLI's own version — scaffolded projects pin the same line. */
@@ -17,8 +18,8 @@ export const cliVersion = (): string => {
   try {
     // package.json sits one level above both src/ (dev) and dist/ (published).
     const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json")
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string }
-    return pkg.version ?? "latest"
+    const version: unknown = JSON.parse(readFileSync(pkgPath, "utf8")).version
+    return Predicate.isString(version) ? version : "latest"
   } catch {
     return "latest"
   }
@@ -204,12 +205,18 @@ export const setupFiles = (): ReadonlyMap<string, string> =>
     [".github/workflows/nerve-reproduce.yml", REPRODUCE_YML]
   ])
 
+/** What a scaffold write did: files written, and files left alone. */
+export interface ScaffoldSummary {
+  readonly wrote: number
+  readonly skipped: number
+}
+
 /** Write files per-file refuse-to-overwrite; report what happened. */
 export const writeScaffold = (
   dir: string,
   files: ReadonlyMap<string, string>,
   io: Io
-): { wrote: number; skipped: number } => {
+): ScaffoldSummary => {
   let wrote = 0
   let skipped = 0
   for (const [rel, content] of files) {

@@ -15,7 +15,8 @@ const ELK: any = ELKApi.default ?? ELKApi
 // Bun has real Web Workers — run ELK's worker script in one.
 const workerUrl = require_.resolve("elkjs/lib/elk-worker.min.js")
 import { isPinEndpoint, type Hir, type HirEndpoint } from "@grayhaven/nerve"
-import { renderSvg, type DrawItem, type Drawing } from "../src/drawing.js"
+import { renderSvg, type DrawItem, type DrawPath, type Drawing } from "../src/drawing.js"
+import { draft } from "../src/draft.js"
 
 const BOX_W = 180
 const ROW_H = 20
@@ -23,10 +24,24 @@ const HEADER_H = 40
 const TITLE_H = 64
 const MARGIN = 48
 
+const NAMED_STROKES = new Map([
+  ["white", "#b8b8b8"],
+  ["yellow", "#c9a800"],
+  ["black", "#222222"]
+])
+
 const strokeFor = (color: string | undefined): string => {
   if (color === undefined) return "#888888"
-  const map: Record<string, string> = { white: "#b8b8b8", yellow: "#c9a800", black: "#222222" }
-  return map[color.toLowerCase()] ?? color
+  return NAMED_STROKES.get(color.toLowerCase()) ?? color
+}
+
+/** An ELK edge between two nodes, attached to ports where the ends are pins. */
+interface ElkEdge {
+  readonly id: string
+  readonly sources: ReadonlyArray<string>
+  readonly targets: ReadonlyArray<string>
+  readonly sourcePort?: string
+  readonly targetPort?: string
 }
 
 export const schematicDrawingElk = async (hir: Hir): Promise<Drawing> => {
@@ -63,18 +78,13 @@ export const schematicDrawingElk = async (hir: Hir): Promise<Drawing> => {
       ? { node: e.connector, port: `${e.connector}::${e.pin}` }
       : { node: `splice:${e.splice}` }
 
-  const edges = hir.wires.flatMap((w) => {
+  const edges = hir.wires.map((w): ElkEdge => {
     const a = portRef(w.from)
     const b = portRef(w.to)
-    return [
-      {
-        id: `wire:${w.id}`,
-        sources: [a.node],
-        targets: [b.node],
-        ...(a.port !== undefined ? { sourcePort: a.port } : {}),
-        ...(b.port !== undefined ? { targetPort: b.port } : {})
-      }
-    ]
+    const edge = draft<ElkEdge>({ id: `wire:${w.id}`, sources: [a.node], targets: [b.node] })
+    if (a.port !== undefined) edge.sourcePort = a.port
+    if (b.port !== undefined) edge.targetPort = b.port
+    return edge
   })
 
   const graph = await elk.layout({
@@ -123,13 +133,14 @@ export const schematicDrawingElk = async (hir: Hir): Promise<Drawing> => {
         x: p.x + MARGIN,
         y: p.y + TITLE_H + MARGIN
       }))
-      items.push({
+      const route = draft<DrawPath>({
         kind: "path",
         d: pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" "),
         stroke: isError ? "#d11" : strokeFor(w?.color),
-        strokeWidth: 2,
-        ...(isError ? { dash: [6, 3] } : {})
+        strokeWidth: 2
       })
+      if (isError) route.dash = [6, 3]
+      items.push(route)
       const mid = pts[Math.floor(pts.length / 2)]!
       const annotation = [w?.id, w?.gauge, w?.twistGroup !== undefined ? "twisted" : undefined]
         .filter((x): x is string => x !== undefined)
