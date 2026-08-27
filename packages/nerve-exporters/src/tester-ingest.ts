@@ -213,11 +213,15 @@ export const ingestTesterResults = (
 
   const first = rows[0]
   const hasNamedHeader = first?.some((cell) => allHeaderNames.has(normalized(cell))) ?? false
-  // Preserve the old tolerance for arbitrary header wording in column two.
+  // Preserve the old tolerance for arbitrary header wording in column two: a
+  // legacy two-column file may label its columns anything, so a non-numeric
+  // second cell in the first row marks a header row to drop. Those rows are
+  // still read positionally — only a recognized named header switches the body
+  // onto column-name lookups.
   const hasLegacyHeader = first !== undefined && !Number.isFinite(Number(first[1]))
   const header = hasNamedHeader || hasLegacyHeader ? first : undefined
   const body = header === undefined ? rows : rows.slice(1)
-  const columns = columnMap(header ?? [])
+  const columns = columnMap(hasNamedHeader ? (first ?? []) : [])
 
   const diagnostics: Array<Diagnostic> = []
   const claimed = meta.get("hir-fingerprint") ?? options.expectFingerprint
@@ -254,9 +258,9 @@ export const ingestTesterResults = (
   const measurements: Array<Measurement> = []
   for (const [index, row] of body.entries()) {
     const read = (name: AliasName): string | undefined =>
-      header === undefined ? undefined : column(row, columns, name)
-    const id = header === undefined ? (row[0] ?? "") : (read("id") ?? "")
-    const ohms = numeric(header === undefined ? row[1] : read("measuredOhms"))
+      hasNamedHeader ? column(row, columns, name) : undefined
+    const id = hasNamedHeader ? (read("id") ?? "") : (row[0] ?? "")
+    const ohms = numeric(hasNamedHeader ? read("measuredOhms") : row[1])
     const voltage = numeric(read("appliedVoltageV"))
     const leakage = numeric(read("leakageMilliAmps"))
     const duration = numeric(read("durationSeconds"))

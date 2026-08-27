@@ -212,6 +212,25 @@ describe("tester result ingest (PRD §36)", () => {
     expect(ingest.diagnostics[0]?.message).toContain("T-002,OPEN")
   })
 
+  it("reads a legacy two-column file with a custom-worded header positionally", () => {
+    // A tester whose export labels the columns anything ("Circuit,Reading")
+    // carries no recognized alias, so the first row is a header to drop and the
+    // body is still read positionally — id from column one, ohms from column two.
+    const source =
+      `# hir-fingerprint: ${release.hirFingerprint}\n` +
+      "Circuit,Reading\n" +
+      "T-001,0.4\n" +
+      "T-003,1.1\n"
+    const ingest = ingestTesterResults(source, release)
+
+    expect(ingest.measurements).toEqual([
+      { id: "T-001", measuredOhms: 0.4 },
+      { id: "T-003", measuredOhms: 1.1 }
+    ])
+    // No row is dropped as HK-TEST-003, and the header row is not a measurement.
+    expect(ingest.diagnostics).toEqual([])
+  })
+
   it("retains named electrical, raw-result, tester, software, and calibration evidence", () => {
     const source =
       `# hir-fingerprint: ${release.hirFingerprint}\n` +
