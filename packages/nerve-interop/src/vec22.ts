@@ -1072,16 +1072,16 @@ const documentFromDesign = (
     pinCount: entry.part.pinCount,
     ...(entry.part.voltageLimitV === undefined ? {} : { voltageLimitV: entry.part.voltageLimitV }),
     ...(entry.part.currentLimitA === undefined ? {} : { currentLimitA: entry.part.currentLimitA }),
-    pins: Object.entries(entry.pins).map(([id, signal]) => ({
-      id,
-      signal,
-      ...(exportTerminal(entry.terminalParts?.[id], entry.terminals[id]) === undefined
-        ? {}
-        : { terminal: exportTerminal(entry.terminalParts?.[id], entry.terminals[id])! }),
-      ...(exportSeal(entry.sealParts?.[id], entry.seals[id]) === undefined
-        ? {}
-        : { seal: exportSeal(entry.sealParts?.[id], entry.seals[id])! })
-    }))
+    pins: Object.entries(entry.pins).map(([id, signal]) => {
+      const terminal = exportTerminal(entry.terminalParts?.[id], entry.terminals[id])
+      const seal = exportSeal(entry.sealParts?.[id], entry.seals[id])
+      return {
+        id,
+        signal,
+        ...(terminal === undefined ? {} : { terminal }),
+        ...(seal === undefined ? {} : { seal })
+      }
+    })
   }))
 
   const wires: Array<Vec22Wire> = []

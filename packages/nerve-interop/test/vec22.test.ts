@@ -181,6 +181,29 @@ describe("normalized VEC 2.2 subset", () => {
     expect(exported.bytes!.length).toBe(exported.json!.length + 5)
   })
 
+  it("re-exports terminal and seal parts intact when serializing a HarnessDesign", () => {
+    const imported = importVec22Subset(document())
+    expect(imported.design).toBeDefined()
+    const exported = exportVec22Subset(imported.design!, { sourceHash: "sha256:design-source" })
+    expect(exported.ok).toBe(true)
+    const byRef = new Map(exported.document!.connectors.map((entry) => [entry.ref, entry]))
+    expect(byRef.get("J2")?.pins[0]).toMatchObject({
+      id: "1",
+      signal: "PWR",
+      terminal: {
+        mpn: "TERM-B",
+        stripLength: 4,
+        crimpHeight: { min: 1.1, max: 1.2 },
+        pullForceN: 70
+      },
+      seal: { mpn: "SEAL-B" }
+    })
+    expect(byRef.get("J1")?.pins[0]).toMatchObject({
+      terminal: { mpn: "TERM-A", crimpTool: "PRESS-7", dieId: "DIE-3" },
+      seal: { mpn: "SEAL-A" }
+    })
+  })
+
   it("maps a declared material reference when the subset also supplies its gauge", () => {
     const fixture = document()
     const { part: removedPart, ...materialOnlyWire } = fixture.wires[0]!
