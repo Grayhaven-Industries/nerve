@@ -27,6 +27,26 @@ export {
   type TestPoint
 } from "./test-plan.js"
 export {
+  TEST_SPEC_SCHEMA_VERSION,
+  approveTestSpecification,
+  createTestSpecification,
+  evaluateElectricalMeasurement,
+  testSpecificationMatchesPlan,
+  validateTestSpecification,
+  type ContinuityElectricalTestStep,
+  type DielectricWithstandElectricalTestStep,
+  type ElectricalMeasurementVerdict,
+  type ElectricalTestMethod,
+  type ElectricalTestStep,
+  type ElectricalTestStepOptions,
+  type FourWireResistanceElectricalTestStep,
+  type InsulationResistanceElectricalTestStep,
+  type TestSpecification,
+  type TestSpecificationApproval,
+  type TestSpecificationAuthority,
+  type TestSpecificationOptions
+} from "./test-spec.js"
+export {
   renderItems,
   renderSvg,
   scaleDrawing,
@@ -51,7 +71,7 @@ export { assemblyInstructions } from "./instructions.js"
 export { bopCsv, bopJson, bopTable, generateBop, type BillOfProcess, type Operation, type Workstation } from "./bop.js"
 export { generateQuote, quoteCsv, quoteDiff, quoteJson, quoteTable, type Quote, type QuoteDiff, type QuoteLine } from "./cost.js"
 export { analysisCsv, analysisJson, analysisTable, analyzeHarness, type AnalysisReport, type BranchAnalysis, type SpliceAnalysis, type WireAnalysis } from "./analysis.js"
-export { builtinAdapters, cirrisEasyWireNetlist, findAdapter, genericCutStripCsv, genericLabelPrinterCsv, genericTesterJson, type AdapterKind, type AdapterResult, type MachineAdapter } from "./adapters.js"
+export { builtinAdapters, cirrisEasyWireNetlist, experimentalCirrisEasyWireNetlist, findAdapter, genericCutStripCsv, genericLabelPrinterCsv, genericTesterJson, type AdapterGenerateOptions, type AdapterKind, type AdapterResult, type MachineAdapter } from "./adapters.js"
 export { ingestTesterResults, type TesterIngestOptions, type TesterIngestResult } from "./tester-ingest.js"
 export {
   builtinContractImporters,
@@ -76,7 +96,7 @@ export {
 } from "./contracts.js"
 export { formboardSheets, type Formboard, type FormboardOptions, type FormboardSheet, type Paper } from "./formboard.js"
 export { computeImpact, createRelease, hirFingerprint, ReleaseBlockedError, releaseJson, type ChangeRisk, type CreateReleaseOptions, type Release, type ReleaseImpact } from "./release.js"
-export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict } from "./build-record.js"
+export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type CrimpEvidenceVerdict, type CrimpProcessEvidence, type ElectricalTestResult, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict, type TestVerdictStatus } from "./build-record.js"
 export { createRedline, mergePatches, redlinesFromBuildRecord, resolveRedline, suggestPatch, validateRedlineTarget, type Redline, type RedlineType } from "./redline.js"
 export { manufacturingPacketPdf } from "./pdf.js"
 export { buildPacket, canRelease, type Packet, type PacketOptions } from "./packet.js"

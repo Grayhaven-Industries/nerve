@@ -12,6 +12,13 @@ The rule tables say what the checks are.
 are, by failure mode, and which failure modes no design representation can
 decide at all.
 
+This document measures compiler-rule coverage. Nerve can also retain external
+process authority and evidence: an approved electrical `TestSpecification`,
+tester results, crimp observations, serialized unit-build events, deviations,
+and rework. Those records do not become design checks and do not add to the 53
+built-in rules. They show what a caller recorded about a physical process; they
+do not prove that Nerve performed, witnessed, or certified that process.
+
 ## How to read the table
 
 Each built-in rule carries three provenance fields, surfaced in
@@ -493,10 +500,12 @@ Sorted by column, the shape of the remaining work is not a matter of opinion:
   checking the insulation-barrel fit and HK-MFG-013 the seal fit. A fourth cell
   moved for a different reason: a part can now declare the pinout it fixes, and
   the wrong-pin row is decided against it. None of the four became complete,
-  and the crimp specification is the clearest gap left. That one is a data gap
-  rather than a schema gap, since `crimpHeight` and `pullForceN` are fields
-  nothing populates and nothing reads, which makes it cheaper than it looks and
-  also easier to leave undone.
+  and the crimp specification is the clearest gap left. `TerminalPart` has
+  `crimpHeight` and `pullForceN` fields, but the bundled library does not
+  populate them and no generic rule reads them. Separate build records can
+  retain caller-supplied target and actual crimp height, width, and pull-force
+  evidence. That improves process traceability without filling the design-rule
+  cell.
 - **Geometry: 10 live cells, 2 partial and 8 empty.** The largest single jump,
   and the table argues against taking it first for coverage reasons. A routed
   centerline is one kind of geometry and the cells want three. The waypoint
@@ -536,25 +545,29 @@ be written against.
 The last column is the most valuable one in the table, and it is the reason the
 table is worth publishing rather than an inflated one.
 
-Everything in it belongs to test and process control, not to a compiler. Crimp
-height and pull force are measured on the shop floor. Supplier lot variance is
-caught by incoming inspection. Installation damage and how tightly a bundle is
-dressed are caught by build inspection. Emissions and immunity are measured in
-a chamber. Available fault current is a property of the vehicle's power system,
-not of the harness drawing.
+Everything in it belongs to externally executed test and process control, not
+to a compiler verdict. Nerve can now retain evidence from those activities,
+but it cannot perform them. Crimp height and pull force are measured on the
+shop floor. Supplier lot variance is caught by incoming inspection.
+Installation damage and how tightly a bundle is dressed are caught by build
+inspection. Emissions and immunity are measured in a chamber. Available fault
+current is a property of the vehicle's power system, not of the harness
+drawing.
 
-No amount of additional modeling moves these cells. A tool that claimed them
-would be claiming to replace the activities that actually catch them, and the
-first person harmed by that claim is whoever writes a clean compile into a
-process control plan as evidence that the corresponding inspection is no longer
-required. It is not, and this column is the list of inspections that a passing
-Nerve run says nothing about.
+No amount of additional design modeling moves these cells. Recording the
+result makes a unit history traceable; it does not make a clean compile a
+substitute for the activity that produced the result. A tool that claimed
+otherwise would be claiming to replace the inspection or test that catches the
+failure. This column is the list of physical activities that a passing compile
+says nothing about.
 
 ## What Nerve does not check
 
-This section matters more than the table above. Every item here is a review
-activity that Nerve cannot perform and does not attempt. A clean Nerve compile
-provides no evidence about any of them.
+This section matters more than the table above. Every item here is a physical
+review, inspection, qualification, or test that Nerve cannot perform. A clean
+Nerve compile provides no evidence about any of them. Where a process record
+can represent an external result, its meaning remains bounded by the supplied
+authority, identity, and evidence.
 
 - **Thermal derating of bundles.** The ampacity check derates its table by the
   number of current-carrying conductors that declare the same branch, which is
@@ -562,44 +575,56 @@ provides no evidence about any of them.
   heating, duty cycle, altitude, or ambient outside the one declared branch
   temperature, and a wire that declares no branch is not derated at all. A
   bundle in which every wire passes HK-WIRE-004 individually may still overheat.
-- **Geometry and routing.** Nerve has no 3D model. Branch paths are topology,
-  not curves. There is no clearance analysis, no interference or collision
-  check, no sag, no vibration, no chafe-point analysis, and no check that a
-  route is physically achievable in the vehicle or enclosure.
-- **Mechanical fit and reach.** Wire lengths are numbers on a cut list. Nerve
-  does not verify that a length reaches its destination along the real route,
-  does not compute service loops or slack, and does not verify connector
-  mating access, backshell clearance, or tooling reach.
+- **Geometry and routing.** A branch can carry routed centerline waypoints, but
+  Nerve has no model of the vehicle or enclosure around that line. There is no
+  clearance analysis, interference or collision check, sag, vibration,
+  chafe-point analysis, or proof that a route is physically achievable.
+- **Mechanical fit and reach.** A branch length can be authored or measured
+  from a routed centerline. Nerve does not verify that its wires reach their
+  destinations in the installed system, compute service loops or dressing
+  slack, or verify connector mating access, backshell clearance, or tooling
+  reach.
 - **EMC coupling.** HK-ELEC-008 reports that a wire classified `aggressor` and
   a wire classified `victim` share a branch. That is a bookkeeping check on
   labels a human applied. There is no field solving, no coupling or crosstalk
   calculation, no impedance, no shielding-effectiveness model, and no immunity
   or emissions prediction.
-- **Crimp process verification.** Nerve checks that a terminal is selected, is
-  compatible with the housing, accepts the wire's gauge, and closes on its
-  insulation diameter. It says nothing about crimp height, crimp width,
-  pull-off force, bell-mouth, brush position, insulation-support form, wire
-  strand damage, applicator setup, or operator certification. `TerminalPart`
-  has fields for a crimp-height window and a pull force; no rule reads them and
-  the bundled contact library populates neither, because manufacturers publish
-  both per gauge and per tool rather than per part. Those are measured on the
-  shop floor, not derived from a model.
+- **Crimp process verification.** Generic rules check that a terminal is
+  selected, is compatible with the housing, accepts the wire's gauge, and
+  closes on its insulation diameter. Build records and shop-floor events can
+  retain caller-supplied height, width, pull force, force-curve references,
+  material and tool lots, setup, operator, and disposition. Nerve does not take
+  those measurements, establish their limits, authenticate their source, or
+  inspect bell-mouth, brush position, insulation-support form, strand damage,
+  applicator setup, or operator qualification. `TerminalPart` has fields for a
+  crimp-height window and a pull force; no generic rule reads them and the
+  bundled contact library populates neither.
 - **Terminator and stub checks only where declared.** Bus topology conclusions
   follow from declared facts. Where a design does not declare a terminator, a
   port role, a stub length, or a protocol identity, the corresponding rules are
   silent. Silence is not a pass.
-- **Physical part data.** Nerve trusts the connector, terminal, seal, and wire
-  data it is given. It does not verify an MPN against a manufacturer datasheet,
-  does not detect obsolete or superseded parts, and does not confirm that a
-  declared current, voltage, or gauge range matches the real component. The
-  library that ships with Nerve is not exempt from that: four of its entries
-  were wrong until they were read against manufacturer documents, and the
-  record is under
+- **Physical part and supply data.** Nerve trusts the connector, terminal,
+  seal, wire, and supply records it is given. The supply registry can preserve
+  caller- or provider-supplied provenance, lifecycle, approval, availability,
+  lead time, alternates, and price breaks in a deterministic snapshot. It does
+  not query a distributor or manufacturer, verify an MPN against a datasheet,
+  discover a lifecycle change, convert currencies, or confirm that a declared
+  current, voltage, or gauge range matches the real component. The library
+  that ships with Nerve is not exempt from that: four of its entries were wrong
+  until they were read against manufacturer documents, and the record is under
   [what covered does not mean](#what-covered-does-not-mean).
-- **Assembly, inspection, and test execution.** Nerve generates a test plan
-  from the model's accessible endpoints. It does not perform continuity,
-  hipot, insulation-resistance, or functional testing, and it has no knowledge
-  of whether any test was run or passed.
+- **Assembly, inspection, and test execution.** Nerve can generate a topology
+  test plan, bind caller-supplied limits to it through an approved
+  `TestSpecification`, export a generic tester program, ingest named-column
+  result evidence, and preserve the result in a build record or unit event
+  log. It does not operate a tester, perform continuity, hipot,
+  insulation-resistance, or functional testing, validate a generic artifact
+  against a specific machine, or prove that supplied evidence came from the
+  named hardware. Measurements receive verdicts only against an approved,
+  valid specification matched to the exact plan; otherwise they remain
+  unassessed. The Cirris Easy-Wire-style pseudo-format is experimental,
+  unvalidated against hardware, and excluded from built-in production adapter
+  discovery.
 - **Environmental and lifetime qualification.** No sealing or ingress-protection
   verification beyond "a seal is assigned, and where a seal record and a wire
   record both exist, its diameter window contains the wire". No fluid or
@@ -610,12 +635,11 @@ provides no evidence about any of them.
   an unsupplied fact never reads as a verified one, but the practical
   consequence stands: coverage is bounded by what the design declares.
 
-The changes that have landed since these bullets were first written moved them
-less than they might appear to. A measured centerline is not a model of the
-vehicle around it, a conductor count is not a temperature, a contact's gauge
-range is not a crimp, and a part's declared pinout is an authority about pin
-assignment and about nothing else on this list. Every bullet above stands as
-written.
+The evidence APIs change what Nerve can retain, not what a clean compile proves.
+A measured centerline is not a model of the vehicle around it, a conductor
+count is not a temperature, a contact's gauge range is not a crimp, an ingested
+result is not proof of hardware execution, and a part's declared pinout is an
+authority about pin assignment and nothing else on this list.
 
 ## On mapping to IPC/WHMA-A-620
 
@@ -633,26 +657,35 @@ read would fabricate exactly the traceability this document exists to make
 auditable.
 
 Producing a real mapping requires the purchased standard and a qualified
-reviewer working from it, and it belongs in a licensed standards rule pack that
-records the standard name, revision, and clause per rule — the mechanism the
-`standard` and `clause` fields already provide.
+reviewer working from it. `@grayhaven/nerve-interop` now provides a separate
+profile for recording an exact issuer, document id, revision, addendum, scope,
+source identity, applicability decision, parameter authority, reviewer, and
+expected evidence. It distinguishes design requirements, workmanship
+observations, and process evidence. The profile contains no licensed text,
+tables, clause prose, acceptance values, or built-in compliant rule pack, and
+it rejects vague `latest` revisions and compliance or certification claims.
+Populating that profile does not establish that a built-in rule implements the
+named document.
 
-What can be said without the document is which A-620 subject areas Nerve
-provably does not touch, because Nerve has no representation of them at all:
+What can be said without the document is which A-620 subject areas have no
+built-in acceptance rule or physical execution capability:
 
-- **Crimp height and crimp width verification** — no dimensional measurement of
-  a formed crimp.
-- **Pull testing** — no pull-force values, criteria, or results anywhere in the
-  model.
-- **Inspection conditions** — no magnification, illumination, or inspection
+- **Crimp height and crimp width verification.** No built-in dimensional
+  acceptance rule or physical measurement. A process record can retain values
+  supplied by the caller.
+- **Pull testing.** No built-in test criterion or physical test. A build
+  record can retain caller-supplied target and actual pull force.
+- **Inspection conditions.** No magnification, illumination, or inspection
   method requirements.
-- **Soldering criteria** — no solder joint representation, wetting, or fillet
+- **Soldering criteria.** No solder joint representation, wetting, or fillet
   acceptance.
-- **Workmanship acceptance classes** — no class 1/2/3 distinction, and no
+- **Workmanship acceptance classes.** No class 1/2/3 distinction and no
   acceptance-condition photography or criteria.
 
 Organizations that hold the standard can map their internal rule codes onto it
-themselves; the per-rule provenance fields are the intended vehicle for that.
+themselves. Exact-authority standards profiles are the vehicle for layered
+requirements and evidence; per-rule provenance remains the vehicle for a claim
+that a specific rule implements a named document.
 
 ## Changing a rule
 

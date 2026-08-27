@@ -15,6 +15,7 @@
  */
 import type { Units } from "./domain.js"
 import type { RuleConfig } from "./rules.js"
+import type { PriceBreak, SupplyApproval } from "./supply.js"
 
 /** Lifecycle risk per PRD §29 supplier/lifecycle fields. */
 export type PartLifecycle = "active" | "nrnd" | "obsolete"
@@ -24,6 +25,13 @@ export interface PartCost {
   readonly supplier?: string
   readonly leadTimeDays?: number
   readonly lifecycle?: PartLifecycle
+  /** Exact source and retrieval time for reproducible legacy cost entries. */
+  readonly source?: string
+  readonly retrievedAt?: string
+  readonly approval?: SupplyApproval
+  readonly availableQuantity?: number
+  readonly minimumOrderQuantity?: number
+  readonly priceBreaks?: ReadonlyArray<PriceBreak>
 }
 
 /**

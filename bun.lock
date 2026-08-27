@@ -176,6 +176,17 @@
         "vitest": "^3.2.4",
       },
     },
+    "packages/nerve-interop": {
+      "name": "@grayhaven/nerve-interop",
+      "version": "7.1.0",
+      "dependencies": {
+        "@grayhaven/nerve": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nerve-platform": {
       "name": "@grayhaven/nerve-platform",
       "version": "7.1.0",
@@ -538,6 +549,8 @@
     "@grayhaven/nerve-exporters": ["@grayhaven/nerve-exporters@workspace:packages/nerve-exporters"],
 
     "@grayhaven/nerve-importers": ["@grayhaven/nerve-importers@workspace:packages/nerve-importers"],
+
+    "@grayhaven/nerve-interop": ["@grayhaven/nerve-interop@workspace:packages/nerve-interop"],
 
     "@grayhaven/nerve-platform": ["@grayhaven/nerve-platform@workspace:packages/nerve-platform"],
 

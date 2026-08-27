@@ -69,9 +69,15 @@ for (const f of readdirSync(packsFrom).filter((f) => f.endsWith(".tgz"))) {
 
 // Workspace truth: name -> version from packages/*/package.json.
 const workspaceVersions = new Map<string, string>()
+const publishableWorkspacePackages = new Set<string>()
 for (const rel of globSync("packages/*/package.json", { cwd: ROOT })) {
-  const pkg = parsePackageManifest(readFileSync(join(ROOT, rel), "utf8"))
+  const source = readFileSync(join(ROOT, rel), "utf8")
+  const pkg = parsePackageManifest(source)
+  const raw = parseJsonObject(source)
   if (pkg.version !== undefined) workspaceVersions.set(pkg.name, pkg.version)
+  if (raw["private"] !== true && pkg.name.startsWith("@grayhaven/")) {
+    publishableWorkspacePackages.add(pkg.name)
+  }
 }
 
 // ----------------------------------------------- 2. tarball integrity
@@ -87,6 +93,18 @@ const collectPaths = (value: JsonValue | undefined, out: string[]): void => {
 }
 
 const problems: string[] = []
+const missingPacks = [...publishableWorkspacePackages]
+  .filter((name) => !packed.has(name))
+  .sort()
+const unexpectedPacks = [...packed.keys()]
+  .filter((name) => !publishableWorkspacePackages.has(name))
+  .sort()
+if (missingPacks.length > 0) {
+  problems.push(`publish-all omitted public workspace packages: ${missingPacks.join(", ")}`)
+}
+if (unexpectedPacks.length > 0) {
+  problems.push(`publish-all packed unexpected packages: ${unexpectedPacks.join(", ")}`)
+}
 for (const [name, { pkg, entries }] of packed) {
   // 2a. internal dep pins match the workspace exactly — across EVERY dep
   // block (a workspace: leak or stale pin in peer/dev/optional deps breaks
@@ -152,10 +170,15 @@ const fileSpec = (name: string): string => `file:${packed.get(name)!.tgz}`
 const directDeps = [
   "@grayhaven/nerve",
   "@grayhaven/nerve-cli",
+  "@grayhaven/nerve-compiler",
   "@grayhaven/nerve-connectors",
   "@grayhaven/nerve-eval",
+  "@grayhaven/nerve-exporters",
   "@grayhaven/nerve-importers",
+  "@grayhaven/nerve-interop",
+  "@grayhaven/nerve-platform",
   "@grayhaven/nerve-react",
+  "@grayhaven/nerve-rules",
   "@grayhaven/nerve-wireviz"
 ]
 for (const d of directDeps) {
@@ -242,11 +265,17 @@ console.log("✓ published CLI imports NASA/JPL rover harness semantics")
 const importCheck = `
 const checks = [
   ["@grayhaven/nerve", ["harness", "connector", "wire", "defineConfig"]],
+  ["@grayhaven/nerve-cli", ["run", "main"]],
+  ["@grayhaven/nerve-compiler", ["compileFile", "CompilerService"]],
   ["@grayhaven/nerve-connectors", ["part", "allParts", "partSpecs"]],
   ["@grayhaven/nerve-eval", ["createReviewReport", "decodeEvalManifest", "evaluateCase"]],
+  ["@grayhaven/nerve-exporters", ["createBuildRecord", "generateTestPlan", "createRelease"]],
   ["@grayhaven/nerve-importers", ["importWireList", "parseCsvWireList", "parseXlsxWireList"]],
+  ["@grayhaven/nerve-interop", ["importVec22Subset", "createOpc40570Job", "evaluateAutomationReadiness"]],
+  ["@grayhaven/nerve-platform", ["createWorkOrder", "replayUnitBuild", "ShopFloorCodes"]],
   ["@grayhaven/nerve-react", ["Harness", "Connector", "Wire"]],
   ["@grayhaven/nerve-react/jsx-runtime", ["jsx"]],
+  ["@grayhaven/nerve-rules", ["builtinRules", "ruleCategory", "parseAwg"]],
   ["@grayhaven/nerve-wireviz", ["importWireViz", "exportWireViz"]]
 ]
 for (const [mod, names] of checks) {

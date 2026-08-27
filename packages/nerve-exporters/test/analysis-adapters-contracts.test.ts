@@ -63,14 +63,56 @@ describe("shop-floor adapters (PRD §31)", () => {
     const csv = files.get("cut-strip.machine.csv")!
     expect(csv).toContain("# revision: A")
     expect(csv).toContain("wire:W_BAT_P")
-    expect(diagnostics).toEqual([])
+    expect(diagnostics.every((diagnostic) => diagnostic.code === "HK-ADAPT-005")).toBe(true)
   })
 
   it("skips unbuildable rows with structured diagnostics, not throws", () => {
     // Motor fixture: W3/W4 have no length → two warnings, rows skipped.
     const { files, diagnostics } = genericCutStripCsv.generate(motorHir)
-    expect(diagnostics.map((d) => d.code)).toEqual(["HK-ADAPT-002", "HK-ADAPT-002"])
+    expect(diagnostics.filter((d) => d.code === "HK-ADAPT-002")).toHaveLength(2)
+    expect(diagnostics.filter((d) => d.code === "HK-ADAPT-005")).toHaveLength(2)
     expect(files.get("cut-strip.machine.csv")).not.toContain("W3,")
+  })
+
+  it("uses declared asymmetric strips and copper allowances without defaults", () => {
+    const explicit = {
+      ...motorHir,
+      wires: motorHir.wires.map((wire) =>
+        wire.id === "W1"
+          ? {
+              ...wire,
+              length: 100,
+              serviceLoop: 12,
+              terminationAllowance: { from: 3, to: 4 },
+              stripLength: { from: 4.5, to: 7.25 }
+            }
+          : wire
+      )
+    }
+    const { files, diagnostics } = genericCutStripCsv.generate(explicit)
+    const rows = files.get("cut-strip.machine.csv")!.split("\n")
+    const w1 = rows.find((row) => row.startsWith("W1,"))!.split(",")
+    const w2 = rows.find((row) => row.startsWith("W2,"))!.split(",")
+
+    expect(w1).toEqual([
+      "W1",
+      "20AWG",
+      "red",
+      "119",
+      "",
+      "4.5",
+      "7.25",
+      "1",
+      "wire:W1"
+    ])
+    expect(w2[5]).toBe("")
+    expect(w2[6]).toBe("")
+    expect(diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: "HK-ADAPT-005", target: "wire:W1" })
+    )
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({ code: "HK-ADAPT-005", target: "wire:W2" })
+    )
   })
 
   it("label printer and tester adapters emit per-object rows", () => {
@@ -80,7 +122,9 @@ describe("shop-floor adapters (PRD §31)", () => {
     const program = JSON.parse(tester.files.get("tester.program.json")!)
     expect(program.revision).toBe("A")
     expect(program.steps.length).toBeGreaterThan(50)
-    expect(program.steps[0]).toMatchObject({ mode: "continuity", thresholdOhms: 2 })
+    expect(program.steps[0]).toMatchObject({ mode: "continuity" })
+    expect(program.steps[0]).not.toHaveProperty("thresholdOhms")
+    expect(tester.files.get("tester.program.json")).not.toMatch(/maxOhms|minOhms/)
   })
 
   it("rejects unknown HIR schema versions", () => {
