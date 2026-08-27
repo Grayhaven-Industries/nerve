@@ -896,7 +896,15 @@ export const importVec22Subset = (
     }
     if (
       (entry.length !== undefined && !finiteNonnegative(entry.length)) ||
-      (entry.serviceLoop !== undefined && !finiteNonnegative(entry.serviceLoop))
+      (entry.serviceLoop !== undefined && !finiteNonnegative(entry.serviceLoop)) ||
+      // terminationAllowance feeds cut length exactly like serviceLoop
+      // (cut = length + serviceLoop + terminationAllowance.from + .to; see
+      // wireCutLength in nerve-exporters/csv.ts and cutLengthOf in nerve/compile.ts).
+      // The compiler never sign-checks it, so gate it here or a negative
+      // allowance silently corrupts every cut/strip export.
+      (entry.terminationAllowance !== undefined &&
+        (!finiteNonnegative(entry.terminationAllowance.from) ||
+          !finiteNonnegative(entry.terminationAllowance.to)))
     ) {
       diagnostics.push(
         diagnostic(CODES.InvalidFact, "error", `Wire ${entry.id} contains a negative or non-finite length.`, target)

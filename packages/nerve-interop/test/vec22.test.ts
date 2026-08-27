@@ -185,6 +185,29 @@ describe("normalized VEC 2.2 subset", () => {
     expect(exported.json).toContain("urn:customer:vec-extension")
   })
 
+  it("rejects a negative termination allowance that would corrupt cut length", () => {
+    // A negative-but-finite allowance passes DTO/lossless-JSON validation, so it
+    // would import silently and drive cutLengthOf below the finished length
+    // (cut = length + serviceLoop + terminationAllowance.from + .to). The
+    // compiler never sign-checks it, so the import must fail closed here.
+    const base = document()
+    const cases: ReadonlyArray<{ readonly from: number; readonly to: number }> = [
+      { from: -100, to: 0 },
+      { from: 0, to: -5 }
+    ]
+    for (const terminationAllowance of cases) {
+      const imported = importVec22Subset({
+        ...base,
+        wires: [{ ...base.wires[0]!, terminationAllowance }]
+      })
+      expect(imported.ok).toBe(false)
+      expect(imported.design).toBeUndefined()
+      const invalid = imported.diagnostics.find((entry) => entry.code === "NI-VEC-012")
+      expect(invalid?.severity).toBe("error")
+      expect(invalid?.message).toContain("W1")
+    }
+  })
+
   it("rejects blank, duplicate, over-capacity, and unsafe connector cavity declarations", () => {
     const fixture = document()
     const first = fixture.connectors[0]!
