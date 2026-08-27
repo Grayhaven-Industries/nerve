@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { compileDesign, connector, harness, splice, variant, wire } from "@grayhaven/nerve"
 import {
+  buildRecordJson,
   createBuildRecord,
   createRedline,
   createRelease,
@@ -252,7 +253,17 @@ describe("build records (PRD §36)", () => {
     expect(record.crimpEvidence?.map((item) => item.id)).toEqual(["CR-001", "CR-002"])
     expect(record.crimpEvidence?.[1]).toEqual(evidence[0])
     expect(record.rework).toEqual(["legacy free-text remains readable"])
-    expect(JSON.stringify(record)).toBe(JSON.stringify(record))
+    // Byte-stable serialization is a reproducibility guarantee: identical inputs
+    // must serialize identically, even when the crimp evidence is supplied in a
+    // different order — the record canonicalizes and sorts it deterministically.
+    const again = createBuildRecord(hir, release, [], {
+      serial: "SN-CRIMP",
+      operator: "tech-a",
+      buildDate: "2026-06-06",
+      crimpEvidence: [...evidence].reverse(),
+      rework: ["legacy free-text remains readable"]
+    })
+    expect(buildRecordJson(again)).toBe(buildRecordJson(record))
   })
 })
 
