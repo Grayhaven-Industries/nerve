@@ -7,6 +7,7 @@ import {
   ingestOpc40570Result,
   opc40570JobJson,
   opc40570ResultJson,
+  type Opc40570Limitation,
   type Opc40570MachineResult,
   type Opc40570ResultEnvelope
 } from "../src/index.js"
@@ -56,6 +57,23 @@ const options = {
   createdAt: "2026-08-27T15:00:00Z",
   materialRefs: { W1: "ERP-MATERIAL-991" }
 } as const
+
+const withFromPin = (
+  hir: ReturnType<typeof makeHir>,
+  patch: Partial<ReturnType<typeof makeHir>["connectors"][number]["pins"][number]>
+): ReturnType<typeof makeHir> => {
+  const connectorEntry = hir.connectors[0]!
+  return {
+    ...hir,
+    connectors: [
+      {
+        ...connectorEntry,
+        pins: [{ ...connectorEntry.pins[0]!, ...patch }, ...connectorEntry.pins.slice(1)]
+      },
+      ...hir.connectors.slice(1)
+    ]
+  }
+}
 
 const resultsFor = (
   operationIds: ReadonlyArray<
@@ -183,6 +201,104 @@ describe("OPC 40570 transport-neutral mappings", () => {
     expect(job.operations.some((entry) => entry.kind === "cut")).toBe(false)
   })
 
+  it("rejects blank terminal and seal references and omits their operations", () => {
+    const hir = withFromPin(makeHir(), { terminal: " ", seal: "" })
+    const job = createOpc40570Job(hir, options)
+
+    expect(job.dispatchable).toBe(false)
+    expect(job.limitations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "NI-OPC-021", severity: "error", target: "wire:W1.from" }),
+        expect.objectContaining({ code: "NI-OPC-022", severity: "error", target: "wire:W1.from" })
+      ])
+    )
+    expect(job.operations).not.toContainEqual(
+      expect.objectContaining({ kind: "crimp", end: "from" })
+    )
+    expect(job.operations).not.toContainEqual(
+      expect.objectContaining({ kind: "seal", end: "from" })
+    )
+  })
+
+  it("rejects invalid crimp-height and pull-force facts while retaining only valid facts", () => {
+    const base = makeHir()
+    const basePart = base.connectors[0]!.pins[0]!.terminalPart!
+    const invalidRanges = [
+      { min: 0, max: 1 },
+      { min: -1, max: 1 },
+      { min: 1, max: Number.NaN },
+      { min: 1, max: Number.POSITIVE_INFINITY },
+      { min: 2, max: 1 }
+    ]
+    for (const crimpHeight of invalidRanges) {
+      const hir = withFromPin(base, {
+        terminalPart: { ...basePart, crimpHeight }
+      })
+      const job = createOpc40570Job(hir, options)
+      const operation = job.operations.find(
+        (entry) => entry.kind === "crimp" && entry.end === "from"
+      )
+
+      expect(job.dispatchable).toBe(false)
+      expect(job.limitations).toContainEqual(
+        expect.objectContaining({ code: "NI-OPC-023", severity: "error" })
+      )
+      expect(operation).toBeDefined()
+      expect(operation).not.toHaveProperty("declaredCrimpHeight")
+      expect(operation).toHaveProperty("declaredPullForceN", 70)
+    }
+
+    for (const pullForceN of [
+      0,
+      -1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY
+    ]) {
+      const hir = withFromPin(base, {
+        terminalPart: { ...basePart, pullForceN }
+      })
+      const job = createOpc40570Job(hir, options)
+      const operation = job.operations.find(
+        (entry) => entry.kind === "crimp" && entry.end === "from"
+      )
+
+      expect(job.dispatchable).toBe(false)
+      expect(job.limitations).toContainEqual(
+        expect.objectContaining({ code: "NI-OPC-024", severity: "error" })
+      )
+      expect(operation).toBeDefined()
+      expect(operation).not.toHaveProperty("declaredPullForceN")
+      expect(operation).toHaveProperty("declaredCrimpHeight", { min: 1.1, max: 1.2 })
+    }
+  })
+
+  it("rejects blank crimp-tool and die references while retaining valid crimp facts", () => {
+    const base = makeHir()
+    const basePart = base.connectors[0]!.pins[0]!.terminalPart!
+    const hir = withFromPin(base, {
+      terminalPart: { ...basePart, crimpTool: " ", dieId: "" }
+    })
+    const job = createOpc40570Job(hir, options)
+    const limitations: ReadonlyArray<Opc40570Limitation> = job.limitations
+    const operation = job.operations.find(
+      (entry) => entry.kind === "crimp" && entry.end === "from"
+    )
+
+    expect(job.dispatchable).toBe(false)
+    expect(limitations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "NI-OPC-026", severity: "error", target: "wire:W1.from" }),
+        expect.objectContaining({ code: "NI-OPC-027", severity: "error", target: "wire:W1.from" })
+      ])
+    )
+    expect(operation).toBeDefined()
+    expect(operation).not.toHaveProperty("crimpTool")
+    expect(operation).not.toHaveProperty("dieId")
+    expect(operation).toHaveProperty("declaredCrimpHeight", { min: 1.1, max: 1.2 })
+    expect(operation).toHaveProperty("declaredPullForceN", 70)
+  })
+
   it("requires an own string material reference for prototype-key wire ids", () => {
     const hir = makeHir("toString")
     const inherited = createOpc40570Job(hir, { ...options, materialRefs: {} })
@@ -231,6 +347,58 @@ describe("OPC 40570 transport-neutral mappings", () => {
       expect.arrayContaining(["NI-OPC-008", "NI-OPC-009", "NI-OPC-010", "NI-OPC-011"])
     )
     expect(opc40570JobJson(job).endsWith("\n")).toBe(true)
+  })
+
+  it("rejects every measurement field that is incompatible with the dispatched operation kind", () => {
+    const job = createOpc40570Job(makeHir(), options)
+    const resultPairs = job.operations.map((entry) => [entry.id, entry.kind] as const)
+    const incompatible = {
+      cut: [
+        { actualStripLength: 1 },
+        { actualCrimpHeight: 1 },
+        { actualCrimpWidth: 1 },
+        { actualPullForceN: 1 },
+        { forceCurve: [{ position: 0, force: 1 }] }
+      ],
+      strip: [
+        { actualCutLength: 1 },
+        { actualCrimpHeight: 1 },
+        { actualCrimpWidth: 1 },
+        { actualPullForceN: 1 },
+        { forceCurve: [{ position: 0, force: 1 }] }
+      ],
+      crimp: [{ actualCutLength: 1 }, { actualStripLength: 1 }],
+      seal: [
+        { actualCutLength: 1 },
+        { actualStripLength: 1 },
+        { actualCrimpHeight: 1 },
+        { actualCrimpWidth: 1 },
+        { actualPullForceN: 1 },
+        { forceCurve: [{ position: 0, force: 1 }] }
+      ]
+    } satisfies Readonly<
+      Record<NonNullable<Opc40570MachineResult["operationKind"]>, ReadonlyArray<Partial<Opc40570MachineResult>>>
+    >
+    const kinds = ["cut", "strip", "crimp", "seal"] as const
+
+    for (const kind of kinds) {
+      const operation = job.operations.find((entry) => entry.kind === kind)!
+      for (const patch of incompatible[kind]) {
+        const results = resultsFor(resultPairs).map((result) =>
+          result.operationId === operation.id ? { ...result, ...patch } : result
+        )
+        const ingested = ingestOpc40570Result(job, envelopeFor(results))
+
+        expect(ingested.structurallyAccepted).toBe(false)
+        expect(ingested.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "NI-OPC-025",
+            severity: "error",
+            target: `operation:${operation.id}`
+          })
+        )
+      }
+    }
   })
 
   it("fails closed without throwing for malformed external result DTOs", () => {

@@ -96,7 +96,7 @@ export {
 } from "./contracts.js"
 export { formboardSheets, type Formboard, type FormboardOptions, type FormboardSheet, type Paper } from "./formboard.js"
 export { computeImpact, createRelease, hirFingerprint, ReleaseBlockedError, releaseJson, type ChangeRisk, type CreateReleaseOptions, type Release, type ReleaseImpact } from "./release.js"
-export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type CrimpEvidenceVerdict, type CrimpProcessEvidence, type ElectricalTestResult, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict } from "./build-record.js"
+export { buildRecordJson, createBuildRecord, type BuildRecord, type BuildRecordOptions, type CrimpEvidenceVerdict, type CrimpProcessEvidence, type ElectricalTestResult, type LengthObservation, type LengthVerdict, type Measurement, type TestVerdict, type TestVerdictStatus } from "./build-record.js"
 export { createRedline, mergePatches, redlinesFromBuildRecord, resolveRedline, suggestPatch, validateRedlineTarget, type Redline, type RedlineType } from "./redline.js"
 export { manufacturingPacketPdf } from "./pdf.js"
 export { buildPacket, canRelease, type Packet, type PacketOptions } from "./packet.js"

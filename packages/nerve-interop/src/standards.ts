@@ -144,30 +144,53 @@ const sourceKinds: ReadonlySet<string> = new Set<RuleSourceKind>([
 
 type UnknownRecord = Record<string, unknown>
 
-const isRecord = (value: unknown): value is UnknownRecord =>
-  value !== null && typeof value === "object" && !Array.isArray(value)
+const isRecord = (value: unknown): value is UnknownRecord => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+const hasOwn = (record: UnknownRecord, key: string): boolean => Object.hasOwn(record, key)
 
 const isString = (value: unknown): value is string => typeof value === "string"
+const isNonBlankString = (value: unknown): value is string =>
+  isString(value) && value.trim().length > 0
 const isStringArray = (value: unknown): value is ReadonlyArray<string> =>
   Array.isArray(value) && value.every(isString)
 const optionalStrings = (record: UnknownRecord, keys: ReadonlyArray<string>): boolean =>
-  keys.every((key) => record[key] === undefined || isString(record[key]))
+  keys.every((key) => !hasOwn(record, key) || isString(record[key]))
 const evidenceLayer = (value: unknown): boolean =>
   value === "design-requirement" ||
   value === "workmanship-observation" ||
   value === "process-evidence"
 
+const validWaiverRecord = (value: unknown): boolean =>
+  isRecord(value) &&
+  hasOwn(value, "reference") &&
+  isNonBlankString(value.reference) &&
+  hasOwn(value, "rationale") &&
+  isNonBlankString(value.rationale) &&
+  hasOwn(value, "approvedBy") &&
+  isNonBlankString(value.approvedBy) &&
+  (!hasOwn(value, "approvedOn") || isNonBlankString(value.approvedOn))
+
 const isStandardsProfile = (value: unknown): value is StandardsProfile => {
   if (
     !isRecord(value) ||
+    !hasOwn(value, "schemaVersion") ||
     !isString(value.schemaVersion) ||
+    !hasOwn(value, "id") ||
     !isString(value.id) ||
+    !hasOwn(value, "revision") ||
     !isString(value.revision) ||
+    !hasOwn(value, "authorities") ||
     !Array.isArray(value.authorities) ||
+    !hasOwn(value, "requirements") ||
     !Array.isArray(value.requirements) ||
+    !hasOwn(value, "evidence") ||
     !Array.isArray(value.evidence) ||
-    (value.title !== undefined && !isString(value.title)) ||
-    (value.claims !== undefined && !isStringArray(value.claims))
+    (hasOwn(value, "title") && !isString(value.title)) ||
+    (hasOwn(value, "claims") && !isStringArray(value.claims))
   ) {
     return false
   }
@@ -175,13 +198,20 @@ const isStandardsProfile = (value: unknown): value is StandardsProfile => {
     !value.authorities.every(
       (authority) =>
         isRecord(authority) &&
+        hasOwn(authority, "id") &&
         isString(authority.id) &&
+        hasOwn(authority, "issuer") &&
         isString(authority.issuer) &&
+        hasOwn(authority, "documentId") &&
         isString(authority.documentId) &&
+        hasOwn(authority, "revision") &&
         isString(authority.revision) &&
+        hasOwn(authority, "scope") &&
         isString(authority.scope) &&
+        hasOwn(authority, "sourceKind") &&
         isString(authority.sourceKind) &&
         sourceKinds.has(authority.sourceKind) &&
+        hasOwn(authority, "sourceReference") &&
         isString(authority.sourceReference) &&
         optionalStrings(authority, ["addendum", "publication"])
     )
@@ -192,23 +222,31 @@ const isStandardsProfile = (value: unknown): value is StandardsProfile => {
     !value.requirements.every(
       (requirement) =>
         isRecord(requirement) &&
+        hasOwn(requirement, "id") &&
         isString(requirement.id) &&
+        hasOwn(requirement, "authorityId") &&
         isString(requirement.authorityId) &&
+        hasOwn(requirement, "layer") &&
         evidenceLayer(requirement.layer) &&
+        hasOwn(requirement, "evidenceExpectations") &&
         isStringArray(requirement.evidenceExpectations) &&
         optionalStrings(requirement, ["clauseRef", "reviewer"]) &&
-        (requirement.applicability === undefined ||
+        (!hasOwn(requirement, "applicability") ||
           (isRecord(requirement.applicability) &&
+            hasOwn(requirement.applicability, "status") &&
             (requirement.applicability.status === "applicable" ||
               requirement.applicability.status === "not-applicable" ||
               requirement.applicability.status === "conditional" ||
               requirement.applicability.status === "unassessed") &&
+            hasOwn(requirement.applicability, "rationale") &&
             isString(requirement.applicability.rationale) &&
             optionalStrings(requirement.applicability, ["decidedBy", "decidedOn"]))) &&
-        (requirement.parameterSource === undefined ||
+        (!hasOwn(requirement, "parameterSource") ||
           (isRecord(requirement.parameterSource) &&
+            hasOwn(requirement.parameterSource, "reference") &&
             isString(requirement.parameterSource.reference) &&
-            optionalStrings(requirement.parameterSource, ["authority", "authorityId", "revision"])))
+            optionalStrings(requirement.parameterSource, ["authority", "authorityId", "revision"]))) &&
+        (!hasOwn(requirement, "waiver") || validWaiverRecord(requirement.waiver))
     )
   ) {
     return false
@@ -216,12 +254,17 @@ const isStandardsProfile = (value: unknown): value is StandardsProfile => {
   return value.evidence.every(
     (evidence) =>
       isRecord(evidence) &&
+      hasOwn(evidence, "id") &&
       isString(evidence.id) &&
+      hasOwn(evidence, "requirementId") &&
       isString(evidence.requirementId) &&
+      hasOwn(evidence, "layer") &&
       evidenceLayer(evidence.layer) &&
+      hasOwn(evidence, "status") &&
       (evidence.status === "satisfied" ||
         evidence.status === "not-satisfied" ||
         evidence.status === "unassessed") &&
+      hasOwn(evidence, "evidenceRefs") &&
       isStringArray(evidence.evidenceRefs) &&
       optionalStrings(evidence, ["reviewer", "observedAt"])
   )
@@ -256,6 +299,14 @@ const issue = (
   ...(target === undefined ? {} : { target }),
   ...(relatedIds === undefined ? {} : { relatedIds: [...relatedIds].sort(cmp) })
 })
+
+const malformedProfileIssues = (): ReadonlyArray<StandardsIssue> => [
+  issue(
+    CODES.MalformedProfile,
+    "Standards profile must contain correctly typed identity, authority, requirement, and evidence arrays.",
+    "profile"
+  )
+]
 
 const sortIssues = (issues: ReadonlyArray<StandardsIssue>): ReadonlyArray<StandardsIssue> =>
   [...issues].sort(
@@ -302,17 +353,11 @@ const forbiddenClaimPaths = (
 }
 
 /** Validate profile references and evidence boundaries without evaluating a standard. */
-export const validateStandardsProfile = (
+const validateStandardsProfileUnchecked = (
   profile: unknown
 ): ReadonlyArray<StandardsIssue> => {
   if (!isStandardsProfile(profile)) {
-    return [
-      issue(
-        CODES.MalformedProfile,
-        "Standards profile must contain correctly typed identity, authority, requirement, and evidence arrays.",
-        "profile"
-      )
-    ]
+    return malformedProfileIssues()
   }
   const issues: Array<StandardsIssue> = []
   if (profile.schemaVersion !== STANDARDS_PROFILE_SCHEMA_VERSION) {
@@ -479,7 +524,10 @@ export const validateStandardsProfile = (
 
   const evidenceIds = new Set<string>()
   for (const evidence of profile.evidence ?? []) {
-    const target = `evidence:${evidence.id}`
+    const target = `evidence:${evidence.id || "<missing>"}`
+    if (!present(evidence.id)) {
+      issues.push(issue(CODES.MissingIdentity, "Evidence id is required.", target))
+    }
     if (
       evidence.status === "satisfied" &&
       !evidence.evidenceRefs.some((reference) => present(reference))
@@ -542,6 +590,17 @@ export const validateStandardsProfile = (
   return sortIssues(issues)
 }
 
+/** Fail closed for hostile runtime DTOs whose getters or proxies throw. */
+export const validateStandardsProfile = (
+  profile: unknown
+): ReadonlyArray<StandardsIssue> => {
+  try {
+    return validateStandardsProfileUnchecked(profile)
+  } catch {
+    return malformedProfileIssues()
+  }
+}
+
 const normalizeProfile = (profile: StandardsProfile): StandardsProfile => {
   const parsed: unknown = JSON.parse(JSON.stringify(canonicalValue(profile)))
   if (!isStandardsProfile(parsed)) {
@@ -583,7 +642,7 @@ export const defineStandardsProfile = (
 }
 
 /** Compose profiles while reporting, rather than silently resolving, conflicts. */
-export const composeStandardsProfiles = (
+const composeStandardsProfilesUnchecked = (
   profiles: ReadonlyArray<unknown>
 ): StandardsComposition => {
   if (!Array.isArray(profiles)) {
@@ -602,7 +661,22 @@ export const composeStandardsProfiles = (
       hasConflicts: true
     }
   }
-  const issues: Array<StandardsIssue> = profiles.flatMap(validateStandardsProfile)
+  const issues: Array<StandardsIssue> = []
+  const normalizedProfiles: Array<StandardsProfile> = []
+  for (const candidate of profiles) {
+    const candidateIssues = validateStandardsProfile(candidate)
+    issues.push(...candidateIssues)
+    if (candidateIssues.some((entry) => entry.code === CODES.MalformedProfile)) continue
+    try {
+      if (!isStandardsProfile(candidate)) {
+        issues.push(...malformedProfileIssues())
+        continue
+      }
+      normalizedProfiles.push(normalizeProfile(candidate))
+    } catch {
+      issues.push(...malformedProfileIssues())
+    }
+  }
   const profileIds = new Set<string>()
   const profileDefinitions = new Map<string, string>()
   const authorities = new Map<string, StandardAuthority>()
@@ -611,9 +685,7 @@ export const composeStandardsProfiles = (
   const evidence = new Map<string, StandardEvidenceRecord>()
 
   const seenProfiles = new Set<string>()
-  const orderedProfiles = profiles
-    .filter(isStandardsProfile)
-    .map(normalizeProfile)
+  const orderedProfiles = normalizedProfiles
     .sort((a, b) => cmp(a.id, b.id) || cmp(identity(a), identity(b)))
     .filter((profile) => {
       const key = identity(profile)
@@ -703,6 +775,25 @@ export const composeStandardsProfiles = (
     evidence: [...evidence.values()].sort((a, b) => cmp(a.id, b.id)),
     issues: orderedIssues,
     hasConflicts: orderedIssues.some((entry) => entry.severity === "error")
+  }
+}
+
+/** Compose defensively: an unreadable profile can never crash the caller. */
+export const composeStandardsProfiles = (
+  profiles: ReadonlyArray<unknown>
+): StandardsComposition => {
+  try {
+    return composeStandardsProfilesUnchecked(profiles)
+  } catch {
+    return {
+      schemaVersion: STANDARDS_PROFILE_SCHEMA_VERSION,
+      profileIds: [],
+      authorities: [],
+      requirements: [],
+      evidence: [],
+      issues: malformedProfileIssues(),
+      hasConflicts: true
+    }
   }
 }
 

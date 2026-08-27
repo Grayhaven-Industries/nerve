@@ -424,6 +424,19 @@ const validateWinner = (
   const offers = [...record.offers].sort(compareOffer)
   for (const offer of offers) {
     if (
+      offer.minimumOrderQuantity !== undefined &&
+      !isPositiveQuantity(offer.minimumOrderQuantity)
+    ) {
+      diagnostics.push({
+        code: SupplyDiagnosticCodes.InvalidQuantity,
+        severity: "error",
+        message: `Supplier ${offer.supplier} has invalid minimum order quantity ${offer.minimumOrderQuantity} for ${target}.`,
+        target,
+        providers: [provider],
+        fields: ["offers.minimumOrderQuantity"]
+      })
+    }
+    if (
       offer.availableQuantity !== undefined &&
       !isValidAvailability(offer.availableQuantity)
     ) {
@@ -486,7 +499,9 @@ const normalizedConflictFields = (
   const left = cloneRecord(winner)
   const right = cloneRecord(other)
   const fields: Array<string> = []
+  if (left.id !== right.id) fields.push("id")
   if (left.manufacturer !== right.manufacturer) fields.push("manufacturer")
+  if (left.description !== right.description) fields.push("description")
   if (left.lifecycle !== right.lifecycle) fields.push("lifecycle")
   if (left.approval !== right.approval) fields.push("approval")
   if (stableJson(left.alternates) !== stableJson(right.alternates)) {

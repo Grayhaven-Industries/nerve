@@ -651,7 +651,14 @@ export const evaluateElectricalMeasurement = (
 ): ElectricalMeasurementVerdict => {
   if (measurement.id !== step.id) return "unassessed"
   if (!knownElectricalMethod(step.method)) return "unassessed"
-  if (measurement.method !== undefined && measurement.method !== step.method) {
+  // The method-less shape is retained only for legacy continuity resistance
+  // evidence. Every method-specific procedure must identify itself so a
+  // numerically plausible measurement cannot be judged against the wrong
+  // acceptance rule.
+  if (
+    (measurement.method === undefined && step.method !== "continuity") ||
+    (measurement.method !== undefined && measurement.method !== step.method)
+  ) {
     return "unassessed"
   }
 

@@ -1,3 +1,4 @@
+/* oxlint-disable anti-slop/no-object-parameters, anti-slop/no-reflect-get -- The replay boundary must inspect serialized evidence before narrowing it into the named StepEvidence domain union. */
 /**
  * Deterministic shop-floor execution and serialized unit build records.
  *
@@ -438,6 +439,28 @@ const copy = <T>(value: T): T => structuredClone(value)
 
 const absent = (value: string): boolean => value.trim() === ""
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Replay is the parser boundary for serialized shop-floor events and must narrow untrusted fields before domain use.
+const runtimeString = (value: unknown): value is string => {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Establish the serialized field contract before domain use.
+  return typeof value === "string"
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Serialized event strings are checked before domain use.
+const runtimeNonBlankString = (value: unknown): value is string =>
+  runtimeString(value) && value.trim() !== ""
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Serialized numeric evidence is checked before domain use.
+const runtimeNumber = (value: unknown): value is number => {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Establish the serialized field contract before domain use.
+  return typeof value === "number"
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Serialized boolean evidence is checked before domain use.
+const runtimeBoolean = (value: unknown): value is boolean => {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Establish the serialized field contract before domain use.
+  return typeof value === "boolean"
+}
+
 const eventProblem = (
   code: ShopFloorCode,
   message: string,
@@ -457,10 +480,108 @@ const success = (state: UnitBuildState): ShopFloorResult => ({
 })
 
 const rfc3339WithOffset =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/
 
-const timestampInstant = (timestamp: string): number =>
-  rfc3339WithOffset.test(timestamp) ? Date.parse(timestamp) : Number.NaN
+const timestampInstant = (timestamp: string): number => {
+  const parts = rfc3339WithOffset.exec(timestamp)
+  if (parts === null) return Number.NaN
+  const year = Number(parts[1])
+  const month = Number(parts[2])
+  const day = Number(parts[3])
+  const hour = Number(parts[4])
+  const minute = Number(parts[5])
+  const second = Number(parts[6])
+  const offsetHour = Number(parts[7] ?? 0)
+  const offsetMinute = Number(parts[8] ?? 0)
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1]! ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return Number.NaN
+  }
+  return Date.parse(timestamp)
+}
+
+const calibrationStatuses = new Set(["current", "expired", "unassessed"])
+const electricalVerdicts: ReadonlySet<unknown> = new Set(["pass", "fail", "unassessed"])
+const shopFloorEventTypes: ReadonlySet<unknown> = new Set([
+  "unit-started",
+  "step-evidence-recorded",
+  "step-completed",
+  "deviation-opened",
+  "deviation-dispositioned",
+  "rework-recorded",
+  "step-reopened",
+  "unit-closed"
+])
+const deviationDispositions = new Set([
+  "accepted",
+  "rework-required",
+  "rejected",
+  "scrap"
+])
+
+const optionalRuntimeString = (record: object, key: string): boolean => {
+  const value = Reflect.get(record, key)
+  return value === undefined || runtimeString(value)
+}
+
+const optionalRuntimeBoolean = (record: object, key: string): boolean => {
+  const value = Reflect.get(record, key)
+  return value === undefined || runtimeBoolean(value)
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This is the serialized evidence parser used before reducer/domain access.
+const runtimeStepEvidence = (value: unknown): value is StepEvidence => {
+  if (!(value instanceof Object) || Array.isArray(value)) return false
+  const kind = Reflect.get(value, "kind")
+  if (!runtimeString(Reflect.get(value, "id")) || !runtimeString(Reflect.get(value, "timestamp"))) {
+    return false
+  }
+  switch (kind) {
+    case "operator":
+      return runtimeString(Reflect.get(value, "operatorId"))
+    case "material-lot":
+      return runtimeString(Reflect.get(value, "materialId")) &&
+        runtimeString(Reflect.get(value, "lotId")) &&
+        optionalRuntimeString(value, "supplierLotId")
+    case "tool-calibration": {
+      const status = Reflect.get(value, "calibrationStatus")
+      return runtimeString(Reflect.get(value, "toolId")) &&
+        runtimeString(Reflect.get(value, "calibrationId")) &&
+        (status === undefined || calibrationStatuses.has(status)) &&
+        optionalRuntimeString(value, "calibrationExpiresAt")
+    }
+    case "measurement":
+      return runtimeNumber(Reflect.get(value, "value")) &&
+        runtimeString(Reflect.get(value, "units")) &&
+        runtimeString(Reflect.get(value, "requirementRef"))
+    case "attachment":
+      return runtimeString(Reflect.get(value, "attachmentId")) &&
+        runtimeString(Reflect.get(value, "contentHash")) &&
+        optionalRuntimeString(value, "mediaType")
+    case "electrical-test":
+      return runtimeString(Reflect.get(value, "specificationRef")) &&
+        runtimeString(Reflect.get(value, "resultRef")) &&
+        runtimeString(Reflect.get(value, "rawResultRef")) &&
+        electricalVerdicts.has(Reflect.get(value, "verdict")) &&
+        optionalRuntimeString(value, "testerId") &&
+        optionalRuntimeString(value, "testProgramVersion") &&
+        optionalRuntimeBoolean(value, "interlockConfirmed") &&
+        optionalRuntimeBoolean(value, "dischargeConfirmed")
+    default:
+      return false
+  }
+}
 
 const uniqueSorted = (values: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(values)].sort(compare)
@@ -648,6 +769,25 @@ const completionEvidenceProblems = (
         )
       }
     }
+    if (kind === "tool-calibration" && outcome === "pass") {
+      const latest = matching.at(-1)
+      const current = latest?.kind === "tool-calibration" &&
+        latest.calibrationStatus === "current" &&
+        (
+          latest.calibrationExpiresAt === undefined ||
+          timestampInstant(latest.calibrationExpiresAt) >= timestampInstant(event.timestamp)
+        )
+      if (!current) {
+        problems.push(
+          eventProblem(
+            ShopFloorCodes.InvalidEvidence,
+            `Step ${step.definition.id} requires current tool-calibration evidence at completion.`,
+            event,
+            { stepId: step.definition.id, evidenceKind: kind }
+          )
+        )
+      }
+    }
   }
   return problems
 }
@@ -665,9 +805,22 @@ const invalidEvidenceReason = (evidence: StepEvidence): string | undefined => {
         ? "Material-lot evidence requires material and lot ids."
         : undefined
     case "tool-calibration":
-      return absent(evidence.toolId) || absent(evidence.calibrationId)
-        ? "Tool evidence requires tool and calibration ids."
-        : undefined
+      if (absent(evidence.toolId) || absent(evidence.calibrationId)) {
+        return "Tool evidence requires tool and calibration ids."
+      }
+      if (
+        evidence.calibrationStatus !== undefined &&
+        !calibrationStatuses.has(evidence.calibrationStatus)
+      ) {
+        return "Tool evidence has an invalid calibration status."
+      }
+      if (
+        evidence.calibrationExpiresAt !== undefined &&
+        !Number.isFinite(timestampInstant(evidence.calibrationExpiresAt))
+      ) {
+        return "Tool evidence requires an RFC 3339 calibration expiry with an explicit offset."
+      }
+      return undefined
     case "measurement":
       return !Number.isFinite(evidence.value) ||
         absent(evidence.units) ||
@@ -835,7 +988,7 @@ const makeState = (
  * It stops at the first invalid event, except completion/close gates which
  * return all independent missing requirements in stable route order.
  */
-export const replayUnitBuild = (
+const replayUnitBuildInternal = (
   workOrder: WorkOrder,
   serial: string,
   events: ReadonlyArray<ShopFloorEvent>
@@ -886,11 +1039,20 @@ export const replayUnitBuild = (
   for (let index = 0; index < events.length; index += 1) {
     const original = events[index]!
     const event = copy(original)
-    if (absent(event.id) || absent(event.actor)) {
+    if (!runtimeNonBlankString(event.id) || !runtimeNonBlankString(event.actor)) {
       return refusal(
         eventProblem(
           ShopFloorCodes.InvalidEvent,
           "Every event requires a non-blank id and actor.",
+          event
+        )
+      )
+    }
+    if (!shopFloorEventTypes.has(event.type)) {
+      return refusal(
+        eventProblem(
+          ShopFloorCodes.InvalidEvent,
+          "Event has an unsupported runtime type.",
           event
         )
       )
@@ -986,6 +1148,15 @@ export const replayUnitBuild = (
       }
 
       case "step-evidence-recorded": {
+        if (!runtimeNonBlankString(event.stepId) || !runtimeStepEvidence(event.evidence)) {
+          return refusal(
+            eventProblem(
+              ShopFloorCodes.InvalidEvent,
+              "A step-evidence-recorded event requires a non-blank step id and a recognized evidence payload.",
+              event
+            )
+          )
+        }
         const step = steps.get(event.stepId)
         if (step === undefined) {
           return refusal(
@@ -1094,6 +1265,21 @@ export const replayUnitBuild = (
       }
 
       case "deviation-opened": {
+        if (
+          !runtimeNonBlankString(event.deviationId) ||
+          !runtimeNonBlankString(event.stepId) ||
+          !runtimeNonBlankString(event.reason) ||
+          (event.reference !== undefined && !runtimeNonBlankString(event.reference))
+        ) {
+          return refusal(
+            eventProblem(
+              ShopFloorCodes.InvalidEvent,
+              "A deviation requires non-blank deviation, step, and reason fields; its optional reference must also be non-blank.",
+              event,
+              { stepId: event.stepId, relatedId: event.deviationId }
+            )
+          )
+        }
         if (!steps.has(event.stepId)) {
           return refusal(
             eventProblem(
@@ -1127,6 +1313,21 @@ export const replayUnitBuild = (
       }
 
       case "deviation-dispositioned": {
+        if (
+          !runtimeNonBlankString(event.deviationId) ||
+          !runtimeNonBlankString(event.rationale) ||
+          !deviationDispositions.has(event.disposition) ||
+          (event.dispositionRef !== undefined && !runtimeNonBlankString(event.dispositionRef))
+        ) {
+          return refusal(
+            eventProblem(
+              ShopFloorCodes.InvalidEvent,
+              "A deviation disposition requires a known disposition and non-blank deviation and rationale fields; its optional reference must also be non-blank.",
+              event,
+              { relatedId: event.deviationId }
+            )
+          )
+        }
         const deviation = deviations.get(event.deviationId)
         if (deviation === undefined) {
           return refusal(
@@ -1360,11 +1561,36 @@ export const replayUnitBuild = (
         closed = true
         break
       }
+
+      default:
+        return refusal(
+          eventProblem(
+            ShopFloorCodes.InvalidEvent,
+            "Event has an unsupported runtime type.",
+            event
+          )
+        )
     }
     acceptedEvents.push(event)
   }
 
   return success(makeState(workOrder, acceptedEvents, steps, deviations, rework))
+}
+
+/** Replay never leaks native exceptions for malformed serialized events. */
+export const replayUnitBuild = (
+  workOrder: WorkOrder,
+  serial: string,
+  events: ReadonlyArray<ShopFloorEvent>
+): ShopFloorResult => {
+  try {
+    return replayUnitBuildInternal(workOrder, serial, events)
+  } catch {
+    return refusal({
+      code: ShopFloorCodes.InvalidEvent,
+      message: "Shop-floor event history contains an unreadable runtime payload."
+    })
+  }
 }
 
 type ProgressProjection =

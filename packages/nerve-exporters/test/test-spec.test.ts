@@ -305,6 +305,37 @@ describe("method-specific electrical judgments", () => {
     ).toBe("fail")
   })
 
+  it("requires an explicit method for every non-legacy electrical procedure", () => {
+    expect(
+      evaluateElectricalMeasurement(steps[1]!, {
+        id: steps[1]!.id,
+        measuredOhms: 0.01
+      })
+    ).toBe("unassessed")
+    expect(
+      evaluateElectricalMeasurement(steps[2]!, {
+        id: steps[2]!.id,
+        measuredOhms: 20_000_000,
+        appliedVoltageV: 500,
+        appliedWaveform: "dc",
+        durationSeconds: 2,
+        interlockConfirmed: true,
+        dischargeConfirmed: true
+      })
+    ).toBe("unassessed")
+    expect(
+      evaluateElectricalMeasurement(steps[3]!, {
+        id: steps[3]!.id,
+        leakageMilliAmps: 1.4,
+        appliedVoltageV: 1_000,
+        appliedWaveform: "ac",
+        durationSeconds: 3,
+        interlockConfirmed: true,
+        dischargeConfirmed: true
+      })
+    ).toBe("unassessed")
+  })
+
   it("requires voltage, dwell, interlock, and discharge evidence for HV methods", () => {
     const insulation = {
       id: steps[2]!.id,

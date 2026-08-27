@@ -20,9 +20,11 @@ import { parseJsonObject, parsePackageManifest, type JsonValue } from "./json.js
 // Dependency order: dependencies publish before dependents.
 const PACKAGES = [
   "nerve",
+  "nerve-interop",
   "nerve-rules",
   "nerve-eval",
   "nerve-importers",
+  "nerve-platform",
   "nerve-compiler",
   "nerve-exporters",
   "nerve-wireviz",

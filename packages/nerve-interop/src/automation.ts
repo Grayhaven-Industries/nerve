@@ -179,44 +179,58 @@ const wireFact = (
 ): WireFactResult => {
   const ref = `wire:${entry.id}`
   if (fact === "wire.finished-length") {
-    return entry.length === undefined
-      ? { status: "failed", evidence: [], detail: "finished length is absent" }
-      : { status: "satisfied", evidence: [`${ref}.length`], detail: "finished length is declared" }
+    if (entry.length === undefined) {
+      return { status: "failed", evidence: [], detail: "finished length is absent" }
+    }
+    return finitePositive(entry.length)
+      ? { status: "satisfied", evidence: [`${ref}.length`], detail: "finished length is declared and valid" }
+      : { status: "failed", evidence: [`${ref}.length`], detail: "finished length is not finite and positive" }
   }
   if (fact === "wire.material-reference") {
-    return entry.part?.mpn === undefined
-      ? { status: "failed", evidence: [], detail: "material part reference is absent" }
-      : { status: "satisfied", evidence: [`${ref}.part.mpn`], detail: "material part reference is declared" }
+    const materialReference = entry.part?.mpn
+    if (materialReference === undefined) {
+      return { status: "failed", evidence: [], detail: "material part reference is absent" }
+    }
+    return present(materialReference)
+      ? { status: "satisfied", evidence: [`${ref}.part.mpn`], detail: "material part reference is declared" }
+      : { status: "failed", evidence: [`${ref}.part.mpn`], detail: "material part reference is blank" }
   }
   if (fact === "wire.gauge") {
-    const evidence = [
-      ...(entry.gauge === undefined ? [] : [`${ref}.gauge`]),
-      ...(entry.part?.gauge === undefined ? [] : [`${ref}.part.gauge`])
+    const declared = [
+      ...(entry.gauge === undefined ? [] : [{ value: entry.gauge, ref: `${ref}.gauge` }]),
+      ...(entry.part?.gauge === undefined
+        ? []
+        : [{ value: entry.part.gauge, ref: `${ref}.part.gauge` }])
     ]
-    return evidence.length === 0
-      ? { status: "failed", evidence, detail: "wire gauge is absent" }
-      : { status: "satisfied", evidence, detail: "wire gauge is declared" }
+    const evidence = declared.map((entry) => entry.ref)
+    if (declared.length === 0) {
+      return { status: "failed", evidence, detail: "wire gauge is absent" }
+    }
+    return declared.every((entry) => present(entry.value))
+      ? { status: "satisfied", evidence, detail: "wire gauge is declared" }
+      : { status: "failed", evidence, detail: "one or more declared wire gauges are blank" }
   }
   if (fact === "wire.strip-length-both-ends") {
-    return entry.stripLength === undefined
-      ? { status: "failed", evidence: [], detail: "per-end strip lengths are absent" }
-      : {
-          status: "satisfied",
-          evidence: [`${ref}.stripLength.from`, `${ref}.stripLength.to`],
-          detail: "both strip lengths are declared"
-        }
+    if (entry.stripLength === undefined) {
+      return { status: "failed", evidence: [], detail: "per-end strip lengths are absent" }
+    }
+    const evidence = [`${ref}.stripLength.from`, `${ref}.stripLength.to`]
+    return finitePositive(entry.stripLength.from) && finitePositive(entry.stripLength.to)
+      ? { status: "satisfied", evidence, detail: "both strip lengths are declared and valid" }
+      : { status: "failed", evidence, detail: "one or both strip lengths are not finite and positive" }
   }
   if (fact === "wire.termination-allowance-both-ends") {
-    return entry.terminationAllowance === undefined
-      ? { status: "failed", evidence: [], detail: "per-end termination allowances are absent" }
-      : {
-          status: "satisfied",
-          evidence: [
-            `${ref}.terminationAllowance.from`,
-            `${ref}.terminationAllowance.to`
-          ],
-          detail: "both termination allowances are declared"
-        }
+    if (entry.terminationAllowance === undefined) {
+      return { status: "failed", evidence: [], detail: "per-end termination allowances are absent" }
+    }
+    const evidence = [
+      `${ref}.terminationAllowance.from`,
+      `${ref}.terminationAllowance.to`
+    ]
+    return finiteNonnegative(entry.terminationAllowance.from) &&
+      finiteNonnegative(entry.terminationAllowance.to)
+      ? { status: "satisfied", evidence, detail: "both termination allowances are declared and valid" }
+      : { status: "failed", evidence, detail: "one or both termination allowances are negative or non-finite" }
   }
   if (fact === "wire.terminal-both-ends" || fact === "wire.seal-both-ends") {
     if (!("connector" in entry.from) || !("connector" in entry.to)) {
@@ -235,9 +249,12 @@ const wireFact = (
       ...(fromValue === undefined ? [] : [`connector:${entry.from.connector}.pin:${entry.from.pin}.${key}`]),
       ...(toValue === undefined ? [] : [`connector:${entry.to.connector}.pin:${entry.to.pin}.${key}`])
     ]
-    return fromValue === undefined || toValue === undefined
-      ? { status: "failed", evidence, detail: `${key} is absent at one or both ends` }
-      : { status: "satisfied", evidence, detail: `${key} is declared at both ends` }
+    if (fromValue === undefined || toValue === undefined) {
+      return { status: "failed", evidence, detail: `${key} is absent at one or both ends` }
+    }
+    return present(fromValue) && present(toValue)
+      ? { status: "satisfied", evidence, detail: `${key} is declared at both ends` }
+      : { status: "failed", evidence, detail: `${key} is blank at one or both ends` }
   }
   return { status: "unassessed", evidence: [], detail: `fact ${fact} is not represented by this evaluator` }
 }
@@ -438,6 +455,7 @@ export const evaluateHighVoltageProfile = (
 
   const domains = new Map<string, VoltageDomain>()
   const duplicateDomains = new Set<string>()
+  const invalidDomains = new Set<string>()
   for (const domain of profile.domains) {
     if (domains.has(domain.id)) {
       duplicateDomains.add(domain.id)
@@ -453,12 +471,18 @@ export const evaluateHighVoltageProfile = (
       continue
     }
     domains.set(domain.id, domain)
+    const nominalWithinMaximum =
+      domain.nominalVoltageV === undefined ||
+      (finiteNonnegative(domain.nominalVoltageV) &&
+        finiteNonnegative(domain.maximumOperatingVoltageV) &&
+        domain.nominalVoltageV <= domain.maximumOperatingVoltageV)
     if (
       !present(domain.id) ||
       !present(domain.authorityReference) ||
       !finiteNonnegative(domain.maximumOperatingVoltageV) ||
-      (domain.nominalVoltageV !== undefined && !finiteNonnegative(domain.nominalVoltageV))
+      !nominalWithinMaximum
     ) {
+      invalidDomains.add(domain.id)
       findings.push(
         hvFinding(
           HV_CODES.InvalidDomain,
@@ -497,6 +521,19 @@ export const evaluateHighVoltageProfile = (
           "unassessed",
           target,
           `High-voltage assignment references unknown or ambiguous domain ${assignment.domainId}.`,
+          [],
+          assignment
+        )
+      )
+      continue
+    }
+    if (invalidDomains.has(assignment.domainId)) {
+      findings.push(
+        hvFinding(
+          HV_CODES.InvalidDomain,
+          "unassessed",
+          target,
+          `Wire ${assignment.wireId} cannot be compared against invalid voltage domain ${assignment.domainId}.`,
           [],
           assignment
         )

@@ -5,7 +5,9 @@ import {
   exportVec22Subset,
   importVec22Subset,
   vec22SubsetJson,
-  type Vec22SubsetDocument
+  type Vec22SubsetDocument,
+  type VecDesignExportOptions,
+  type VecDiagnostic
 } from "../src/index.js"
 
 interface CyclicJsonCandidate {
@@ -125,6 +127,54 @@ describe("normalized VEC 2.2 subset", () => {
     })
   })
 
+  it("preserves prototype-key cavity ids through import, compile, and export", () => {
+    const fixture = document()
+    const withPrototypeKey: Vec22SubsetDocument = {
+      ...fixture,
+      connectors: fixture.connectors.map((entry) =>
+        entry.ref === "J1"
+          ? {
+              ...entry,
+              pins: [{ ...entry.pins[0]!, id: "__proto__" }]
+            }
+          : entry
+      ),
+      wires: [
+        {
+          ...fixture.wires[0]!,
+          from: { connector: "J1", pin: "__proto__" }
+        }
+      ]
+    }
+
+    const imported = importVec22Subset(withPrototypeKey)
+    expect(imported.ok).toBe(true)
+    expect(imported.coverage.complete).toBe(true)
+    const importedConnector = imported.design?.connectors.find((entry) => entry.ref === "J1")
+    expect(Object.hasOwn(importedConnector!.pins, "__proto__")).toBe(true)
+    expect(importedConnector?.pins["__proto__"]).toBe("PWR")
+    expect(Object.hasOwn(importedConnector!.terminals, "__proto__")).toBe(true)
+    expect(Object.hasOwn(importedConnector!.seals, "__proto__")).toBe(true)
+
+    const compiled = compileDesign(imported.design!)
+    expect(compiled.diagnostics).toEqual([])
+    expect(
+      compiled.hir.connectors
+        .find((entry) => entry.ref === "J1")
+        ?.pins.find((entry) => entry.pin === "__proto__")
+    ).toMatchObject({ signal: "PWR", terminal: "TERM-A", seal: "SEAL-A" })
+
+    const exported = exportVec22Subset(imported.design!, {
+      sourceHash: "sha256:prototype-key"
+    })
+    expect(exported.ok).toBe(true)
+    expect(
+      exported.document?.connectors
+        .find((entry) => entry.ref === "J1")
+        ?.pins.find((entry) => entry.id === "__proto__")
+    ).toMatchObject({ signal: "PWR", terminal: { mpn: "TERM-A" }, seal: { mpn: "SEAL-A" } })
+  })
+
   it("round-trips supported facts and emits exact UTF-8 bytes with newline", () => {
     const imported = importVec22Subset(document())
     const exported = exportVec22Subset(imported)
@@ -202,6 +252,31 @@ describe("normalized VEC 2.2 subset", () => {
       terminal: { mpn: "TERM-A", crimpTool: "PRESS-7", dieId: "DIE-3" },
       seal: { mpn: "SEAL-A" }
     })
+  })
+
+  it("rejects non-finite authored facts instead of serializing them as null", () => {
+    const imported = importVec22Subset(document())
+    expect(imported.design).toBeDefined()
+
+    for (const length of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const design = {
+        ...imported.design!,
+        wires: imported.design!.wires.map((entry) => ({ ...entry, length }))
+      }
+      const exported = exportVec22Subset(design, { sourceHash: "sha256:non-finite" })
+      expect(exported.ok).toBe(false)
+      expect(exported.document).toBeUndefined()
+      expect(exported.json).toBeUndefined()
+      expect(exported.bytes).toBeUndefined()
+      expect(exported.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "NI-VEC-014",
+          severity: "error",
+          target: "document.wires[0].length"
+        })
+      )
+      expect(exported.diagnostics[0]?.message).toContain("numbers must be finite")
+    }
   })
 
   it("maps a declared material reference when the subset also supplies its gauge", () => {
@@ -283,10 +358,139 @@ describe("normalized VEC 2.2 subset", () => {
       })
       expect(imported.ok).toBe(false)
       expect(imported.design).toBeUndefined()
-      const invalid = imported.diagnostics.find((entry) => entry.code === "NI-VEC-012")
+      const invalid: VecDiagnostic | undefined = imported.diagnostics.find(
+        (entry) => entry.code === "NI-VEC-012"
+      )
       expect(invalid?.severity).toBe("error")
       expect(invalid?.message).toContain("W1")
     }
+  })
+
+  it("rejects blank harness and production identities", () => {
+    const base = document()
+    const firstConnector = base.connectors[0]!
+    const firstPin = firstConnector.pins[0]!
+    const firstWire = base.wires[0]!
+    const cases: ReadonlyArray<Vec22SubsetDocument> = [
+      { ...base, harness: { ...base.harness, id: " " } },
+      { ...base, harness: { ...base.harness, revision: "" } },
+      {
+        ...base,
+        connectors: [{
+          ...firstConnector,
+          pins: [{ ...firstPin, terminal: { ...firstPin.terminal!, mpn: " " } }]
+        }, ...base.connectors.slice(1)]
+      },
+      {
+        ...base,
+        connectors: [{
+          ...firstConnector,
+          pins: [{ ...firstPin, seal: { ...firstPin.seal!, mpn: "" } }]
+        }, ...base.connectors.slice(1)]
+      },
+      {
+        ...base,
+        connectors: [{
+          ...firstConnector,
+          pins: [{ ...firstPin, terminal: { ...firstPin.terminal!, crimpTool: " " } }]
+        }, ...base.connectors.slice(1)]
+      },
+      { ...base, wires: [{ ...firstWire, id: "" }] },
+      { ...base, wires: [{ ...firstWire, material: " " }] },
+      { ...base, wires: [{ ...firstWire, gauge: "" }] },
+      { ...base, wires: [{ ...firstWire, part: { ...firstWire.part!, mpn: " " } }] },
+      { ...base, wires: [{ ...firstWire, part: { ...firstWire.part!, gauge: "" } }] }
+    ]
+
+    for (const candidate of cases) {
+      const imported = importVec22Subset(candidate)
+      expect(imported.ok).toBe(false)
+      expect(imported.design).toBeUndefined()
+      expect(imported.diagnostics).toContainEqual(
+        expect.objectContaining({ code: "NI-VEC-012", severity: "error" })
+      )
+    }
+  })
+
+  it("rejects every mapped finite-but-physical-invalid process and rating fact", () => {
+    const base = document()
+    const firstConnector = base.connectors[0]!
+    const firstPin = firstConnector.pins[0]!
+    const firstWire = base.wires[0]!
+    type ConnectorPatch = Partial<(typeof base.connectors)[number]>
+    type TerminalPatch = Partial<NonNullable<(typeof firstPin)["terminal"]>>
+    type SealPatch = Partial<NonNullable<(typeof firstPin)["seal"]>>
+    type WirePatch = Partial<(typeof base.wires)[number]>
+    type WirePartPatch = Partial<NonNullable<(typeof firstWire)["part"]>>
+    const withConnector = (patch: ConnectorPatch): Vec22SubsetDocument => ({
+      ...base,
+      connectors: [{ ...firstConnector, ...patch }, ...base.connectors.slice(1)]
+    })
+    const withTerminal = (patch: TerminalPatch): Vec22SubsetDocument => ({
+      ...base,
+      connectors: [{
+        ...firstConnector,
+        pins: [{ ...firstPin, terminal: { ...firstPin.terminal!, ...patch } }]
+      }, ...base.connectors.slice(1)]
+    })
+    const withSeal = (patch: SealPatch): Vec22SubsetDocument => ({
+      ...base,
+      connectors: [{
+        ...firstConnector,
+        pins: [{ ...firstPin, seal: { ...firstPin.seal!, ...patch } }]
+      }, ...base.connectors.slice(1)]
+    })
+    const withWire = (patch: WirePatch): Vec22SubsetDocument => ({
+      ...base,
+      wires: [{ ...firstWire, ...patch }]
+    })
+    const withWirePart = (patch: WirePartPatch): Vec22SubsetDocument => withWire({
+      part: { ...firstWire.part!, ...patch }
+    })
+    const invalidFacts: ReadonlyArray<Vec22SubsetDocument> = [
+      withConnector({ voltageLimitV: 0 }),
+      withConnector({ currentLimitA: -1 }),
+      withTerminal({ insulationDiameterRange: { min: 2, max: 1 } }),
+      withTerminal({ currentRatingA: 0 }),
+      withTerminal({ stripLength: 0 }),
+      withTerminal({ crimpHeight: { min: 2, max: 1 } }),
+      withTerminal({ pullForceN: -1 }),
+      withSeal({ insulationDiameterRange: { min: 2, max: 1 } }),
+      withWirePart({ strands: 0 }),
+      withWirePart({ outerDiameter: 0 }),
+      withWirePart({ voltageRating: 0 }),
+      withWirePart({ ohmsPerKm: 0 }),
+      withWirePart({ gramsPerMeter: -1 }),
+      withWire({ length: 0 }),
+      withWire({ lengthTolerance: -1 }),
+      withWire({ lengthTolerance: firstWire.length! }),
+      withWire({ serviceLoop: -1 }),
+      withWire({ stripLength: { from: 0, to: 5 } }),
+      withWire({ terminationAllowance: { from: -1, to: 3 } }),
+      withWire({ voltageRating: 0 }),
+      withWire({ currentEstimate: -1 })
+    ]
+
+    for (const candidate of invalidFacts) {
+      const imported = importVec22Subset(candidate)
+      expect(imported.ok).toBe(false)
+      expect(imported.design).toBeUndefined()
+      expect(imported.diagnostics).toContainEqual(
+        expect.objectContaining({ code: "NI-VEC-012", severity: "error" })
+      )
+    }
+
+    const imported = importVec22Subset(base)
+    const options: VecDesignExportOptions = { sourceHash: "sha256:invalid-physical" }
+    const exported = exportVec22Subset({
+      ...imported.design!,
+      wires: [{ ...imported.design!.wires[0]!, length: 0 }]
+    }, options)
+    expect(exported.ok).toBe(false)
+    expect(exported.document).toBeUndefined()
+    expect(exported.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "NI-VEC-012", severity: "error" })
+    )
   })
 
   it("rejects blank, duplicate, over-capacity, and unsafe connector cavity declarations", () => {
@@ -336,6 +540,11 @@ describe("normalized VEC 2.2 subset", () => {
 
   it("returns stable diagnostics for malformed external DTOs instead of throwing", () => {
     const fixture = document()
+    const hostileAccessor = Object.defineProperty({}, "schemaVersion", {
+      get: () => {
+        throw new Error("hostile schemaVersion getter")
+      }
+    })
     const malformed: ReadonlyArray<unknown> = [
       null,
       {},
@@ -343,7 +552,8 @@ describe("normalized VEC 2.2 subset", () => {
       {
         ...fixture,
         wires: [{ ...fixture.wires[0]!, from: null }]
-      }
+      },
+      hostileAccessor
     ]
 
     for (const input of malformed) {
@@ -352,6 +562,29 @@ describe("normalized VEC 2.2 subset", () => {
       expect(imported.document).toBeUndefined()
       expect(imported.diagnostics.map((entry) => entry.code)).toContain("NI-VEC-014")
       expect(exportVec22Subset(imported).ok).toBe(false)
+    }
+  })
+
+  it("returns a stable export diagnostic for malformed lookalikes and hostile getters", () => {
+    const hostile = Object.defineProperty({}, "kind", {
+      get: () => {
+        throw new Error("hostile kind getter")
+      }
+    })
+    const malformed: ReadonlyArray<unknown> = [
+      { kind: "harness" },
+      { ok: true, coverage: {}, diagnostics: [], document: document() },
+      { ...document(), connectors: null },
+      hostile
+    ]
+
+    for (const input of malformed) {
+      // SAFETY: Deliberately bypass the static overload to exercise the runtime boundary.
+      const exported = exportVec22Subset(input as never, { sourceHash: "sha256:malformed" })
+      expect(exported.ok).toBe(false)
+      expect(exported.document).toBeUndefined()
+      expect(exported.json).toBeUndefined()
+      expect(exported.diagnostics.map((entry) => entry.code)).toContain("NI-VEC-014")
     }
   })
 

@@ -50,7 +50,8 @@ export const ConfigurationIssueCodes = {
   UnsatisfiedRequirement: "HK-CONFIG-004",
   MutuallyExcluded: "HK-CONFIG-005",
   ConflictingMutation: "HK-CONFIG-006",
-  EnumerationLimit: "HK-CONFIG-007"
+  EnumerationLimit: "HK-CONFIG-007",
+  MissingMutationTarget: "HK-CONFIG-008"
 } as const
 
 export type ConfigurationIssueCode =
@@ -191,6 +192,27 @@ const conflictIssuesForSection = <Entity, Override extends object = object>(
   const issues: Array<ConfigurationIssue> = []
   for (const id of [...actions.keys()].sort(compareText)) {
     const entity = actions.get(id)!
+    const missingTargetOwners = new Set<string>()
+    if (!baseIds.has(id)) {
+      for (const optionId of entity.removals) {
+        // A remove/add pair owned by one option is the supported local
+        // replacement form. Every other removal must target the base design.
+        if (!entity.additions.includes(optionId)) missingTargetOwners.add(optionId)
+      }
+      for (const change of entity.overrides) missingTargetOwners.add(change.optionId)
+    }
+    if (missingTargetOwners.size > 0) {
+      issues.push({
+        code: ConfigurationIssueCodes.MissingMutationTarget,
+        message: `Selected options mutate missing ${section} entity ${id}.`,
+        optionIds: selected
+          .filter((option) => missingTargetOwners.has(option.id))
+          .map((option) => option.id),
+        section,
+        entityId: id
+      })
+    }
+
     let conflicts = entity.additions.length > 1
 
     if (entity.additions.length === 1) {

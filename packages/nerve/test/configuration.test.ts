@@ -178,6 +178,68 @@ describe("product configuration", () => {
     expect(changed.issues[0]?.code).toBe(ConfigurationIssueCodes.ConflictingMutation)
   })
 
+  it("rejects removals and overrides that do not target the base design", () => {
+    const missingTargets = defineProductFamily({
+      id: "missing-targets",
+      base,
+      options: [
+        {
+          id: "remove-missing",
+          patch: { wires: { remove: ["W-MISSING-REMOVE"] } }
+        },
+        {
+          id: "override-missing",
+          patch: { wires: { override: { "W-MISSING-OVERRIDE": { length: 250 } } } }
+        }
+      ]
+    })
+    const result = resolveConfiguration(missingTargets, {
+      id: "missing-output",
+      optionIds: ["override-missing", "remove-missing"]
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: ConfigurationIssueCodes.MissingMutationTarget,
+        entityId: "W-MISSING-OVERRIDE",
+        optionIds: ["override-missing"]
+      }),
+      expect.objectContaining({
+        code: ConfigurationIssueCodes.MissingMutationTarget,
+        entityId: "W-MISSING-REMOVE",
+        optionIds: ["remove-missing"]
+      })
+    ])
+  })
+
+  it("retains one-option remove/add replacement semantics", () => {
+    const replacement = defineProductFamily({
+      id: "replacement",
+      base,
+      options: [{
+        id: "local-replacement",
+        patch: {
+          wires: {
+            remove: ["W-LOCAL"],
+            add: [wire("W-LOCAL", source.pin(2), load.pin(2), { length: 125 })]
+          }
+        }
+      }]
+    })
+    const result = resolveConfiguration(replacement, {
+      id: "replacement-output",
+      optionIds: ["local-replacement"]
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("local replacement should resolve")
+    expect(result.design.wires).toContainEqual(expect.objectContaining({
+      id: "W-LOCAL",
+      length: 125
+    }))
+  })
+
   it("enumerates only valid selections and fails explicitly at the guard", () => {
     const enumerated = enumerateConfigurations(family, { maximum: 8 })
     expect(enumerated).toEqual({

@@ -195,7 +195,7 @@ export interface VecExportResult {
   readonly coverage: VecCoverage
 }
 
-interface VecDesignExportOptions {
+export interface VecDesignExportOptions {
   readonly sourceHash: string
   readonly sourceReference?: string
   readonly validation?: VecValidationEvidence
@@ -225,13 +225,88 @@ const present = (value: string | undefined): value is string =>
   value !== undefined && value.trim().length > 0
 const finiteNonnegative = (value: number | undefined): value is number =>
   value !== undefined && Number.isFinite(value) && value >= 0
+const finitePositive = (value: number | undefined): value is number =>
+  value !== undefined && Number.isFinite(value) && value > 0
 
 type UnknownRecord = Record<string, unknown>
+
+const nullPrototypeRecord = <T>(): Record<string, T> =>
+  // SAFETY: A null prototype keeps arbitrary external identifiers such as
+  // `__proto__` as ordinary own keys instead of invoking Object.prototype.
+  Object.create(null) as Record<string, T>
+
+const ownRecordValue = <T>(
+  record: Readonly<Record<string, T>> | undefined,
+  key: string
+): T | undefined =>
+  record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined
 
 const isPlainRecord = (value: unknown): value is UnknownRecord => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
+}
+
+const optionalNonBlank = (value: string | undefined): boolean =>
+  value === undefined || present(value)
+
+const positiveOrderedRange = (
+  value: { readonly min: number; readonly max: number } | undefined
+): boolean =>
+  value === undefined ||
+  (finitePositive(value.min) && finitePositive(value.max) && value.min <= value.max)
+
+const terminalFactsValid = (terminal: Vec22Terminal): boolean =>
+  present(terminal.mpn) &&
+  (terminal.wireGaugeRange === undefined ||
+    (present(terminal.wireGaugeRange.min) && present(terminal.wireGaugeRange.max))) &&
+  positiveOrderedRange(terminal.insulationDiameterRange) &&
+  (terminal.currentRatingA === undefined || finitePositive(terminal.currentRatingA)) &&
+  optionalNonBlank(terminal.crimpTool) &&
+  optionalNonBlank(terminal.dieId) &&
+  (terminal.stripLength === undefined || finitePositive(terminal.stripLength)) &&
+  positiveOrderedRange(terminal.crimpHeight) &&
+  (terminal.pullForceN === undefined || finitePositive(terminal.pullForceN))
+
+const sealFactsValid = (seal: Vec22Seal): boolean =>
+  present(seal.mpn) && positiveOrderedRange(seal.insulationDiameterRange)
+
+const wirePartFactsValid = (part: Vec22WirePart): boolean =>
+  present(part.mpn) &&
+  present(part.gauge) &&
+  (part.strands === undefined ||
+    (Number.isSafeInteger(part.strands) && part.strands > 0)) &&
+  (part.outerDiameter === undefined || finitePositive(part.outerDiameter)) &&
+  (part.voltageRating === undefined || finitePositive(part.voltageRating)) &&
+  (part.temperatureRating === undefined || Number.isFinite(part.temperatureRating)) &&
+  (part.ohmsPerKm === undefined || finitePositive(part.ohmsPerKm)) &&
+  (part.gramsPerMeter === undefined || finitePositive(part.gramsPerMeter)) &&
+  (part.availableColors === undefined || part.availableColors.every(present))
+
+const wireFactsValid = (entry: Vec22Wire): boolean => {
+  if (!present(entry.id)) return false
+  if (entry.part !== undefined && !wirePartFactsValid(entry.part)) return false
+  if (!optionalNonBlank(entry.material) || !optionalNonBlank(entry.gauge)) return false
+  if (entry.length !== undefined && !finitePositive(entry.length)) return false
+  if (
+    entry.lengthTolerance !== undefined &&
+    (!finiteNonnegative(entry.lengthTolerance) ||
+      !finitePositive(entry.length) ||
+      entry.lengthTolerance >= entry.length)
+  ) return false
+  if (entry.serviceLoop !== undefined && !finiteNonnegative(entry.serviceLoop)) return false
+  if (
+    entry.stripLength !== undefined &&
+    (!finitePositive(entry.stripLength.from) || !finitePositive(entry.stripLength.to))
+  ) return false
+  if (
+    entry.terminationAllowance !== undefined &&
+    (!finiteNonnegative(entry.terminationAllowance.from) ||
+      !finiteNonnegative(entry.terminationAllowance.to))
+  ) return false
+  if (entry.voltageRating !== undefined && !finitePositive(entry.voltageRating)) return false
+  if (entry.temperatureRating !== undefined && !Number.isFinite(entry.temperatureRating)) return false
+  return entry.currentEstimate === undefined || finiteNonnegative(entry.currentEstimate)
 }
 
 const canonicalValue = (value: unknown): unknown => {
@@ -688,8 +763,21 @@ const emptyCoverage = (): VecCoverage => ({
   complete: false
 })
 
+const unreadableImportResult = (): VecImportResult => ({
+  ok: false,
+  diagnostics: [
+    diagnostic(
+      CODES.MalformedDocument,
+      "error",
+      "Structured subset input could not be inspected safely.",
+      "document"
+    )
+  ],
+  coverage: emptyCoverage()
+})
+
 /** Import the structured subset into a compilable HarnessDesign. */
-export const importVec22Subset = (
+const importVec22SubsetInternal = (
   input: unknown,
   options: VecImportOptions = {}
 ): VecImportResult => {
@@ -720,6 +808,16 @@ export const importVec22Subset = (
   if (!present(document.sourceHash)) {
     diagnostics.push(
       diagnostic(CODES.SourceMissing, "error", "A caller-supplied source hash is required.", "document:sourceHash")
+    )
+  }
+  if (!present(document.harness.id) || !present(document.harness.revision)) {
+    diagnostics.push(
+      diagnostic(
+        CODES.InvalidFact,
+        "error",
+        "Harness id and revision must be non-blank strings.",
+        "document:harness"
+      )
     )
   }
 
@@ -778,13 +876,15 @@ export const importVec22Subset = (
       !present(entry.ref) ||
       !present(entry.mpn) ||
       !Number.isSafeInteger(entry.pinCount) ||
-      entry.pinCount < 1
+      entry.pinCount < 1 ||
+      (entry.voltageLimitV !== undefined && !finitePositive(entry.voltageLimitV)) ||
+      (entry.currentLimitA !== undefined && !finitePositive(entry.currentLimitA))
     ) {
       diagnostics.push(
         diagnostic(
           CODES.InvalidFact,
           "error",
-          `Connector ${entry.ref || "<missing>"} requires a ref, MPN, and positive safe-integer pinCount.`,
+          `Connector ${entry.ref || "<missing>"} requires a ref, MPN, positive safe-integer pinCount, and positive finite electrical ratings.`,
           target
         )
       )
@@ -801,9 +901,11 @@ export const importVec22Subset = (
       )
     }
 
-    const pins: Record<string, string> = {}
-    const terminals: Record<string, TerminalPart> = {}
-    const seals: Record<string, SealPart> = {}
+    const pins = nullPrototypeRecord<string>()
+    const terminals = nullPrototypeRecord<string>()
+    const seals = nullPrototypeRecord<string>()
+    const terminalParts = nullPrototypeRecord<TerminalPart>()
+    const sealParts = nullPrototypeRecord<SealPart>()
     const pinIds = new Set<string>()
     for (const pin of entry.pins) {
       const pinTarget = `${target}.pin:${pin.id}`
@@ -840,8 +942,38 @@ export const importVec22Subset = (
         continue
       }
       pins[pin.id] = pin.signal
-      if (pin.terminal !== undefined) terminals[pin.id] = terminalPart(pin.terminal)
-      if (pin.seal !== undefined) seals[pin.id] = sealPart(pin.seal)
+      if (pin.terminal !== undefined) {
+        if (!terminalFactsValid(pin.terminal)) {
+          diagnostics.push(
+            diagnostic(
+              CODES.InvalidFact,
+              "error",
+              `Connector ${entry.ref} pin ${pin.id} has a blank terminal identity or invalid terminal process/rating fact.`,
+              pinTarget
+            )
+          )
+        } else {
+          const authoredTerminal = terminalPart(pin.terminal)
+          terminals[pin.id] = authoredTerminal.mpn
+          terminalParts[pin.id] = authoredTerminal
+        }
+      }
+      if (pin.seal !== undefined) {
+        if (!sealFactsValid(pin.seal)) {
+          diagnostics.push(
+            diagnostic(
+              CODES.InvalidFact,
+              "error",
+              `Connector ${entry.ref} pin ${pin.id} has a blank seal identity or invalid seal diameter range.`,
+              pinTarget
+            )
+          )
+        } else {
+          const authoredSeal = sealPart(pin.seal)
+          seals[pin.id] = authoredSeal.mpn
+          sealParts[pin.id] = authoredSeal
+        }
+      }
     }
 
     const part: ConnectorPart = {
@@ -854,11 +986,17 @@ export const importVec22Subset = (
       ...(entry.voltageLimitV === undefined ? {} : { voltageLimitV: entry.voltageLimitV }),
       ...(entry.currentLimitA === undefined ? {} : { currentLimitA: entry.currentLimitA })
     }
-    const instance = connector(entry.ref, part, {
+    // connector() intentionally rebuilds its dictionaries, so restore the
+    // safe records here to preserve prototype-key VEC cavity identifiers.
+    const instance: ConnectorInstance = {
+      ...connector(entry.ref, part, { pins }),
       pins,
-      ...(Object.keys(terminals).length === 0 ? {} : { terminals }),
-      ...(Object.keys(seals).length === 0 ? {} : { seals })
-    })
+      terminals,
+      seals,
+      ...(Object.keys(terminalParts).length === 0 ? {} : { terminalParts }),
+      ...(Object.keys(sealParts).length === 0 ? {} : { sealParts }),
+      electrical: nullPrototypeRecord()
+    }
     instances.set(entry.ref, instance)
     mappedConnectors += 1
   }
@@ -894,20 +1032,14 @@ export const importVec22Subset = (
       unmappedPaths.add(`wires/${entry.id}`)
       continue
     }
-    if (
-      (entry.length !== undefined && !finiteNonnegative(entry.length)) ||
-      (entry.serviceLoop !== undefined && !finiteNonnegative(entry.serviceLoop)) ||
-      // terminationAllowance feeds cut length exactly like serviceLoop
-      // (cut = length + serviceLoop + terminationAllowance.from + .to; see
-      // wireCutLength in nerve-exporters/csv.ts and cutLengthOf in nerve/compile.ts).
-      // The compiler never sign-checks it, so gate it here or a negative
-      // allowance silently corrupts every cut/strip export.
-      (entry.terminationAllowance !== undefined &&
-        (!finiteNonnegative(entry.terminationAllowance.from) ||
-          !finiteNonnegative(entry.terminationAllowance.to)))
-    ) {
+    if (!wireFactsValid(entry)) {
       diagnostics.push(
-        diagnostic(CODES.InvalidFact, "error", `Wire ${entry.id} contains a negative or non-finite length.`, target)
+        diagnostic(
+          CODES.InvalidFact,
+          "error",
+          `Wire ${entry.id || "<missing>"} contains a blank production identity or invalid physical process/rating fact.`,
+          target
+        )
       )
       continue
     }
@@ -1018,9 +1150,21 @@ export const importVec22Subset = (
   }
 }
 
+/** Fail closed even when accessors mutate or throw after structural inspection. */
+export const importVec22Subset = (
+  input: unknown,
+  options: VecImportOptions = {}
+): VecImportResult => {
+  try {
+    return importVec22SubsetInternal(input, options)
+  } catch {
+    return unreadableImportResult()
+  }
+}
+
 const exportTerminal = (part: TerminalPart | undefined, mpn: string | undefined): Vec22Terminal | undefined => {
   if (part !== undefined) {
-    return canonicalClone({
+    return {
       mpn: part.mpn,
       ...(part.manufacturer === undefined ? {} : { manufacturer: part.manufacturer }),
       ...(part.family === undefined ? {} : { family: part.family }),
@@ -1036,14 +1180,14 @@ const exportTerminal = (part: TerminalPart | undefined, mpn: string | undefined)
       ...(part.stripLength === undefined ? {} : { stripLength: part.stripLength }),
       ...(part.crimpHeight === undefined ? {} : { crimpHeight: part.crimpHeight }),
       ...(part.pullForceN === undefined ? {} : { pullForceN: part.pullForceN })
-    })
+    }
   }
   return mpn === undefined ? undefined : { mpn }
 }
 
 const exportSeal = (part: SealPart | undefined, mpn: string | undefined): Vec22Seal | undefined => {
   if (part !== undefined) {
-    return canonicalClone({
+    return {
       mpn: part.mpn,
       ...(part.manufacturer === undefined ? {} : { manufacturer: part.manufacturer }),
       ...(part.family === undefined ? {} : { family: part.family }),
@@ -1051,7 +1195,7 @@ const exportSeal = (part: SealPart | undefined, mpn: string | undefined): Vec22S
       ...(part.insulationDiameterRange === undefined
         ? {}
         : { insulationDiameterRange: part.insulationDiameterRange })
-    })
+    }
   }
   return mpn === undefined ? undefined : { mpn }
 }
@@ -1073,8 +1217,14 @@ const documentFromDesign = (
     ...(entry.part.voltageLimitV === undefined ? {} : { voltageLimitV: entry.part.voltageLimitV }),
     ...(entry.part.currentLimitA === undefined ? {} : { currentLimitA: entry.part.currentLimitA }),
     pins: Object.entries(entry.pins).map(([id, signal]) => {
-      const terminal = exportTerminal(entry.terminalParts?.[id], entry.terminals[id])
-      const seal = exportSeal(entry.sealParts?.[id], entry.seals[id])
+      const terminal = exportTerminal(
+        ownRecordValue(entry.terminalParts, id),
+        ownRecordValue(entry.terminals, id)
+      )
+      const seal = exportSeal(
+        ownRecordValue(entry.sealParts, id),
+        ownRecordValue(entry.seals, id)
+      )
       return {
         id,
         signal,
@@ -1101,7 +1251,7 @@ const documentFromDesign = (
     const part = entry.part
     const exportedPart: Vec22WirePart | undefined = part === undefined
       ? undefined
-      : canonicalClone({
+      : {
           mpn: part.mpn,
           gauge: part.gauge,
           ...(part.manufacturer === undefined ? {} : { manufacturer: part.manufacturer }),
@@ -1122,7 +1272,7 @@ const documentFromDesign = (
           ...(part.availableColors === undefined
             ? {}
             : { availableColors: [...part.availableColors] })
-        })
+        }
     wires.push({
       id: entry.id,
       from: { connector: entry.from.connector, pin: entry.from.pin },
@@ -1149,7 +1299,7 @@ const documentFromDesign = (
     })
   }
 
-  return normalizeDocument({
+  return {
     schemaVersion: VEC_22_SUBSET_SCHEMA_VERSION,
     harness: { id: design.id, revision: design.revision, units: design.units },
     sourceHash: options.sourceHash,
@@ -1158,18 +1308,59 @@ const documentFromDesign = (
     connectors,
     wires,
     unknownExtensions: options.unknownExtensions ?? []
-  })
+  }
 }
 
-export function exportVec22Subset(input: VecImportResult | Vec22SubsetDocument): VecExportResult
-export function exportVec22Subset(
-  input: HarnessDesign,
-  options: VecDesignExportOptions
-): VecExportResult
-export function exportVec22Subset(
+const malformedExportResult = (): VecExportResult => ({
+  ok: false,
+  diagnostics: [
+    diagnostic(
+      CODES.MalformedDocument,
+      "error",
+      "VEC export input must be a readable structured subset, import result, or HarnessDesign.",
+      "document"
+    )
+  ],
+  coverage: emptyCoverage()
+})
+
+const nonnegativeSafeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+
+const mappingCountShape = (value: unknown): boolean =>
+  isPlainRecord(value) &&
+  nonnegativeSafeInteger(value.total) &&
+  nonnegativeSafeInteger(value.mapped) &&
+  value.mapped <= value.total
+
+const coverageShape = (value: unknown): boolean =>
+  isPlainRecord(value) &&
+  mappingCountShape(value.connectors) &&
+  mappingCountShape(value.wires) &&
+  nonnegativeSafeInteger(value.unknownExtensions) &&
+  Array.isArray(value.unmappedPaths) &&
+  value.unmappedPaths.every(stringValue) &&
+  typeof value.complete === "boolean"
+
+const vecDiagnosticShape = (value: unknown): boolean =>
+  isPlainRecord(value) &&
+  stringValue(value.code) &&
+  (value.severity === "error" || value.severity === "warning") &&
+  stringValue(value.message) &&
+  optionalFields(value, ["target"], stringValue)
+
+const importResultShape = (value: UnknownRecord): boolean =>
+  typeof value.ok === "boolean" &&
+  Array.isArray(value.diagnostics) &&
+  value.diagnostics.every(vecDiagnosticShape) &&
+  coverageShape(value.coverage) &&
+  (value.document === undefined || isPlainRecord(value.document)) &&
+  !(value.ok && value.document === undefined)
+
+const exportVec22SubsetInternal = (
   input: VecImportResult | Vec22SubsetDocument | HarnessDesign,
   options?: VecDesignExportOptions
-): VecExportResult {
+): VecExportResult => {
   let document: Vec22SubsetDocument
   let diagnostics: Array<VecDiagnostic> = []
   const unmappedPaths = new Set<string>()
@@ -1179,33 +1370,43 @@ export function exportVec22Subset(
   let totalWireCount = 0
 
   if (!isPlainRecord(input)) {
-    return {
-      ok: false,
-      diagnostics: [
-        diagnostic(
-          CODES.MalformedDocument,
-          "error",
-          "VEC export input must be a structured subset, import result, or HarnessDesign.",
-          "document"
-        )
-      ],
-      coverage: emptyCoverage()
-    }
+    return malformedExportResult()
   }
   if ("kind" in input && input.kind === "harness") {
     const design = input as unknown as HarnessDesign
-    totalConnectorCount = design.connectors.length
-    totalWireCount = design.wires.length
+    if (
+      !stringValue(design.id) ||
+      !stringValue(design.revision) ||
+      (design.units !== "mm" && design.units !== "in") ||
+      !Array.isArray(design.connectors) ||
+      !Array.isArray(design.wires)
+    ) {
+      return malformedExportResult()
+    }
     if (options === undefined || !present(options.sourceHash)) {
       diagnostics.push(
         diagnostic(CODES.SourceMissing, "error", "Exporting a design requires a caller-supplied sourceHash.", "document:sourceHash")
       )
       return { ok: false, diagnostics, coverage: emptyCoverage() }
     }
-    document = documentFromDesign(design, options, diagnostics, unmappedPaths)
+    totalConnectorCount = design.connectors.length
+    totalWireCount = design.wires.length
+    const validated = importVec22SubsetInternal(
+      documentFromDesign(design, options, diagnostics, unmappedPaths)
+    )
+    if (validated.document === undefined || !validated.ok) {
+      return {
+        ok: false,
+        diagnostics: sortDiagnostics([...diagnostics, ...validated.diagnostics]),
+        coverage: emptyCoverage()
+      }
+    }
+    diagnostics.push(...validated.diagnostics)
+    document = normalizeDocument(validated.document)
     mappedConnectorCount = document.connectors.length
     mappedWireCount = document.wires.length
   } else if ("ok" in input && "coverage" in input && "diagnostics" in input) {
+    if (!importResultShape(input)) return malformedExportResult()
     const imported = input as unknown as VecImportResult
     if (imported.document === undefined) {
       return {
@@ -1214,7 +1415,15 @@ export function exportVec22Subset(
         coverage: imported.coverage
       }
     }
-    document = normalizeDocument(imported.document)
+    const decoded = decodeDocument(imported.document)
+    if (decoded.document === undefined) {
+      return {
+        ok: false,
+        diagnostics: sortDiagnostics([...imported.diagnostics, ...decoded.diagnostics]),
+        coverage: emptyCoverage()
+      }
+    }
+    document = normalizeDocument(decoded.document)
     diagnostics = [...imported.diagnostics]
     totalConnectorCount = imported.coverage.connectors.total
     totalWireCount = imported.coverage.wires.total
@@ -1259,6 +1468,22 @@ export function exportVec22Subset(
     bytes: utf8Bytes(json),
     diagnostics: orderedDiagnostics,
     coverage
+  }
+}
+
+export function exportVec22Subset(input: VecImportResult | Vec22SubsetDocument): VecExportResult
+export function exportVec22Subset(
+  input: HarnessDesign,
+  options: VecDesignExportOptions
+): VecExportResult
+export function exportVec22Subset(
+  input: VecImportResult | Vec22SubsetDocument | HarnessDesign,
+  options?: VecDesignExportOptions
+): VecExportResult {
+  try {
+    return exportVec22SubsetInternal(input, options)
+  } catch {
+    return malformedExportResult()
   }
 }
 

@@ -43,13 +43,19 @@ export interface Measurement {
   readonly dischargeConfirmed?: boolean
 }
 
-export type TestVerdict = "pass" | "fail" | "not-run" | "unassessed"
+export type TestVerdictStatus = "pass" | "fail" | "not-run" | "unassessed"
 
 export interface ElectricalTestResult extends Measurement {
   readonly type: HarnessTest["type"]
   readonly expected: "closed" | "open"
-  readonly verdict: TestVerdict
+  readonly verdict: TestVerdictStatus
 }
+
+/**
+ * Backward-compatible name for the complete per-test result object.
+ * `TestVerdictStatus` names the scalar status introduced for richer evidence.
+ */
+export type TestVerdict = ElectricalTestResult
 
 export interface LengthObservation {
   /** Wire id, matching HIR `wires[].id`. */
@@ -304,7 +310,7 @@ const judgeLengths = (
 const resultWithMeasurement = (
   test: HarnessTest,
   measurement: Measurement,
-  verdict: Exclude<TestVerdict, "not-run">
+  verdict: Exclude<TestVerdictStatus, "not-run">
 ): ElectricalTestResult => {
   const { id, ...evidence } = canonicalMeasurement(measurement)
   return { id, type: test.type, expected: test.expected, ...evidence, verdict }

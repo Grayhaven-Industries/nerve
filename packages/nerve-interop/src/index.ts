@@ -24,6 +24,8 @@ export {
   type Vec22SubsetDocument,
   type Vec22Wire,
   type VecCoverage,
+  type VecDesignExportOptions,
+  type VecDiagnostic,
   type VecExportResult,
   type VecImportOptions,
   type VecImportResult,
@@ -41,6 +43,7 @@ export {
   type Opc40570IngestResult,
   type Opc40570Job,
   type Opc40570JobOptions,
+  type Opc40570Limitation,
   type Opc40570MachineResult,
   type Opc40570Operation,
   type Opc40570ResultEnvelope

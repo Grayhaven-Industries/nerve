@@ -8,7 +8,7 @@
  *   nerve export   <file.harness.ts> --target manufacturing-packet [--out dir]
  *   nerve inspect  <dist/harness.json>
  *
- * Exit codes: 0 success · 1 validation errors · 2 usage/compile failure.
+ * Exit codes: 0 success · 1 validation/test failure · 2 usage, compile, or incomplete evidence.
  * All file output is deterministic and CI-suitable.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs"

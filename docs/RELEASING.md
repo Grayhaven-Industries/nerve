@@ -1,6 +1,6 @@
 # Releasing
 
-All ten publishable `@grayhaven/*` packages version in lockstep via
+All twelve publishable `@grayhaven/*` packages version in lockstep via
 [changesets](https://github.com/changesets/changesets) (fixed group
 `@grayhaven/*` in `.changeset/config.json`; private packages such as
 `@grayhaven/nerve-web` are excluded from versioning).
@@ -26,7 +26,7 @@ All ten publishable `@grayhaven/*` packages version in lockstep via
 
 `publish-all.ts` is idempotent: before each publish it asks the registry
 whether that exact `name@version` already exists and skips it if so. If a
-release fails partway (package 6 of 10 errors), just re-run the workflow
+release fails partway (package 6 of 12 errors), just re-run the workflow
 (or `bun scripts/publish-all.ts` from CI) — the already-published prefix
 is skipped automatically and publishing resumes where it stopped. No
 hand-editing of the package list is needed anymore. Only a positive

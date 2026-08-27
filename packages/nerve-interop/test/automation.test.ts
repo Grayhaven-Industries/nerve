@@ -88,6 +88,72 @@ describe("automation readiness", () => {
       target: "wire:MISSING"
     })
   })
+
+  it("does not satisfy numeric wire facts with physically invalid values", () => {
+    const base = makeHir(600)
+    const evaluate = (
+      fact: AutomationReadinessProfile["requirements"][number]["fact"],
+      wireValues: Partial<(typeof base.wires)[number]>
+    ) => evaluateAutomationReadiness(
+      { ...base, wires: [{ ...base.wires[0]!, ...wireValues }] },
+      {
+        id: "numeric-readiness",
+        revision: "1",
+        requirements: [{ id: "NUMERIC", fact, entityIds: ["HV1"] }]
+      }
+    ).findings[0]
+
+    for (const length of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(evaluate("wire.finished-length", { length })).toMatchObject({
+        code: "NI-AUTO-002",
+        status: "failed"
+      })
+    }
+    for (const from of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(evaluate("wire.strip-length-both-ends", {
+        stripLength: { from, to: 5 }
+      })).toMatchObject({ code: "NI-AUTO-002", status: "failed" })
+    }
+    for (const from of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(evaluate("wire.termination-allowance-both-ends", {
+        terminationAllowance: { from, to: 3 }
+      })).toMatchObject({ code: "NI-AUTO-002", status: "failed" })
+    }
+    expect(evaluate("wire.termination-allowance-both-ends", {
+      terminationAllowance: { from: 0, to: 0 }
+    })).toMatchObject({ code: "NI-AUTO-001", status: "satisfied" })
+  })
+
+  it("does not satisfy production-reference facts with blank strings", () => {
+    const base = makeHir(600)
+    const hir: typeof base = {
+      ...base,
+      connectors: base.connectors.map((entry) => ({
+        ...entry,
+        pins: entry.pins.map((pin) => ({ ...pin, terminal: " ", seal: "" }))
+      })),
+      wires: [{
+        ...base.wires[0]!,
+        gauge: "",
+        part: { ...base.wires[0]!.part!, mpn: " ", gauge: "" }
+      }]
+    }
+    const facts = [
+      "wire.material-reference",
+      "wire.gauge",
+      "wire.terminal-both-ends",
+      "wire.seal-both-ends"
+    ] as const
+    const result = evaluateAutomationReadiness(hir, {
+      id: "blank-production-references",
+      revision: "1",
+      requirements: facts.map((fact) => ({ id: fact, fact, entityIds: ["HV1"] }))
+    })
+
+    expect(result.findings).toHaveLength(facts.length)
+    expect(result.findings.every((entry) => entry.status === "failed")).toBe(true)
+    expect(result.findings.every((entry) => entry.code === "NI-AUTO-002")).toBe(true)
+  })
 })
 
 const hvProfile = (maximumOperatingVoltageV: number): HighVoltageDesignProfile => ({
@@ -149,6 +215,19 @@ describe("high-voltage design readiness", () => {
       )
       expect(result.findings.some((entry) => entry.code === "NI-HV-007")).toBe(false)
     }
+  })
+
+  it("rejects voltage domains whose nominal voltage exceeds their maximum", () => {
+    const invalid = hvProfile(500)
+    const result = evaluateHighVoltageProfile(makeHir(600), {
+      ...invalid,
+      domains: [{ ...invalid.domains[0]!, nominalVoltageV: 800 }]
+    })
+
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({ code: "NI-HV-011", status: "unassessed" })
+    )
+    expect(result.findings.some((entry) => entry.code === "NI-HV-007")).toBe(false)
   })
 
   it("keeps HVIL, segregation, and shield grounding unassessed", () => {

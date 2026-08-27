@@ -406,6 +406,54 @@ describe("shop-floor execution", () => {
     })
   })
 
+  it("fails closed for unknown event types and unreadable evidence payloads", () => {
+    // SAFETY: this value intentionally models serialized input that bypassed
+    // the TypeScript DTO so replay can prove its discriminator is exhaustive.
+    const futureEventType = "future-event" as never
+    // SAFETY: this value intentionally models a serialized null payload that
+    // bypassed the TypeScript DTO so replay can prove it fails closed.
+    const unreadableEvidence = null as never
+    const futureEvent: ShopFloorEvent = {
+      type: futureEventType,
+      ...common("future-event", 1)
+    }
+    const unknownFirst = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [futureEvent])
+    expect(unknownFirst.ok).toBe(false)
+    if (unknownFirst.ok) throw new Error("expected first-event type refusal")
+    expect(unknownFirst.problems[0]).toMatchObject({
+      code: ShopFloorCodes.InvalidEvent,
+      eventId: "future-event"
+    })
+
+    const unknownType = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [
+      started(),
+      futureEvent
+    ])
+    expect(unknownType.ok).toBe(false)
+    if (unknownType.ok) throw new Error("expected unknown event-type refusal")
+    expect(unknownType.problems[0]).toMatchObject({
+      code: ShopFloorCodes.InvalidEvent,
+      eventId: "future-event"
+    })
+
+    const malformedEvidence: ShopFloorEvent = {
+      type: "step-evidence-recorded",
+      ...common("null-evidence", 1),
+      stepId: "A",
+      evidence: unreadableEvidence
+    }
+    const invalidPayload = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [
+      started(),
+      malformedEvidence
+    ])
+    expect(invalidPayload.ok).toBe(false)
+    if (invalidPayload.ok) throw new Error("expected unreadable evidence refusal")
+    expect(invalidPayload.problems[0]).toMatchObject({
+      code: ShopFloorCodes.InvalidEvent,
+      eventId: "null-evidence"
+    })
+  })
+
   it("refuses completion when a required operator or material scan is missing", () => {
     const noScans: ReadonlyArray<ShopFloorEvent> = [
       started(),
@@ -418,6 +466,71 @@ describe("shop-floor execution", () => {
       [ShopFloorCodes.MissingEvidence, "operator"],
       [ShopFloorCodes.MissingEvidence, "material-lot"]
     ])
+  })
+
+  it.each([
+    ["an explicit expired status", { calibrationStatus: "expired" as const }],
+    ["a missing status", {}],
+    [
+      "an expiry before step completion",
+      { calibrationStatus: "current" as const, calibrationExpiresAt: at(5) }
+    ]
+  ])("refuses passing completion with %s on required tool calibration", (_label, calibration) => {
+    const result = replayUnitBuild(makeWorkOrder(), "SN-001", [
+      ...happyEvents().slice(0, 4),
+      evidenceEvent("calibration-event", 4, "crimp", {
+        kind: "tool-calibration",
+        id: "calibration-evidence",
+        timestamp: at(4),
+        toolId: "PRESS-7",
+        calibrationId: "CAL-EXPIRED",
+        ...calibration
+      }),
+      evidenceEvent("measurement-event", 5, "crimp", {
+        kind: "measurement",
+        id: "measurement-evidence",
+        timestamp: at(5),
+        value: 1.42,
+        units: "mm",
+        requirementRef: "REL-A#crimp-height-20awg"
+      }),
+      { type: "step-completed", ...common("crimp-complete", 6), stepId: "crimp" }
+    ])
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected invalid calibration refusal")
+    expect(result.problems[0]).toMatchObject({
+      code: ShopFloorCodes.InvalidEvidence,
+      stepId: "crimp",
+      evidenceKind: "tool-calibration"
+    })
+  })
+
+  it.each([
+    "2026-02-30T00:00:00Z",
+    "2025-02-29T00:00:00Z",
+    "2026-13-01T00:00:00Z",
+    "2026-12-01T24:00:00Z"
+  ])("rejects impossible calibration expiry %s", (calibrationExpiresAt) => {
+    const result = replayUnitBuild(makeWorkOrder(), "SN-001", [
+      ...happyEvents().slice(0, 4),
+      evidenceEvent("invalid-expiry-event", 4, "crimp", {
+        kind: "tool-calibration",
+        id: "invalid-expiry-evidence",
+        timestamp: at(4),
+        toolId: "PRESS-7",
+        calibrationId: "CAL-INVALID-DATE",
+        calibrationStatus: "current",
+        calibrationExpiresAt
+      })
+    ])
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected invalid expiry refusal")
+    expect(result.problems[0]).toMatchObject({
+      code: ShopFloorCodes.InvalidEvidence,
+      evidenceKind: "tool-calibration"
+    })
   })
 
   it.each(["fail", "unassessed"] as const)(
@@ -662,6 +775,153 @@ describe("shop-floor execution", () => {
     expect(stateOf(replayUnitBuild(makeLinearWorkOrder(), "SN-001", events)).status).toBe(
       "closed"
     )
+  })
+
+  it("rejects blank deviation data before it can authorize unit close", () => {
+    const malformedOpen: ShopFloorEvent = {
+      type: "deviation-opened",
+      ...common("blank-dev-open", 4),
+      deviationId: " ",
+      stepId: "C",
+      reason: " "
+    }
+    const malformedDisposition: ShopFloorEvent = {
+      type: "deviation-dispositioned",
+      ...common("blank-dev-disposition", 5),
+      deviationId: " ",
+      disposition: "accepted",
+      rationale: " "
+    }
+    const result = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [
+      started(),
+      { type: "step-completed", ...common("blank-A", 1), stepId: "A" },
+      { type: "step-completed", ...common("blank-B", 2), stepId: "B" },
+      { type: "step-completed", ...common("blank-C", 3), stepId: "C" },
+      malformedOpen,
+      malformedDisposition,
+      { type: "unit-closed", ...common("blank-close", 6) }
+    ])
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected blank deviation refusal")
+    expect(result.problems[0]?.code).toBe(ShopFloorCodes.InvalidEvent)
+  })
+
+  it("rejects unknown runtime deviation dispositions", () => {
+    // SAFETY: this intentionally injects an unrecognized serialized value to
+    // prove the reducer validates the runtime disposition before storing it.
+    const unknownDisposition = "waived" as never
+    const malformedDisposition: ShopFloorEvent = {
+      type: "deviation-dispositioned",
+      ...common("unknown-disposition", 5),
+      deviationId: "DEV-RUNTIME",
+      disposition: unknownDisposition,
+      rationale: "Unrecognized runtime disposition."
+    }
+    const result = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [
+      started(),
+      { type: "step-completed", ...common("runtime-A", 1), stepId: "A" },
+      { type: "step-completed", ...common("runtime-B", 2), stepId: "B" },
+      { type: "step-completed", ...common("runtime-C", 3), stepId: "C" },
+      {
+        type: "deviation-opened",
+        ...common("runtime-dev-open", 4),
+        deviationId: "DEV-RUNTIME",
+        stepId: "C",
+        reason: "Runtime payload validation."
+      },
+      malformedDisposition,
+      { type: "unit-closed", ...common("runtime-close", 6) }
+    ])
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected unknown disposition refusal")
+    expect(result.problems[0]?.code).toBe(ShopFloorCodes.InvalidEvent)
+  })
+
+  it("returns InvalidEvent for non-string serialized deviation fields", () => {
+    // SAFETY: null is intentionally injected to exercise the serialized-event
+    // parser boundary before any deviation field is used as a domain string.
+    const serializedNull = null as never
+    const malformedOpenEvents: ReadonlyArray<ShopFloorEvent> = [
+      {
+        type: "deviation-opened",
+        ...common("null-deviation-id", 1),
+        deviationId: serializedNull,
+        stepId: "A",
+        reason: "Runtime boundary."
+      },
+      {
+        type: "deviation-opened",
+        ...common("null-step-id", 1),
+        deviationId: "DEV-NULL",
+        stepId: serializedNull,
+        reason: "Runtime boundary."
+      },
+      {
+        type: "deviation-opened",
+        ...common("null-reason", 1),
+        deviationId: "DEV-NULL",
+        stepId: "A",
+        reason: serializedNull
+      },
+      {
+        type: "deviation-opened",
+        ...common("null-reference", 1),
+        deviationId: "DEV-NULL",
+        stepId: "A",
+        reason: "Runtime boundary.",
+        reference: serializedNull
+      }
+    ]
+    for (const event of malformedOpenEvents) {
+      const result = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [started(), event])
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error("expected non-string deviation refusal")
+      expect(result.problems[0]?.code).toBe(ShopFloorCodes.InvalidEvent)
+    }
+
+    const opened: ShopFloorEvent = {
+      type: "deviation-opened",
+      ...common("valid-before-malformed-disposition", 1),
+      deviationId: "DEV-NULL",
+      stepId: "A",
+      reason: "Runtime boundary."
+    }
+    const malformedDispositionEvents: ReadonlyArray<ShopFloorEvent> = [
+      {
+        type: "deviation-dispositioned",
+        ...common("null-disposition-id", 2),
+        deviationId: serializedNull,
+        disposition: "accepted",
+        rationale: "Runtime boundary."
+      },
+      {
+        type: "deviation-dispositioned",
+        ...common("null-rationale", 2),
+        deviationId: "DEV-NULL",
+        disposition: "accepted",
+        rationale: serializedNull
+      },
+      {
+        type: "deviation-dispositioned",
+        ...common("null-disposition-reference", 2),
+        deviationId: "DEV-NULL",
+        disposition: "accepted",
+        rationale: "Runtime boundary.",
+        dispositionRef: serializedNull
+      }
+    ]
+    for (const event of malformedDispositionEvents) {
+      const result = replayUnitBuild(makeLinearWorkOrder(), "SN-001", [
+        started(),
+        opened,
+        event
+      ])
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error("expected non-string disposition refusal")
+      expect(result.problems[0]?.code).toBe(ShopFloorCodes.InvalidEvent)
+    }
   })
 
   it.each(["rejected", "scrap"] as const)(

@@ -159,6 +159,31 @@ describe("supply pricing and resolution", () => {
     expect(selectSupplyPrice(malformed, 1)).toBeUndefined()
   })
 
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "diagnoses invalid offer minimum order quantity %s",
+    (minimumOrderQuantity) => {
+      const malformed = connectorRecord({
+        offers: [{
+          supplier: "MalformedMOQ",
+          currency: "USD",
+          priceBreaks: [{ minimumQuantity: 1, unitCost: 0.2 }],
+          minimumOrderQuantity,
+          retrievedAt
+        }]
+      })
+      const resolved = resolveSupplyRecord(
+        [staticSupplyProvider("malformed-moq", [malformed])],
+        { kind: "connector", mpn: "CONN-2" }
+      )
+
+      expect(resolved.diagnostics).toContainEqual(expect.objectContaining({
+        code: SupplyDiagnosticCodes.InvalidQuantity,
+        fields: ["offers.minimumOrderQuantity"]
+      }))
+      expect(selectSupplyPrice(malformed, 1)).toBeUndefined()
+    }
+  )
+
   it("keeps the first provider whole and diagnoses provenance/price conflicts", () => {
     const plmRecord = connectorRecord()
     const vendorRecord = connectorRecord({
@@ -235,6 +260,23 @@ describe("supply pricing and resolution", () => {
     expect(conflicting.diagnostics[0]).toMatchObject({
       code: SupplyDiagnosticCodes.Conflict,
       fields: ["offers"]
+    })
+  })
+
+  it("diagnoses provider disagreements in registry identity and description", () => {
+    const first = connectorRecord({ id: "catalog-a" })
+    const changed = connectorRecord({
+      id: "catalog-b",
+      description: "Alternate two-position housing description"
+    })
+    const conflicting = resolveSupplyRecord([
+      staticSupplyProvider("first", [first]),
+      staticSupplyProvider("changed", [changed])
+    ], { kind: "connector", mpn: "CONN-2" })
+
+    expect(conflicting.diagnostics[0]).toMatchObject({
+      code: SupplyDiagnosticCodes.Conflict,
+      fields: ["id", "description"]
     })
   })
 })

@@ -209,6 +209,91 @@ describe("standards profiles", () => {
     )
   })
 
+  it("rejects malformed or incomplete waiver records at the runtime boundary", () => {
+    const selected = profile()
+    const requirement = selected.requirements[0]!
+    const invalidWaivers: ReadonlyArray<unknown> = [
+      "waived",
+      {},
+      { reference: "waiver:17", rationale: "", approvedBy: "quality" },
+      { reference: "waiver:17", rationale: "approved exception" },
+      {
+        reference: "waiver:17",
+        rationale: "approved exception",
+        approvedBy: "quality",
+        approvedOn: ""
+      }
+    ]
+
+    for (const waiver of invalidWaivers) {
+      const candidate = {
+        ...selected,
+        requirements: [{ ...requirement, waiver }]
+      }
+      expect(validateStandardsProfile(candidate).map((entry) => entry.code)).toEqual([
+        "NI-STD-020"
+      ])
+    }
+
+    const valid = {
+      ...selected,
+      requirements: [{
+        ...requirement,
+        waiver: {
+          reference: "waiver:17",
+          rationale: "Approved customer exception.",
+          approvedBy: "quality",
+          approvedOn: "2026-08-27"
+        }
+      }]
+    } satisfies StandardsProfile
+    expect(validateStandardsProfile(valid)).toEqual([])
+  })
+
+  it("rejects blank evidence identities", () => {
+    const selected = profile()
+    const blankIdentity = {
+      ...selected,
+      evidence: [{
+        id: "",
+        requirementId: selected.requirements[0]!.id,
+        layer: "workmanship-observation",
+        status: "unassessed",
+        evidenceRefs: []
+      }]
+    } satisfies StandardsProfile
+
+    expect(validateStandardsProfile(blankIdentity)).toContainEqual(
+      expect.objectContaining({ code: "NI-STD-002", target: "evidence:<missing>" })
+    )
+  })
+
+  it("fails closed for hostile accessors and inherited-only profiles without dropping valid neighbors", () => {
+    const getter = {}
+    Object.defineProperty(getter, "schemaVersion", {
+      enumerable: true,
+      get: () => {
+        throw new Error("hostile getter")
+      }
+    })
+    const proxy = new Proxy({}, {
+      get: () => {
+        throw new Error("hostile proxy")
+      }
+    })
+    const inheritedOnly: unknown = Object.create(profile())
+
+    for (const hostile of [getter, proxy, inheritedOnly]) {
+      expect(validateStandardsProfile(hostile).map((entry) => entry.code)).toEqual([
+        "NI-STD-020"
+      ])
+      const composed = composeStandardsProfiles([profile(), hostile])
+      expect(composed.hasConflicts).toBe(true)
+      expect(composed.issues.map((entry) => entry.code)).toContain("NI-STD-020")
+      expect(composed.profileIds).toEqual(["shop-f"])
+    }
+  })
+
   it("diagnoses malformed external profile objects without native crashes", () => {
     expect(validateStandardsProfile(null).map((entry) => entry.code)).toEqual(["NI-STD-020"])
     const composed = composeStandardsProfiles([null, {}])

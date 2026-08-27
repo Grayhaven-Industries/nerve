@@ -53,7 +53,7 @@ export type Opc40570Operation =
   | OpcCrimpOperation
   | OpcSealOperation
 
-interface Opc40570Limitation {
+export interface Opc40570Limitation {
   readonly code: string
   readonly severity: "error" | "warning"
   readonly message: string
@@ -161,7 +161,14 @@ const CODES = {
   InvalidCutLength: "NI-OPC-017",
   InvalidStripLength: "NI-OPC-018",
   InvalidEnvelope: "NI-OPC-019",
-  InvalidResult: "NI-OPC-020"
+  InvalidResult: "NI-OPC-020",
+  InvalidTerminalReference: "NI-OPC-021",
+  InvalidSealReference: "NI-OPC-022",
+  InvalidCrimpHeight: "NI-OPC-023",
+  InvalidPullForce: "NI-OPC-024",
+  IncompatibleMeasurement: "NI-OPC-025",
+  InvalidCrimpTool: "NI-OPC-026",
+  InvalidDieId: "NI-OPC-027"
 } as const
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
@@ -264,6 +271,95 @@ const pinFor = (hir: Hir, endpoint: HirEndpoint): HirPin | undefined => {
     ?.pins.find((pin) => pin.pin === endpoint.pin)
 }
 
+const declaredCrimpFacts = (
+  part: HirPin["terminalPart"],
+  wireId: string,
+  end: "from" | "to",
+  target: string,
+  limitations: Array<Opc40570Limitation>
+): Pick<
+  OpcCrimpOperation,
+  "crimpTool" | "dieId" | "declaredCrimpHeight" | "declaredPullForceN"
+> => {
+  let crimpTool: string | undefined
+  const crimpToolValue = ownValue(part, "crimpTool")
+  if (crimpToolValue !== undefined) {
+    if (!present(crimpToolValue)) {
+      limitations.push(
+        limitation(
+          CODES.InvalidCrimpTool,
+          "error",
+          `Wire ${wireId} has a blank or invalid ${end}-end crimp-tool reference; the invalid reference was omitted.`,
+          target
+        )
+      )
+    } else {
+      crimpTool = crimpToolValue
+    }
+  }
+
+  let dieId: string | undefined
+  const dieIdValue = ownValue(part, "dieId")
+  if (dieIdValue !== undefined) {
+    if (!present(dieIdValue)) {
+      limitations.push(
+        limitation(
+          CODES.InvalidDieId,
+          "error",
+          `Wire ${wireId} has a blank or invalid ${end}-end die identifier; the invalid identifier was omitted.`,
+          target
+        )
+      )
+    } else {
+      dieId = dieIdValue
+    }
+  }
+
+  let declaredCrimpHeight: OpcCrimpOperation["declaredCrimpHeight"]
+  const crimpHeightValue = ownValue(part, "crimpHeight")
+  if (crimpHeightValue !== undefined) {
+    const range = recordOf(crimpHeightValue)
+    const min = ownValue(range, "min")
+    const max = ownValue(range, "max")
+    if (!finitePositive(min) || !finitePositive(max) || min > max) {
+      limitations.push(
+        limitation(
+          CODES.InvalidCrimpHeight,
+          "error",
+          `Wire ${wireId} has a ${end}-end crimp-height range that is not finite, positive, and ordered; the invalid range was omitted.`,
+          target
+        )
+      )
+    } else {
+      declaredCrimpHeight = { min, max }
+    }
+  }
+
+  let declaredPullForceN: number | undefined
+  const pullForceValue = ownValue(part, "pullForceN")
+  if (pullForceValue !== undefined) {
+    if (!finitePositive(pullForceValue)) {
+      limitations.push(
+        limitation(
+          CODES.InvalidPullForce,
+          "error",
+          `Wire ${wireId} has a ${end}-end pull-force fact that is not finite and positive; the invalid fact was omitted.`,
+          target
+        )
+      )
+    } else {
+      declaredPullForceN = pullForceValue
+    }
+  }
+
+  return {
+    ...(crimpTool === undefined ? {} : { crimpTool }),
+    ...(dieId === undefined ? {} : { dieId }),
+    ...(declaredCrimpHeight === undefined ? {} : { declaredCrimpHeight }),
+    ...(declaredPullForceN === undefined ? {} : { declaredPullForceN })
+  }
+}
+
 const endOperations = (
   hir: Hir,
   wireEntry: HirWire,
@@ -317,12 +413,22 @@ const endOperations = (
     return operations
   }
   const pin = pinFor(hir, endpoint)
-  if (pin?.seal === undefined) {
+  const sealRef = pin?.seal
+  if (sealRef === undefined) {
     limitations.push(
       limitation(
         CODES.MissingEndFact,
         "warning",
         `Wire ${wireEntry.id} has no declared ${end}-end seal; no seal operation was created.`,
+        target
+      )
+    )
+  } else if (!present(sealRef)) {
+    limitations.push(
+      limitation(
+        CODES.InvalidSealReference,
+        "error",
+        `Wire ${wireEntry.id} has a blank or invalid ${end}-end seal reference; no seal operation was created.`,
         target
       )
     )
@@ -333,10 +439,13 @@ const endOperations = (
       wireId: wireEntry.id,
       materialRef,
       end,
-      sealRef: pin.seal
+      sealRef
     })
   }
-  if (pin?.terminal === undefined) {
+  const terminalRef = pin?.terminal
+  const part = pin?.terminalPart
+  const crimpFacts = declaredCrimpFacts(part, wireEntry.id, end, target, limitations)
+  if (terminalRef === undefined) {
     limitations.push(
       limitation(
         CODES.MissingEndFact,
@@ -345,21 +454,24 @@ const endOperations = (
         target
       )
     )
+  } else if (!present(terminalRef)) {
+    limitations.push(
+      limitation(
+        CODES.InvalidTerminalReference,
+        "error",
+        `Wire ${wireEntry.id} has a blank or invalid ${end}-end terminal reference; no crimp operation was created.`,
+        target
+      )
+    )
   } else {
-    const part = pin.terminalPart
     operations.push({
       id: `${wireEntry.id}:${end}:crimp`,
       kind: "crimp",
       wireId: wireEntry.id,
       materialRef,
       end,
-      terminalRef: pin.terminal,
-      ...(part?.crimpTool === undefined ? {} : { crimpTool: part.crimpTool }),
-      ...(part?.dieId === undefined ? {} : { dieId: part.dieId }),
-      ...(part?.crimpHeight === undefined
-        ? {}
-        : { declaredCrimpHeight: { ...part.crimpHeight } }),
-      ...(part?.pullForceN === undefined ? {} : { declaredPullForceN: part.pullForceN })
+      terminalRef,
+      ...crimpFacts
     })
   }
   return operations
@@ -519,6 +631,32 @@ const measurementFields = [
   "actualCrimpWidth",
   "actualPullForceN"
 ] as const satisfies ReadonlyArray<keyof Opc40570MachineResult>
+
+const resultMeasurementFields = [
+  ...measurementFields,
+  "forceCurve"
+] as const satisfies ReadonlyArray<keyof Opc40570MachineResult>
+
+const measurementCompatibleWith = (
+  kind: Opc40570Operation["kind"],
+  field: (typeof resultMeasurementFields)[number]
+): boolean => {
+  switch (kind) {
+    case "cut":
+      return field === "actualCutLength"
+    case "strip":
+      return field === "actualStripLength"
+    case "crimp":
+      return (
+        field === "actualCrimpHeight" ||
+        field === "actualCrimpWidth" ||
+        field === "actualPullForceN" ||
+        field === "forceCurve"
+      )
+    case "seal":
+      return false
+  }
+}
 
 const MACHINE_STATUSES = new Set<Opc40570MachineResult["status"]>([
   "completed",
@@ -899,7 +1037,20 @@ const ingestOpc40570ResultInternal = (
         )
       }
     }
+    for (const field of resultMeasurementFields) {
+      if (result[field] !== undefined && !measurementCompatibleWith(operation.kind, field)) {
+        diagnostics.push(
+          limitation(
+            CODES.IncompatibleMeasurement,
+            "error",
+            `${result.operationId} reports ${field}, which is incompatible with a ${operation.kind} operation.`,
+            target
+          )
+        )
+      }
+    }
     if (
+      operation.kind === "crimp" &&
       result.forceCurve !== undefined &&
       result.actualCrimpHeight === undefined &&
       result.actualCrimpWidth === undefined &&
