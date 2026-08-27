@@ -1,7 +1,7 @@
-# Publishing happens from a frozen-lockfile CI build, never a laptop —
-# retiring the stale-bun.lock publish footgun (v0.5.0 shipped every
-# internal dep pinned to an unpublished version because the publish ran
-# against a lockfile that predated the version bump).
+# Publishing happens from a checked, frozen-lockfile CI build, never a laptop.
+# The explicit workspace-version check is required because Bun does not treat
+# version-only workspace manifest changes as frozen-lockfile drift (v0.5.0
+# shipped internal dependencies pinned to an unpublished stale version).
 #
 # Trigger: push a tag `vX.Y.Z` matching packages/nerve/package.json.
 name: Release
@@ -43,6 +43,9 @@ jobs:
 
       - name: Install (frozen lockfile)
         run: bun install --frozen-lockfile
+
+      - name: Workspace lock versions match manifests
+        run: bun run check-workspace-lock
 
       - name: Typecheck
         run: bun run typecheck

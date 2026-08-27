@@ -12,8 +12,12 @@ All twelve publishable `@grayhaven/*` packages version in lockstep via
    commit it with the change.
 2. **Version** — when ready to release, run `bun run version-packages`.
    This consumes pending changesets, bumps every package in the fixed
-   group to the same new version, writes changelog entries, and re-runs
-   `bun install` so `bun.lock` matches the new versions.
+   group to the same new version, writes changelog entries, re-runs
+   `bun install`, and explicitly synchronizes the workspace version fields
+   in `bun.lock`. Bun does not update or validate those fields for a
+   version-only manifest change, even with `--frozen-lockfile`; do not omit
+   the sync step. `bun run check-workspace-lock` verifies them without
+   modifying the lockfile.
 3. **Commit** the version bump.
 4. **Tag** `vX.Y.Z` (must match `packages/nerve/package.json`):
    `git tag vX.Y.Z`
