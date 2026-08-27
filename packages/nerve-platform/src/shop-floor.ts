@@ -574,15 +574,21 @@ const transitivelyDependsOn = (
   candidate: MutableStep,
   prerequisiteId: string,
   steps: ReadonlyMap<string, MutableStep>,
-  seen: ReadonlySet<string> = new Set()
+  // One shared visited set across the whole walk, so each node is expanded at
+  // most once (O(V+E)). The route is already validated acyclic, so global
+  // memoization keeps reachability correct while eliminating the per-path
+  // `new Set([...seen, id])` re-expansion that made a branching prerequisite
+  // graph Fibonacci-exponential to check.
+  seen: Set<string> = new Set()
 ): boolean => {
   for (const id of candidate.definition.prerequisiteStepIds) {
     if (id === prerequisiteId) return true
     if (seen.has(id)) continue
+    seen.add(id)
     const prerequisite = steps.get(id)
     if (
       prerequisite !== undefined &&
-      transitivelyDependsOn(prerequisite, prerequisiteId, steps, new Set([...seen, id]))
+      transitivelyDependsOn(prerequisite, prerequisiteId, steps, seen)
     ) {
       return true
     }

@@ -12,6 +12,7 @@ import {
   workOrderProgress,
   type Canonical,
   type ShopFloorEvent,
+  type ShopStep,
   type StepEvidence,
   type UnitBuildState,
   type WorkOrder,
@@ -763,6 +764,97 @@ describe("shop-floor execution", () => {
       ])
     )
     expect(reverified.status).toBe("closed")
+  })
+
+  it("checks transitive dependents in polynomial time on a branching route", () => {
+    // Each step depends on the previous two, so the prerequisite graph branches
+    // like a Fibonacci tree: the number of distinct paths from the top step to
+    // the base step grows exponentially in the step count. The prior transitive
+    // check recursed with a fresh per-path visited set, re-expanding each node
+    // once per path, so reopening the top step — which nothing depends on and so
+    // forces a full walk of every completed candidate — took tens of seconds at
+    // this size. A single shared visited set makes each check O(V+E); this must
+    // resolve in milliseconds. (vitest 4.1.10.)
+    const stepCount = 34
+    const stepId = (index: number): string => `s${index}`
+    const workOrder = createWorkOrder({
+      id: "WO-100",
+      harnessId: "motor-harness",
+      releaseId: "REL-A",
+      hirFingerprint: releasedFingerprint,
+      quantity: 1,
+      stations: [
+        {
+          id: "fib",
+          steps: Array.from({ length: stepCount }, (_, index): ShopStep => ({
+            id: stepId(index),
+            stationId: "fib",
+            kind: "custom",
+            instruction: `Complete ${stepId(index)}.`,
+            revision: "A",
+            prerequisiteStepIds:
+              index === 0
+                ? []
+                : index === 1
+                  ? [stepId(0)]
+                  : [stepId(index - 1), stepId(index - 2)],
+            requiredEvidenceKinds: [],
+            failureBlocksDownstream: true
+          }))
+        }
+      ]
+    })
+
+    const completeAll: ReadonlyArray<ShopFloorEvent> = [
+      started(),
+      ...Array.from({ length: stepCount }, (_, index): ShopFloorEvent => ({
+        type: "step-completed",
+        ...common(`${stepId(index)}-done`, index + 1),
+        stepId: stepId(index)
+      }))
+    ]
+    const topStep = stepId(stepCount - 1)
+    const reopenSecond = stepCount + 1
+
+    const startedMs = Date.now()
+    const reopenTop = replayUnitBuild(workOrder, "SN-001", [
+      ...completeAll,
+      {
+        type: "step-reopened",
+        ...common("reopen-top", reopenSecond),
+        stepId: topStep,
+        reason: "Reverify the top step."
+      }
+    ])
+    const elapsedMs = Date.now() - startedMs
+
+    // Nothing depends on the top step, so its reopen is admitted only after the
+    // dependent scan clears every completed step — the exact exponential path.
+    const reopenedState = stateOf(reopenTop)
+    expect(reopenedState.steps.find((step) => step.id === topStep)).toMatchObject({
+      status: "pending",
+      attempt: 2
+    })
+    expect(elapsedMs).toBeLessThan(2000)
+
+    // The shared visited set must not change the answer: reopening the base step
+    // is still refused while its deepest completed dependent stays complete.
+    const reopenBase = replayUnitBuild(workOrder, "SN-001", [
+      ...completeAll,
+      {
+        type: "step-reopened",
+        ...common("reopen-base", reopenSecond),
+        stepId: stepId(0),
+        reason: "Reverify the base step."
+      }
+    ])
+    expect(reopenBase.ok).toBe(false)
+    if (reopenBase.ok) throw new Error("expected completed-dependent refusal")
+    expect(reopenBase.problems[0]).toMatchObject({
+      code: ShopFloorCodes.CompletedDependent,
+      stepId: stepId(0),
+      relatedId: topStep
+    })
   })
 
   it("refuses duplicate event ids before applying either duplicate", () => {
