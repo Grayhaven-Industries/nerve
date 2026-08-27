@@ -91,6 +91,19 @@ const document = (): Vec22SubsetDocument => ({
   unknownExtensions: []
 })
 
+const containsSubsequence = (
+  haystack: ReadonlyArray<number>,
+  needle: ReadonlyArray<number>
+): boolean => {
+  outer: for (let start = 0; start + needle.length <= haystack.length; start += 1) {
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      if (haystack[start + offset] !== needle[offset]) continue outer
+    }
+    return true
+  }
+  return false
+}
+
 describe("normalized VEC 2.2 subset", () => {
   it("imports supported facts into a compilable HarnessDesign", () => {
     const imported = importVec22Subset(document(), { requireSemanticValidation: true })
@@ -121,6 +134,51 @@ describe("normalized VEC 2.2 subset", () => {
     expect(exported.json).toBe(vec22SubsetJson(imported.document!))
     expect(Array.from(exported.bytes ?? []).at(-1)).toBe(10)
     expect(exported.bytes?.length).toBe(exported.json?.length)
+  })
+
+  it("encodes multi-byte UTF-8 code points exactly in the exported bytes", () => {
+    // Exercises the 2-, 3-, and 4-byte branches of the hand-rolled utf8Bytes encoder
+    // in vec22.ts. An ASCII-only fixture leaves those branches untested because byte
+    // count trivially equals string length there.
+    //   "é"  U+00E9  -> C3 A9        (2-byte branch, codePoint <= 0x7ff)
+    //   "中" U+4E2D  -> E4 B8 AD     (3-byte branch, codePoint <= 0xffff)
+    //   "😀" U+1F600 -> F0 9F 98 80  (4-byte branch, astral plane / surrogate pair)
+    const multiByte = "é中😀"
+    const imported = importVec22Subset({
+      ...document(),
+      unknownExtensions: [
+        {
+          path: "/Harness/External[1]",
+          namespace: "urn:customer:test",
+          name: "External",
+          losslessJson: { label: multiByte }
+        }
+      ]
+    })
+    expect(imported.ok).toBe(true)
+    const exported = exportVec22Subset(imported)
+    expect(exported.ok).toBe(true)
+    expect(exported.bytes).toBeDefined()
+    expect(exported.json).toBeDefined()
+    // The literal characters must survive normalization into the canonical JSON.
+    expect(exported.json).toContain(multiByte)
+
+    const actual = Array.from(exported.bytes!)
+
+    // Each >0x7f branch must emit exactly its canonical UTF-8 sequence.
+    expect(containsSubsequence(actual, [0xc3, 0xa9])).toBe(true) // é  (2-byte)
+    expect(containsSubsequence(actual, [0xe4, 0xb8, 0xad])).toBe(true) // 中 (3-byte)
+    expect(containsSubsequence(actual, [0xf0, 0x9f, 0x98, 0x80])).toBe(true) // 😀 (4-byte)
+
+    // The three code points sit adjacently in the source, so their bytes must appear
+    // as one contiguous run. An off-by-one in any branch would corrupt this run.
+    expect(
+      containsSubsequence(actual, [0xc3, 0xa9, 0xe4, 0xb8, 0xad, 0xf0, 0x9f, 0x98, 0x80])
+    ).toBe(true)
+
+    // Byte length exceeds the UTF-16 string length by exactly the multi-byte overhead:
+    // é (+1), 中 (+2), 😀 (+2 over its two-unit surrogate pair) = +5.
+    expect(exported.bytes!.length).toBe(exported.json!.length + 5)
   })
 
   it("maps a declared material reference when the subset also supplies its gauge", () => {
