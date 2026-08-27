@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-compiler",
-  "version": "7.1.0",
+  "version": "8.0.0",
   "type": "module",
   "description": "Grayhaven Nerve compiler: TypeScript loading, normalization, HIR generation, validation orchestration.",
   "exports": {

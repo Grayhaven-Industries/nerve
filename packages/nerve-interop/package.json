@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-interop",
-  "version": "7.1.0",
+  "version": "8.0.0",
   "type": "module",
   "sideEffects": false,
   "description": "Loss-aware standards, VEC subset, and factory interoperability primitives for Grayhaven Nerve.",

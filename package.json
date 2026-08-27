@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "changeset": "changeset",
-    "version-packages": "changeset version && bun install",
+    "version-packages": "changeset version && bun install && bun run sync-workspace-lock",
+    "sync-workspace-lock": "bun scripts/sync-workspace-lock.ts",
+    "check-workspace-lock": "bun scripts/sync-workspace-lock.ts --check",
     "test": "vitest run",
     "lint": "oxlint",
     "typecheck": "for p in packages/* examples/*; do (cd $p && node ../../node_modules/typescript-7/bin/tsc -p . --noEmit) || exit 1; done",

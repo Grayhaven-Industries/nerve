@@ -121,7 +121,7 @@ for (const [name, { pkg, entries }] of packed) {
       const pinned = spec.replace(/^[\^~]/, "")
       if (pinned !== expected) {
         problems.push(
-          `${name}: ${dep} (${block}) pinned to ${spec} but workspace has ${expected} — stale bun.lock? Run bun install and re-pack.`
+          `${name}: ${dep} (${block}) pinned to ${spec} but workspace has ${expected} — stale bun.lock? Run bun run sync-workspace-lock and re-pack.`
         )
       }
     }
