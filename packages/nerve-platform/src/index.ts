@@ -128,6 +128,44 @@ export type {
 export { memoryStore, StoreCodes, StoreError } from "./store.js"
 export type { ObjectKind, PlatformStore, PutOutcome, StoreCode } from "./store.js"
 
+// Deterministic, offline-capable shop-floor execution and build records (§36).
+export {
+  appendShopFloorEvent,
+  createWorkOrder,
+  replayUnitBuild,
+  serializeUnitBuild,
+  ShopFloorCodes,
+  startUnitBuild,
+  workOrderProgress
+} from "./shop-floor.js"
+export type {
+  AttachmentEvidence,
+  ElectricalTestEvidence,
+  EvidenceKind,
+  MaterialLotEvidence,
+  MeasurementEvidence,
+  OperatorEvidence,
+  ShopFloorCode,
+  ShopFloorEvent,
+  ShopFloorProblem,
+  ShopFloorResult,
+  ShopStep,
+  ShopStepKind,
+  StartUnitBuildInput,
+  StationPlan,
+  StepEvidence,
+  ToolCalibrationEvidence,
+  UnitBuildState,
+  UnitDeviationState,
+  UnitReworkState,
+  UnitStationState,
+  UnitStepState,
+  WorkOrder,
+  WorkOrderInput,
+  WorkOrderProgress,
+  WorkOrderValue
+} from "./shop-floor.js"
+
 // Pull-request gate (§9.5).
 export { checkRunForReview, MAX_ANNOTATIONS_PER_REQUEST } from "./pr-gate.js"
 export type {

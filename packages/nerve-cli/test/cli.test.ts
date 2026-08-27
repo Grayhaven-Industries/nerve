@@ -5,7 +5,14 @@ import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
 import { compileDesign } from "@grayhaven/nerve"
 import { run, type Io } from "@grayhaven/nerve-cli"
-import { buildPacket } from "@grayhaven/nerve-exporters"
+import {
+  approveTestSpecification,
+  buildPacket,
+  createTestSpecification,
+  generateTestPlan,
+  type ElectricalTestStepOptions,
+  type Measurement
+} from "@grayhaven/nerve-exporters"
 import { importWireViz } from "@grayhaven/nerve-wireviz"
 
 const FIXTURE = resolve(
@@ -26,6 +33,104 @@ const capture = (): Io & { stdout: Array<string>; stderr: Array<string> } => {
 }
 
 const tmp = () => mkdtempSync(join(tmpdir(), "nerve-cli-"))
+
+const prepareElectricalFixtures = async (out: string) => {
+  const releaseCode = await run(
+    [
+      "release",
+      FIXTURE,
+      "--eco",
+      "ECO-TEST-SPEC",
+      "--reason",
+      "test authority fixture",
+      "--date",
+      "2026-08-27",
+      "--out",
+      out
+    ],
+    capture()
+  )
+  if (releaseCode !== 0) throw new Error(`fixture release failed with exit ${releaseCode}`)
+
+  const hir = JSON.parse(readFileSync(join(out, "harness.json"), "utf8"))
+  const plan = generateTestPlan(hir)
+  const steps: Array<ElectricalTestStepOptions> = plan.tests.map((test) =>
+    test.expected === "closed"
+      ? { id: test.id, method: "continuity", maxOhms: 1 }
+      : {
+          id: test.id,
+          method: "insulation-resistance",
+          testVoltageV: 500,
+          minOhms: 1_000_000,
+          dwellSeconds: 1
+        }
+  )
+  const draft = createTestSpecification(plan, {
+    id: "ETS-CLI-FIXTURE",
+    revision: "B",
+    authority: {
+      source: "CLI deterministic test procedure",
+      documentRevision: "B"
+    },
+    steps
+  })
+  const approved = approveTestSpecification(draft, {
+    approvedBy: "quality-test",
+    approvedAt: "2026-08-27T12:00:00Z",
+    reference: "APR-CLI-001"
+  })
+  const otherHarness = { id: "other-harness", revision: "Z" }
+  const mismatch = {
+    ...approved,
+    harness: otherHarness,
+    testPlan: { ...approved.testPlan, harness: otherHarness }
+  }
+
+  const passing: Array<Measurement> = plan.tests.map((test) =>
+    test.expected === "closed"
+      ? { id: test.id, method: "continuity", measuredOhms: 0.2 }
+      : {
+          id: test.id,
+          method: "insulation-resistance",
+          measuredOhms: 2_000_000,
+          appliedVoltageV: 500,
+          appliedWaveform: "dc",
+          durationSeconds: 1,
+          interlockConfirmed: true,
+          dischargeConfirmed: true
+        }
+  )
+  const failing = passing.map((measurement, index): Measurement => {
+    if (index !== 0) return measurement
+    return plan.tests[0]?.expected === "closed"
+      ? { ...measurement, measuredOhms: 2 }
+      : { ...measurement, measuredOhms: 0 }
+  })
+
+  const writeJson = (name: string, contents: string): string => {
+    const path = join(out, name)
+    writeFileSync(path, contents)
+    return path
+  }
+  return {
+    releasePath: join(out, "release-A.json"),
+    approvedPath: writeJson(
+      "test-spec-approved.json",
+      JSON.stringify(approved, null, 2) + "\n"
+    ),
+    draftPath: writeJson("test-spec-draft.json", JSON.stringify(draft, null, 2) + "\n"),
+    invalidPath: writeJson(
+      "test-spec-invalid.json",
+      JSON.stringify({ ...approved, schemaVersion: "0.0.0" }, null, 2) + "\n"
+    ),
+    mismatchPath: writeJson(
+      "test-spec-mismatch.json",
+      JSON.stringify(mismatch, null, 2) + "\n"
+    ),
+    passingPath: writeJson("results-pass.json", JSON.stringify(passing, null, 2) + "\n"),
+    failingPath: writeJson("results-fail.json", JSON.stringify(failing, null, 2) + "\n")
+  }
+}
 
 describe("nerve compile", () => {
   it("writes harness.json + diagnostics.json and exits 0 on the fixture", async () => {
@@ -477,7 +582,10 @@ describe("nerve inspect / init / help", () => {
   it("prints usage and exits 2 with no command", async () => {
     const io = capture()
     expect(await run([], io)).toBe(2)
-    expect(io.stdout.join("\n")).toContain("Usage:")
+    const text = io.stdout.join("\n")
+    expect(text).toContain("Usage:")
+    expect(text).toMatch(/nerve machine .*--test-spec <file\.json>/)
+    expect(text).toMatch(/nerve record .*--test-spec <file\.json>/)
   })
 })
 
@@ -723,6 +831,105 @@ describe("nerve machine", () => {
     expect(written.length).toBeGreaterThan(0)
   })
 
+  it("exports approved limits and specification identity to a tester program", async () => {
+    const fixtureDir = tmp()
+    const { approvedPath } = await prepareElectricalFixtures(fixtureDir)
+    const out = join(fixtureDir, "machine-approved")
+
+    expect(
+      await run(
+        [
+          "machine",
+          "generic-tester-json",
+          FIXTURE,
+          "--test-spec",
+          approvedPath,
+          "--out",
+          out
+        ],
+        capture()
+      )
+    ).toBe(0)
+    const program = JSON.parse(readFileSync(join(out, "tester.program.json"), "utf8"))
+    expect(program.testSpecification).toEqual({
+      schemaVersion: "1.0.0",
+      id: "ETS-CLI-FIXTURE",
+      revision: "B"
+    })
+    expect(program.steps.some((step: { maxOhms?: number }) => step.maxOhms === 1)).toBe(true)
+    expect(
+      program.steps.some(
+        (step: { testVoltageV?: number; minOhms?: number }) =>
+          step.testVoltageV === 500 && step.minOhms === 1_000_000
+      )
+    ).toBe(true)
+  })
+
+  it("keeps a tester program topology-only when no specification is supplied", async () => {
+    const out = tmp()
+    expect(
+      await run(["machine", "generic-tester-json", FIXTURE, "--out", out], capture())
+    ).toBe(0)
+    const text = readFileSync(join(out, "tester.program.json"), "utf8")
+    const program = JSON.parse(text)
+    expect(program.testSpecification).toBeUndefined()
+    expect(text).not.toMatch(/"(?:maxOhms|minOhms|testVoltageV|method)"/)
+  })
+
+  it.each([
+    ["invalid", "invalidPath"],
+    ["draft", "draftPath"],
+    ["mismatched", "mismatchPath"]
+  ] as const)("rejects a %s supplied specification before writing output", async (_, key) => {
+    const fixtureDir = tmp()
+    const fixtures = await prepareElectricalFixtures(fixtureDir)
+    const out = join(fixtureDir, `machine-${key}`)
+    const io = capture()
+
+    expect(
+      await run(
+        [
+          "machine",
+          "generic-tester-json",
+          FIXTURE,
+          "--test-spec",
+          fixtures[key],
+          "--out",
+          out
+        ],
+        io
+      )
+    ).toBe(2)
+    expect(existsSync(join(out, "tester.program.json"))).toBe(false)
+    expect(io.stderr.join("\n")).toMatch(/invalid|draft|does not match/)
+  })
+
+  it("reports malformed specification JSON without a stack trace", async () => {
+    const dir = tmp()
+    const malformed = join(dir, "malformed.json")
+    const out = join(dir, "machine-malformed")
+    writeFileSync(malformed, "{\n")
+    const io = capture()
+
+    expect(
+      await run(
+        [
+          "machine",
+          "generic-tester-json",
+          FIXTURE,
+          "--test-spec",
+          malformed,
+          "--out",
+          out
+        ],
+        io
+      )
+    ).toBe(2)
+    expect(existsSync(join(out, "tester.program.json"))).toBe(false)
+    expect(io.stderr.join("\n")).toContain("Failed to load test specification")
+    expect(io.stderr.join("\n")).not.toContain("    at ")
+  })
+
   it("names available adapters on an unknown id", async () => {
     const io = capture()
     expect(await run(["machine", "nope", FIXTURE], io)).toBe(2)
@@ -787,44 +994,135 @@ describe("nerve contract", () => {
 })
 
 describe("nerve release / record", () => {
-  it("creates a release, then a passing build record against it", async () => {
+  it("writes a fully passing judged record from an approved matching specification", async () => {
     const out = tmp()
+    const fixtures = await prepareElectricalFixtures(out)
     const io = capture()
     expect(
       await run(
-        ["release", FIXTURE, "--eco", "ECO-1", "--reason", "initial", "--date", "2026-06-07", "--out", out],
+        [
+          "record",
+          FIXTURE,
+          "--release",
+          fixtures.releasePath,
+          "--serial",
+          "SN-PASS",
+          "--operator",
+          "tg",
+          "--date",
+          "2026-08-27",
+          "--results",
+          fixtures.passingPath,
+          "--test-spec",
+          fixtures.approvedPath,
+          "--out",
+          out
+        ],
         io
       )
     ).toBe(0)
-    expect(io.stdout.join("\n")).toContain("fingerprint")
-    const releasePath = join(out, "release-A.json")
-    expect(existsSync(releasePath)).toBe(true)
+    const record = JSON.parse(readFileSync(join(out, "build-record-SN-PASS.json"), "utf8"))
+    expect(record.summary).toMatchObject({ fail: 0, notRun: 0, unassessed: 0, status: "pass" })
+    expect(record.testSpecification).toMatchObject({ id: "ETS-CLI-FIXTURE", revision: "B" })
+    expect(io.stdout.join("\n")).toContain("→ PASS")
+  })
 
-    // Measurements for every continuity test: closed at 0.2 ohm.
-    const plan = JSON.parse(readFileSync(join(out, "harness.json"), "utf8"))
-    expect(plan.harness.id).toBe("motor-controller-harness")
-    const testPlan = JSON.parse(
-      readFileSync(join(out, "..", "x", "..").replace(/.*/, join(out, "harness.json")), "utf8")
+  it("returns 1 for an approved record with a failed measurement", async () => {
+    const out = tmp()
+    const fixtures = await prepareElectricalFixtures(out)
+    expect(
+      await run(
+        [
+          "record",
+          FIXTURE,
+          "--release",
+          fixtures.releasePath,
+          "--serial",
+          "SN-FAIL",
+          "--operator",
+          "tg",
+          "--date",
+          "2026-08-27",
+          "--results",
+          fixtures.failingPath,
+          "--test-spec",
+          fixtures.approvedPath,
+          "--out",
+          out
+        ],
+        capture()
+      )
+    ).toBe(1)
+    const record = JSON.parse(readFileSync(join(out, "build-record-SN-FAIL.json"), "utf8"))
+    expect(record.summary.status).toBe("fail")
+    expect(record.summary.fail).toBeGreaterThan(0)
+  })
+
+  it("writes unassessed evidence and returns 2 when no specification is supplied", async () => {
+    const out = tmp()
+    const fixtures = await prepareElectricalFixtures(out)
+    const io = capture()
+    expect(
+      await run(
+        [
+          "record",
+          FIXTURE,
+          "--release",
+          fixtures.releasePath,
+          "--serial",
+          "SN-UNASSESSED",
+          "--operator",
+          "tg",
+          "--date",
+          "2026-08-27",
+          "--results",
+          fixtures.passingPath,
+          "--out",
+          out
+        ],
+        io
+      )
+    ).toBe(2)
+    const record = JSON.parse(
+      readFileSync(join(out, "build-record-SN-UNASSESSED.json"), "utf8")
     )
-    void testPlan
-    const resultsPath = join(out, "results.json")
-    writeFileSync(resultsPath, JSON.stringify([{ id: "T-001", measuredOhms: 0.2 }]) + "\n")
-    const rio = capture()
-    const code = await run(
-      [
-        "record", FIXTURE,
-        "--release", releasePath,
-        "--serial", "SN-0001",
-        "--operator", "tg",
-        "--date", "2026-06-07",
-        "--results", resultsPath,
-        "--out", out
-      ],
-      rio
+    expect(record.summary).toMatchObject({ pass: 0, fail: 0, notRun: 0, status: "incomplete" })
+    expect(record.summary.unassessed).toBeGreaterThan(0)
+    expect(record.results.every((result: { verdict: string }) => result.verdict === "unassessed")).toBe(
+      true
     )
-    expect(code).toBe(0)
-    expect(existsSync(join(out, "build-record-SN-0001.json"))).toBe(true)
-    expect(rio.stdout.join("\n")).toMatch(/SN-0001: \d+ pass \/ 0 fail/)
+    expect(io.stderr.join("\n")).toContain("all measured electrical tests remain unassessed")
+  })
+
+  it("rejects a mismatched supplied specification before writing a record", async () => {
+    const out = tmp()
+    const fixtures = await prepareElectricalFixtures(out)
+    const io = capture()
+    expect(
+      await run(
+        [
+          "record",
+          FIXTURE,
+          "--release",
+          fixtures.releasePath,
+          "--serial",
+          "SN-MISMATCH",
+          "--operator",
+          "tg",
+          "--date",
+          "2026-08-27",
+          "--results",
+          fixtures.passingPath,
+          "--test-spec",
+          fixtures.mismatchPath,
+          "--out",
+          out
+        ],
+        io
+      )
+    ).toBe(2)
+    expect(existsSync(join(out, "build-record-SN-MISMATCH.json"))).toBe(false)
+    expect(io.stderr.join("\n")).toContain("does not match")
   })
 
   it("release diffs against a previous release and reports impact", async () => {

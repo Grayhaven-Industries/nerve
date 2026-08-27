@@ -51,6 +51,23 @@ boundaries and the owner of each check.
 - Writes reproducible HIR, drawings, BOM, cut list, labels, continuity tests, assembly instructions, PDF packet, and release records.
 - Evaluates rules against a provenance-aware public corpus. It does not present synthetic regressions as field evidence.
 
+## Product and factory foundations
+
+- **Approved electrical test authority.** A caller-authored, plan-matched `TestSpecification` must be approved before a generic tester program carries acceptance limits or an ingested measurement receives a pass or fail verdict. Build records retain the approved specification, measurements, raw-result references and hashes, tester and calibration identity, as-built lengths, and crimp-process evidence.
+- **Headless shop-floor execution.** `@grayhaven/nerve-platform` models released work orders and replays immutable unit events for required evidence, step completion, deviation disposition, rework, reopening, and final closure. Callers supply every identity and timestamp; unit starts require authoritative progress or build context, and the caller owns atomic reservation and persistence.
+- **Product-family configuration.** A family can define ordered options, requirements, exclusions, and deterministic patches. Nerve rejects unknown or conflicting selections, supports bounded enumeration of valid combinations, and lets variants add, override, or remove protection devices.
+- **Supply snapshots.** Core supply records retain provenance, lifecycle, approval, alternates, compatible tooling and processes, availability, lead time, minimum order quantity, and price breaks. Canonical snapshots keep unresolved requests and provider conflicts visible.
+- **Standards and factory interoperability.** `@grayhaven/nerve-interop` provides exact-authority standards profiles, a loss-aware normalized VEC 2.2 subset, transport-neutral OPC UA 40570 cut/strip/crimp/seal job and result mappings, and caller-parameterized automation and high-voltage fact checks.
+
+These APIs describe software records and mappings. They do not certify
+standards conformance, operate or authenticate tester hardware, or prove that a
+physical process occurred. The Cirris Easy-Wire-style exporter remains an
+explicit experimental compatibility export and is excluded from built-in
+production adapter discovery. The shop-floor layer is a headless reducer, not
+a user interface, MES service, or device gateway. The VEC adapter is not a full
+XML parser or validator, and the OPC mapping does not include an OPC UA
+transport client.
+
 The browser workspace at [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com) shows the examples and the authoring API.
 
 ## Review a harness
@@ -144,15 +161,17 @@ const j1 = connector("J1", MolexMicroFit["43025-0800"], {
 
 | Package | Purpose |
 | --- | --- |
-| [`@grayhaven/nerve`](./packages/nerve) | Domain model, authoring API, versioned HIR, diagnostics, rules API, and deterministic `compileDesign` |
+| [`@grayhaven/nerve`](./packages/nerve) | Domain model, authoring API, product-family configuration, supply snapshots, versioned HIR, diagnostics, rules API, and deterministic `compileDesign` |
 | [`@grayhaven/nerve-compiler`](./packages/nerve-compiler) | Trusted local `.harness.ts` loading, configuration, plugins, and fail-closed validation |
 | [`@grayhaven/nerve-rules`](./packages/nerve-rules) | 53 generic built-in rules with stable diagnostic codes |
 | [`@grayhaven/nerve-importers`](./packages/nerve-importers) | Deterministic CSV and Excel wire-list migration with source-row accounting |
 | [`@grayhaven/nerve-eval`](./packages/nerve-eval) | Provenance-aware evaluation and stable review-report primitives |
-| [`@grayhaven/nerve-exporters`](./packages/nerve-exporters) | Review, drawing, manufacturing, release, contract, and test artifacts |
+| [`@grayhaven/nerve-exporters`](./packages/nerve-exporters) | Review, drawing, manufacturing, release, contract, approved test-specification, generic tester, and build-record artifacts |
 | [`@grayhaven/nerve-wireviz`](./packages/nerve-wireviz) | WireViz YAML import and export |
 | [`@grayhaven/nerve-connectors`](./packages/nerve-connectors) | 21 connector housings and 9 crimp terminals with provenance fields, plus a bundled provider |
-| [`@grayhaven/nerve-cli`](./packages/nerve-cli) | Local and CI workflows for import, review, evaluation, validation, and export |
+| [`@grayhaven/nerve-platform`](./packages/nerve-platform) | Review and release governance plus headless, event-sourced work orders and serialized unit-build evidence |
+| [`@grayhaven/nerve-interop`](./packages/nerve-interop) | Exact-authority standards profiles, normalized VEC 2.2 subset exchange, transport-neutral OPC UA 40570 mappings, and automation/high-voltage fact checks |
+| [`@grayhaven/nerve-cli`](./packages/nerve-cli) | Local and CI workflows for import, review, evaluation, validation, export, and approved-specification tester evidence |
 | [`@grayhaven/nerve-web`](./packages/nerve-web) | Browser workspace, examples, and documentation |
 | [`@grayhaven/nerve-react`](./packages/nerve-react) | Experimental JSX authoring runtime |
 

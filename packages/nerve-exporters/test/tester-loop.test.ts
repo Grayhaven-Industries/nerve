@@ -2,9 +2,15 @@
 import { describe, expect, it } from "vitest"
 import { compileDesign } from "@grayhaven/nerve"
 import motor from "../../../examples/motor-controller/src/main.harness.js"
-import { builtinAdapters, cirrisEasyWireNetlist, findAdapter } from "../src/adapters.js"
+import {
+  builtinAdapters,
+  cirrisEasyWireNetlist,
+  experimentalCirrisEasyWireNetlist,
+  findAdapter
+} from "../src/adapters.js"
 import { createBuildRecord } from "../src/build-record.js"
 import { createRelease } from "../src/release.js"
+import { approveTestSpecification, createTestSpecification } from "../src/test-spec.js"
 import { generateTestPlan, type TestPlan } from "../src/test-plan.js"
 import { ingestTesterResults } from "../src/tester-ingest.js"
 
@@ -14,6 +20,24 @@ const release = createRelease(hir, {
   eco: { id: "ECO-001", reason: "Initial release" },
   createdAt: "2026-06-06"
 })
+const specification = approveTestSpecification(
+  createTestSpecification(plan, {
+    id: "ETS-MOTOR",
+    revision: "A",
+    authority: { source: "controlled engineering procedure ETP-MOTOR-A" },
+    steps: plan.tests.map((test) =>
+      test.expected === "closed"
+        ? { id: test.id, method: "continuity" as const, maxOhms: 1.5 }
+        : {
+            id: test.id,
+            method: "insulation-resistance" as const,
+            testVoltageV: 250,
+            minOhms: 1_000_000
+          }
+    )
+  }),
+  { approvedBy: "quality-a", approvedAt: "2026-06-06T12:00:00Z" }
+)
 
 const NETLIST_FILE = "cirris-easywire.netlist.txt"
 
@@ -40,16 +64,21 @@ const resultsCsv = (
   fingerprint: string,
   overrides: Readonly<Record<string, number>> = {}
 ): string =>
-  `# hir-fingerprint: ${fingerprint}\nTest ID,Measured ohms\n` +
+  `# hir-fingerprint: ${fingerprint}\nTest ID,Method,Measured ohms,Applied voltage V,Applied waveform,Interlock confirmed,Discharge confirmed\n` +
   tests
-    .map((t) => `${t.id},${overrides[t.id] ?? (t.expected === "closed" ? 0.4 : 5_000_000)}`)
+    .map((t) =>
+      t.expected === "closed"
+        ? `${t.id},continuity,${overrides[t.id] ?? 0.4},,,,`
+        : `${t.id},insulation-resistance,${overrides[t.id] ?? 5_000_000},250,dc,true,true`
+    )
     .join("\n") +
   "\n"
 
 describe("cirris-easywire-netlist adapter (PRD §31)", () => {
-  it("is registered and resolves by id", () => {
-    expect(builtinAdapters).toContain(cirrisEasyWireNetlist)
-    expect(findAdapter("cirris-easywire-netlist")).toBe(cirrisEasyWireNetlist)
+  it("is directly importable but absent from production discovery", () => {
+    expect(experimentalCirrisEasyWireNetlist).toBe(cirrisEasyWireNetlist)
+    expect(builtinAdapters).not.toContain(cirrisEasyWireNetlist)
+    expect(findAdapter("cirris-easywire-netlist")).toBeUndefined()
     expect(cirrisEasyWireNetlist.kind).toBe("continuity-tester")
   })
 
@@ -64,7 +93,7 @@ describe("cirris-easywire-netlist adapter (PRD §31)", () => {
     expect(text).toContain("# revision: A")
     expect(exportedFingerprint()).toBe(release.hirFingerprint)
     expect(section(text, "POINTS")[0]).toEqual(["J1-1", "J1", "1", "connector:J1.pin:1"])
-    expect(section(text, "CONNECT").every((row) => row[5]!.length > 0)).toBe(true)
+    expect(section(text, "CONNECT").every((row) => row[4]!.length > 0)).toBe(true)
   })
 
   it("lists every wired net the test plan proves", () => {
@@ -107,12 +136,14 @@ describe("tester result ingest (PRD §36)", () => {
     const record = createBuildRecord(hir, release, ingest.measurements, {
       serial: "SN-0001",
       operator: "tester-8100",
-      buildDate: "2026-06-06"
+      buildDate: "2026-06-06",
+      testSpecification: specification
     })
     expect(record.summary).toEqual({
       pass: plan.tests.length - 1,
       fail: 1,
       notRun: 0,
+      unassessed: 0,
       status: "fail"
     })
     // T-002 is a continuity step: 480 Ω is an open joint, not a wire.
@@ -149,7 +180,9 @@ describe("tester result ingest (PRD §36)", () => {
   })
 
   it("reports unknown result ids and counts planned tests with no result", () => {
-    const source = resultsCsv(plan.tests.slice(0, 3), exportedFingerprint()) + "T-999,0.1\n"
+    const source =
+      resultsCsv(plan.tests.slice(0, 3), exportedFingerprint()) +
+      "T-999,continuity,0.1,,,,\n"
     const ingest = ingestTesterResults(source, release, { plan })
 
     expect(ingest.fingerprintMatches).toBe(true)
@@ -177,5 +210,60 @@ describe("tester result ingest (PRD §36)", () => {
     ])
     expect(ingest.diagnostics.map((d) => d.code)).toEqual(["HK-TEST-003"])
     expect(ingest.diagnostics[0]?.message).toContain("T-002,OPEN")
+  })
+
+  it("retains named electrical, raw-result, tester, software, and calibration evidence", () => {
+    const source =
+      `# hir-fingerprint: ${release.hirFingerprint}\n` +
+      "Test ID,Method,Measured ohms,Applied voltage V,Applied waveform,Leakage mA,Duration seconds,Raw result reference,Raw result hash,Tester ID,Tester serial,Software version,Calibration ID,Timestamp,Interlock confirmed,Discharge confirmed\n" +
+      'T-005,dielectric-withstand,,1000,ac,0.7,3,"evidence://run,5",sha256:abc,HV-01,SN-44,9.2,CAL-77,2026-06-06T12:04:00Z,true,true\n'
+    const ingest = ingestTesterResults(source, release, {
+      testerManufacturer: "Example Test Systems",
+      testerModel: "HV-X",
+      softwareName: "Bench Runner",
+      calibrationDueAt: "2027-01-01"
+    })
+
+    expect(ingest.measurements).toEqual([
+      {
+        id: "T-005",
+        method: "dielectric-withstand",
+        appliedVoltageV: 1000,
+        appliedWaveform: "ac",
+        leakageMilliAmps: 0.7,
+        durationSeconds: 3,
+        rawResultReference: "evidence://run,5",
+        rawResultHash: "sha256:abc",
+        testerId: "HV-01",
+        testerManufacturer: "Example Test Systems",
+        testerModel: "HV-X",
+        testerSerial: "SN-44",
+        softwareName: "Bench Runner",
+        softwareVersion: "9.2",
+        calibrationId: "CAL-77",
+        calibrationDueAt: "2027-01-01",
+        timestamp: "2026-06-06T12:04:00Z",
+        interlockConfirmed: true,
+        dischargeConfirmed: true
+      }
+    ])
+  })
+
+  it("skips explicit unknown methods and diagnoses duplicate test IDs", () => {
+    const source =
+      `# hir-fingerprint: ${release.hirFingerprint}\n` +
+      "Test ID,Method,Measured ohms,Applied waveform\n" +
+      "T-001,vendor-auto,0.1,\n" +
+      "T-002,continuity,0.2,\n" +
+      "T-002,continuity,0.3,\n" +
+      "T-003,dielectric-withstand,0.4,pulse\n"
+    const ingest = ingestTesterResults(source, release)
+
+    expect(ingest.measurements.map((measurement) => measurement.id)).toEqual(["T-002", "T-002"])
+    expect(ingest.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "HK-TEST-007",
+      "HK-TEST-010",
+      "HK-TEST-009"
+    ])
   })
 })

@@ -129,6 +129,53 @@ export {
 } from "./config.js"
 
 export { variant, type VariantOptions } from "./variant.js"
+export {
+  CONFIGURATION_METADATA_KEYS,
+  ConfigurationIssueCodes,
+  defineProductFamily,
+  enumerateConfigurations,
+  resolveConfiguration,
+  type ConfigurationEntitySection,
+  type ConfigurationEnumeration,
+  type ConfigurationEnumerationOptions,
+  type ConfigurationIssue,
+  type ConfigurationIssueCode,
+  type ConfigurationRequest,
+  type ConfigurationResolution,
+  type EnumeratedConfigurations,
+  type ProductFamily,
+  type ProductOption,
+  type RejectedConfiguration,
+  type RejectedConfigurationEnumeration,
+  type ResolvedConfiguration,
+  type VariantPatch
+} from "./configuration.js"
+
+export {
+  SUPPLY_SNAPSHOT_SCHEMA_VERSION,
+  SupplyDiagnosticCodes,
+  createSupplySnapshot,
+  resolveSupplyRecord,
+  selectSupplyPrice,
+  staticSupplyProvider,
+  type CatalogSupplyItemKind,
+  type PriceBreak,
+  type SelectedSupplyPrice,
+  type SupplyPriceSelectionOptions,
+  type SupplyApproval,
+  type SupplyDiagnostic,
+  type SupplyDiagnosticCode,
+  type SupplyItemKind,
+  type SupplyOffer,
+  type SupplyProvider,
+  type SupplyProvenance,
+  type SupplyQualification,
+  type SupplyRecord,
+  type SupplyRequest,
+  type SupplyResolution,
+  type SupplySnapshot,
+  type SupplySnapshotOptions
+} from "./supply.js"
 
 export {
   harnessTemplate,

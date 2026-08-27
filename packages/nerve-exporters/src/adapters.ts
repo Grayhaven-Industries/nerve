@@ -16,9 +16,15 @@ import {
   type Diagnostic,
   type Hir
 } from "@grayhaven/nerve"
-import { toCsv } from "./csv.js"
+import { toCsv, wireCutLength } from "./csv.js"
 import { draft } from "./draft.js"
 import { hirFingerprint } from "./release.js"
+import {
+  testSpecificationMatchesPlan,
+  validateTestSpecification,
+  type ElectricalTestStep,
+  type TestSpecification
+} from "./test-spec.js"
 import { generateTestPlan, type HarnessTest, type TestPoint } from "./test-plan.js"
 
 export type AdapterKind =
@@ -33,6 +39,11 @@ export interface AdapterResult {
   readonly diagnostics: ReadonlyArray<Diagnostic>
 }
 
+export interface AdapterGenerateOptions {
+  /** Optional caller-authorized limits for tester program adapters. */
+  readonly testSpecification?: TestSpecification
+}
+
 export interface MachineAdapter {
   readonly id: string
   readonly kind: AdapterKind
@@ -45,7 +56,7 @@ export interface MachineAdapter {
    * nobody mistakes "it imports" for "it is certified".
    */
   readonly limitations?: ReadonlyArray<string>
-  generate(hir: Hir): AdapterResult
+  generate(hir: Hir, options?: AdapterGenerateOptions): AdapterResult
 }
 
 const metadataHeader = (hir: Hir, adapter: MachineAdapter): string =>
@@ -78,7 +89,8 @@ export const genericCutStripCsv: MachineAdapter = {
 
     const rows: Array<ReadonlyArray<string | number>> = []
     for (const w of hir.wires) {
-      if (w.length === undefined || w.gauge === undefined) {
+      const cutLength = wireCutLength(w)
+      if (cutLength === undefined || w.gauge === undefined) {
         diagnostics.push({
           code: "HK-ADAPT-002",
           severity: DiagnosticSeverity.Warning,
@@ -87,14 +99,22 @@ export const genericCutStripCsv: MachineAdapter = {
         })
         continue
       }
+      if (w.stripLength === undefined) {
+        diagnostics.push({
+          code: "HK-ADAPT-005",
+          severity: DiagnosticSeverity.Warning,
+          message: `Wire ${w.id} has no declared per-end strip lengths; machine strip fields were left blank.`,
+          target: refs.wire(w.id)
+        })
+      }
       rows.push([
         w.id,
         w.gauge,
         w.color ?? "",
-        w.length,
+        cutLength,
         w.lengthTolerance ?? "",
-        5, // strip A (mm) — process default until §28 carries per-end data
-        5, // strip B (mm)
+        w.stripLength?.from ?? "",
+        w.stripLength?.to ?? "",
         1, // quantity
         refs.wire(w.id)
       ])
@@ -141,9 +161,47 @@ interface TesterStep {
   readonly mode: "continuity" | "isolation"
   readonly from: TestPoint
   readonly to: TestPoint
-  readonly thresholdOhms: number
   readonly hirRef: string | null
   readonly hirRefs?: ReadonlyArray<string>
+  readonly method?: ElectricalTestStep["method"]
+  readonly maxOhms?: number
+  readonly minOhms?: number
+  readonly testVoltageV?: number
+  readonly testVoltageToleranceV?: number
+  readonly maxLeakageMilliAmps?: number
+  readonly dwellSeconds?: number
+  readonly rampSeconds?: number
+  readonly waveform?: "ac" | "dc"
+}
+
+const copyAuthorizedLimits = (target: ReturnType<typeof draft<TesterStep>>, source: ElectricalTestStep): void => {
+  target.method = source.method
+  switch (source.method) {
+    case "continuity":
+    case "four-wire-resistance":
+      target.maxOhms = source.maxOhms
+      break
+    case "insulation-resistance":
+      target.testVoltageV = source.testVoltageV
+      if (source.testVoltageToleranceV !== undefined) {
+        target.testVoltageToleranceV = source.testVoltageToleranceV
+      }
+      target.minOhms = source.minOhms
+      if (source.dwellSeconds !== undefined) target.dwellSeconds = source.dwellSeconds
+      if (source.rampSeconds !== undefined) target.rampSeconds = source.rampSeconds
+      target.waveform = "dc"
+      break
+    case "dielectric-withstand":
+      target.testVoltageV = source.testVoltageV
+      if (source.testVoltageToleranceV !== undefined) {
+        target.testVoltageToleranceV = source.testVoltageToleranceV
+      }
+      target.maxLeakageMilliAmps = source.maxLeakageMilliAmps
+      target.dwellSeconds = source.dwellSeconds
+      if (source.rampSeconds !== undefined) target.rampSeconds = source.rampSeconds
+      target.waveform = source.waveform
+      break
+  }
 }
 
 /** Continuity tester: machine-readable program derived from the test plan. */
@@ -152,11 +210,31 @@ export const genericTesterJson: MachineAdapter = {
   kind: "continuity-tester",
   description: "Generic continuity tester program (JSON, one step per test).",
   hirSchemaVersions: [HIR_SCHEMA_VERSION],
-  generate(hir) {
+  generate(hir, options) {
     const schemaIssue = checkSchema(hir, this)
     if (schemaIssue !== undefined) return { files: new Map(), diagnostics: [schemaIssue] }
     const plan = generateTestPlan(hir)
-    const program = {
+    const requestedSpecification = options?.testSpecification
+    const specification =
+      requestedSpecification !== undefined &&
+      requestedSpecification.status === "approved" &&
+      validateTestSpecification(requestedSpecification).length === 0 &&
+      testSpecificationMatchesPlan(requestedSpecification, plan)
+        ? requestedSpecification
+        : undefined
+    const authorized = new Map((specification?.steps ?? []).map((step) => [step.id, step]))
+    const program = draft<{
+      readonly adapter: string
+      readonly harness: string
+      readonly revision: string
+      readonly hirSchema: string
+      readonly testSpecification?: {
+        readonly schemaVersion: string
+        readonly id: string
+        readonly revision: string
+      }
+      readonly steps: ReadonlyArray<TesterStep>
+    }>({
       adapter: this.id,
       harness: hir.harness.id,
       revision: hir.harness.revision,
@@ -167,7 +245,6 @@ export const genericTesterJson: MachineAdapter = {
           mode: t.expected === "closed" ? "continuity" : "isolation",
           from: t.from,
           to: t.to,
-          thresholdOhms: t.expected === "closed" ? 2 : 100000,
           hirRef:
             t.type === "continuity"
               ? refs.wire(t.wire)
@@ -180,21 +257,34 @@ export const genericTesterJson: MachineAdapter = {
         if (t.type === "net-continuity") {
           step.hirRefs = [...t.wires.map(refs.wire), ...t.splices.map(refs.splice)]
         }
+        const limit = authorized.get(t.id)
+        if (limit !== undefined) copyAuthorizedLimits(step, limit)
         return step
+      })
+    })
+    if (specification !== undefined) {
+      program.testSpecification = {
+        schemaVersion: specification.schemaVersion,
+        id: specification.id,
+        revision: specification.revision
+      }
+    }
+    const diagnostics: Array<Diagnostic> = []
+    if (requestedSpecification !== undefined && specification === undefined) {
+      diagnostics.push({
+        code: "HK-ADAPT-004",
+        severity: DiagnosticSeverity.Warning,
+        message:
+          "The supplied test specification is not approved, valid, and trace-matched to this harness; no acceptance limits were exported.",
+        data: { adapter: this.id, specification: requestedSpecification.id }
       })
     }
     return {
       files: new Map([["tester.program.json", JSON.stringify(program, null, 2) + "\n"]]),
-      diagnostics: []
+      diagnostics
     }
   }
 }
-
-/** Verdict thresholds the exported program declares, in ohms. Same numbers
- * `createBuildRecord` judges the returned measurements against (PRD §36), so
- * the tester and the record never disagree about what "pass" means. */
-const CONTINUITY_MAX_OHMS = 2
-const ISOLATION_MIN_OHMS = 100_000
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -242,7 +332,7 @@ const hirRefsOf = (t: HarnessTest): string =>
 export const cirrisEasyWireNetlist: MachineAdapter = {
   id: "cirris-easywire-netlist",
   kind: "continuity-tester",
-  description: "Cirris Easy-Wire style net list (test points, connections, isolation).",
+  description: "Experimental Cirris Easy-Wire style net list (unvalidated pseudo-format).",
   hirSchemaVersions: [HIR_SCHEMA_VERSION],
   limitations: [
     "The file layout is a best-effort target modeled on Easy-Wire's documented delimited-text import. It is NOT validated against real Cirris hardware — verify it on a tester before production use.",
@@ -270,7 +360,6 @@ export const cirrisEasyWireNetlist: MachineAdapter = {
         pointLabel(t.from),
         pointLabel(t.to),
         t.id,
-        CONTINUITY_MAX_OHMS,
         hirRefsOf(t)
       ])
 
@@ -280,8 +369,7 @@ export const cirrisEasyWireNetlist: MachineAdapter = {
         netOf(t),
         pointLabel(t.from),
         pointLabel(t.to),
-        t.id,
-        ISOLATION_MIN_OHMS
+        t.id
       ])
 
     const text =
@@ -292,9 +380,9 @@ export const cirrisEasyWireNetlist: MachineAdapter = {
       "[POINTS]\n" +
       toCsv([["Point", "Connector", "Pin", "HIR ref"], ...pointRows]) +
       "[CONNECT]\n" +
-      toCsv([["Net", "Point A", "Point B", "Test ID", "Max ohms", "HIR ref"], ...connectRows]) +
+      toCsv([["Net", "Point A", "Point B", "Test ID", "HIR ref"], ...connectRows]) +
       "[ISOLATE]\n" +
-      toCsv([["Nets", "Point A", "Point B", "Test ID", "Min ohms"], ...isolateRows])
+      toCsv([["Nets", "Point A", "Point B", "Test ID"], ...isolateRows])
 
     return {
       files: new Map([["cirris-easywire.netlist.txt", text]]),
@@ -311,11 +399,13 @@ export const cirrisEasyWireNetlist: MachineAdapter = {
   }
 }
 
+/** Explicit production-discovery opt-out alias for the retained compatibility export. */
+export const experimentalCirrisEasyWireNetlist = cirrisEasyWireNetlist
+
 export const builtinAdapters: ReadonlyArray<MachineAdapter> = [
   genericCutStripCsv,
   genericLabelPrinterCsv,
-  genericTesterJson,
-  cirrisEasyWireNetlist
+  genericTesterJson
 ]
 
 export const findAdapter = (id: string): MachineAdapter | undefined =>

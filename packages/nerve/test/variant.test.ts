@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { compileDesign, diffHir, runRules } from "@grayhaven/nerve"
+import { compileDesign, diffHir, runRules, variant } from "@grayhaven/nerve"
 import { builtinRules } from "@grayhaven/nerve-rules"
 import base from "../../../examples/motor-controller/src/main.harness.js"
 import long from "../../../examples/motor-controller/src/variants/long.js"
@@ -49,5 +49,27 @@ describe("variants (PRD §8.4)", () => {
     expect(longDiags.filter((d) => d.severity === "error")).toEqual([])
     expect(longDiags.filter((d) => d.code === "HK-MFG-001")).toHaveLength(0)
     expect(baseDiags.filter((d) => d.code === "HK-MFG-001")).toHaveLength(2)
+  })
+
+  it("adds, overrides, and removes protection devices without mutating the base", () => {
+    const added = variant(base, {
+      id: "motor-controller-protected",
+      protections: {
+        add: [{ id: "F1", kind: "fuse", ratingA: 5, protects: ["W1"] }]
+      }
+    })
+    const changed = variant(added, {
+      id: "motor-controller-protected-3a",
+      protections: { override: { F1: { ratingA: 3 } } }
+    })
+    const removed = variant(changed, {
+      id: "motor-controller-unprotected",
+      protections: { remove: ["F1"] }
+    })
+
+    expect(base.protections).toEqual([])
+    expect(added.protections[0]?.ratingA).toBe(5)
+    expect(changed.protections[0]?.ratingA).toBe(3)
+    expect(removed.protections).toEqual([])
   })
 })

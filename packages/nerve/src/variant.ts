@@ -14,6 +14,7 @@ import type {
   ConnectorInstance,
   HarnessDesign,
   LabelDef,
+  ProtectionDef,
   SpliceDef,
   WireDef,
   WireProps
@@ -41,6 +42,9 @@ export interface VariantOptions {
   }
   readonly splices?: SectionMods<SpliceDef>
   readonly cables?: SectionMods<CableDef>
+  readonly protections?: SectionMods<ProtectionDef> & {
+    readonly override?: Readonly<Record<string, Partial<Omit<ProtectionDef, "id">>>>
+  }
 }
 
 const apply = <T extends { readonly id: string }>(
@@ -85,6 +89,5 @@ export const variant = (base: HarnessDesign, opts: VariantOptions): HarnessDesig
   labels: apply(base.labels, opts.labels),
   splices: apply(base.splices, opts.splices),
   cables: apply(base.cables, opts.cables),
-  // Carried through unchanged; protection edits aren't a variant axis yet.
-  protections: base.protections
+  protections: apply(base.protections, opts.protections)
 })

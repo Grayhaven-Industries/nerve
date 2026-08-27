@@ -73,10 +73,13 @@ import {
   ReleaseBlockedError,
   resolveRedline,
   suggestPatch,
+  testSpecificationMatchesPlan,
   validateRedlineTarget,
+  validateTestSpecification,
   exportConnectorContract,
   findAdapter,
   findContractImporter,
+  generateTestPlan,
   generateQuote,
   importPinoutCsv,
   exportTscircuitCircuitJson,
@@ -92,7 +95,8 @@ import {
   parseTscircuitCircuitJson,
   type ConnectorContract,
   type Redline,
-  type RedlineType
+  type RedlineType,
+  type TestSpecification
 } from "@grayhaven/nerve-exporters"
 
 export interface Io {
@@ -171,6 +175,55 @@ const readJsonArray = (path: string): ReadonlyArray<JsonValue> => {
   const parsed = readJson(path)
   if (!Array.isArray(parsed)) throw new Error(`${path} does not contain a JSON array.`)
   return parsed
+}
+
+/** Load only caller-approved acceptance authority for the current HIR. */
+const loadApprovedTestSpecification = (
+  path: string,
+  hir: Hir,
+  io: Io
+): TestSpecification | CommandExit => {
+  let specification: TestSpecification
+  try {
+    // SAFETY: validateTestSpecification checks the complete parsed JSON shape before use.
+    specification = JSON.parse(readFileSync(resolve(path), "utf8")) as TestSpecification
+  } catch (cause) {
+    io.err(
+      `Failed to load test specification ${path}: ${cause instanceof Error ? cause.message : String(cause)}`
+    )
+    io.err("Supply a valid JSON TestSpecification approved for this generated harness plan.")
+    return new CommandExit(2)
+  }
+
+  let diagnostics: ReadonlyArray<Diagnostic>
+  try {
+    diagnostics = validateTestSpecification(specification)
+  } catch {
+    io.err(`Test specification ${path} has an invalid structure.`)
+    io.err("Supply a valid JSON TestSpecification approved for this generated harness plan.")
+    return new CommandExit(2)
+  }
+  if (diagnostics.length > 0) {
+    const first = diagnostics[0]!
+    const remaining = diagnostics.length - 1
+    io.err(
+      `Test specification ${path} is invalid: ${first.code} ${first.message}` +
+        (remaining > 0 ? ` (${remaining} more issue${remaining === 1 ? "" : "s"})` : "")
+    )
+    io.err("Correct and approve the specification before using it for machine limits or verdicts.")
+    return new CommandExit(2)
+  }
+  if (specification.status !== "approved") {
+    io.err(`Test specification ${path} is draft; an approved specification is required.`)
+    io.err("Record an explicit approval before using its acceptance limits.")
+    return new CommandExit(2)
+  }
+  if (!testSpecificationMatchesPlan(specification, generateTestPlan(hir))) {
+    io.err(`Test specification ${path} does not match the current generated harness test plan.`)
+    io.err("Regenerate, review, and approve a specification for this harness revision.")
+    return new CommandExit(2)
+  }
+  return specification
 }
 
 /** The `id` of a ledger entry, when the entry carries one. */
@@ -342,10 +395,10 @@ Usage:
   nerve eval     [eval-corpus/manifest.json] [--out dir]   (provenance-aware rule scorecard)
   nerve quote    <file.harness.ts> [--out dir]   (requires costing in nerve.config.ts)
   nerve analyze  <file.harness.ts> [--out dir]   (resistance, drop, bundle, weight §34)
-  nerve machine  <adapter-id> <file.harness.ts> [--out dir]   (shop-floor exports §31)
+  nerve machine  <adapter-id> <file.harness.ts> [--test-spec <file.json>] [--out dir]   (shop-floor exports §31)
   nerve contract <file.harness.ts> --connector <ref> [--against contract.json|pinout.csv|board.kicad_pcb] [--component ref] [--out dir]
   nerve release  <file.harness.ts> --eco <id> --reason <text> --date <iso> [--against release.json] [--out dir]
-  nerve record   <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--lengths lengths.json] [--length-tolerance mm] [--out dir]
+  nerve record   <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--test-spec <file.json>] [--lengths lengths.json] [--length-tolerance mm] [--out dir]
   nerve redline  add <file.harness.ts> --target <hir-ref> --type <type> --description <text> [--value v] [--release id] [--serial sn]
   nerve redline  from-record <file.harness.ts> --record <build-record.json> [--file redlines.json] [--prefix RL] [--by name]
   nerve redline  resolve <redlines.json> --id <id> --accept|--reject --reason <text> --date <iso>
@@ -810,7 +863,17 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       const result = await compileOrExit(file, io)
       if (result instanceof CommandExit) return result.code
-      const { files, diagnostics } = adapter.generate(result.hir)
+      const specificationPath = flags["test-spec"]
+      const specification =
+        specificationPath === undefined
+          ? undefined
+          : loadApprovedTestSpecification(specificationPath, result.hir, io)
+      if (specification instanceof CommandExit) return specification.code
+      const generated =
+        specification === undefined
+          ? adapter.generate(result.hir)
+          : adapter.generate(result.hir, { testSpecification: specification })
+      const { files, diagnostics } = generated
       printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
       if (hasErrors(diagnostics)) return 1
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
@@ -966,6 +1029,12 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
       }
       const result = await compileOrExit(file, io)
       if (result instanceof CommandExit) return result.code
+      const specificationPath = flags["test-spec"]
+      const specification =
+        specificationPath === undefined
+          ? undefined
+          : loadApprovedTestSpecification(specificationPath, result.hir, io)
+      if (specification instanceof CommandExit) return specification.code
       // --lengths is the as-built half of the loop (§36): the technician's
       // measured wire lengths, judged against design length + tolerance.
       // Optional on purpose — a continuity-only record stays byte-identical.
@@ -993,12 +1062,26 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         lengthTolerance === undefined
           ? measuredLengths
           : { ...measuredLengths, defaultLengthTolerance: Number(lengthTolerance) }
-      const record = createBuildRecord(result.hir, release, measurements, recordOptions)
+      const authorizedRecordOptions =
+        specification === undefined
+          ? recordOptions
+          : { ...recordOptions, testSpecification: specification }
+      const record = createBuildRecord(
+        result.hir,
+        release,
+        measurements,
+        authorizedRecordOptions
+      )
       const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
       writeOut(outDir, `build-record-${serial}.json`, buildRecordJson(record), io)
       io.out(
-        `${serial}: ${record.summary.pass} pass / ${record.summary.fail} fail / ${record.summary.notRun} not run → ${record.summary.status.toUpperCase()}`
+        `${serial}: ${record.summary.pass} pass / ${record.summary.fail} fail / ${record.summary.notRun} not run / ${record.summary.unassessed} unassessed → ${record.summary.status.toUpperCase()}`
       )
+      if (specification === undefined) {
+        io.err(
+          "WARNING: no --test-spec supplied; all measured electrical tests remain unassessed."
+        )
+      }
       if (record.lengthSummary !== undefined) {
         const l = record.lengthSummary
         io.out(
@@ -1008,7 +1091,11 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           io.out(`Turn these into redlines: nerve redline from-record ${file} --record ${join(outDir, `build-record-${serial}.json`)}`)
         }
       }
-      return record.summary.status === "fail" ? 1 : 0
+      return record.summary.status === "fail"
+        ? 1
+        : record.summary.status === "incomplete"
+          ? 2
+          : 0
     }
 
     case "redline": {
