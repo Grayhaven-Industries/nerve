@@ -26,6 +26,10 @@ const ROBOT_FIXTURE = resolve(
   "../../../examples/robot-platform/src/main.harness.ts"
 )
 
+const CLI_VERSION = Schema.decodeUnknownSync(Schema.Struct({ version: Schema.String }))(
+  JSON.parse(readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"))
+).version
+
 const capture = (): Io & { stdout: Array<string>; stderr: Array<string> } => {
   const stdout: Array<string> = []
   const stderr: Array<string> = []
@@ -239,6 +243,7 @@ describe("nerve render / export", () => {
   it("exports the full manufacturing packet", async () => {
     const out = tmp()
     const io = capture()
+    writeFileSync(join(out, ".nerve-export-incomplete"), "stale interrupted export\n")
     expect(await run(["export", FIXTURE, "--out", out], io)).toBe(0)
     for (const f of [
       "harness.json",
@@ -255,7 +260,21 @@ describe("nerve render / export", () => {
     ]) {
       expect(existsSync(join(out, f)), f).toBe(true)
     }
+    expect(existsSync(join(out, ".nerve-export-incomplete"))).toBe(false)
     expect(readFileSync(join(out, "manufacturing-packet.pdf")).subarray(0, 5).toString()).toBe("%PDF-")
+  })
+
+  it("leaves an incomplete marker when packet output fails", async () => {
+    const out = tmp()
+    mkdirSync(join(out, "manufacturing-packet.pdf"))
+
+    await expect(run(["export", FIXTURE, "--out", out], capture())).rejects.toThrow()
+
+    expect(existsSync(join(out, "COVER.txt"))).toBe(true)
+    expect(readFileSync(join(out, ".nerve-export-incomplete"), "utf8")).toContain(
+      "manufacturing export is incomplete"
+    )
+    expect(existsSync(join(out, "manufacturing-packet.zip"))).toBe(false)
   })
 
   it("fails closed: blocks export when errors exist", async () => {
@@ -406,7 +425,14 @@ connections:
     expect(readFileSync(join(out, "src", "main.harness.ts"), "utf8")).toContain(
       "// source row 2"
     )
-    for (const file of ["column-map.json", "nerve.config.ts", "package.json", "tsconfig.json"]) {
+    for (const file of [
+      "column-map.json",
+      "nerve.config.ts",
+      "package.json",
+      "tsconfig.json",
+      "harness.json",
+      "diagnostics.json"
+    ]) {
       expect(existsSync(join(out, file)), file).toBe(true)
     }
     expect(JSON.parse(readFileSync(join(out, "import-report.json"), "utf8"))).toMatchObject({
@@ -527,6 +553,19 @@ describe("nerve inspect / init / help", () => {
     writeFileSync(file, JSON.stringify({ schemaVersion: "9.9.9" }))
     const io = capture()
     expect(await run(["inspect", file], io)).toBe(2)
+    const error = io.stderr.join("\n")
+    expect(error).toContain("$.schemaVersion")
+    expect(error).toContain("Expected")
+    expect(error.length).toBeLessThan(1024)
+  })
+
+  it("prints the exact package version for every conventional version spelling", async () => {
+    for (const spelling of ["--version", "-v", "-V", "version"]) {
+      const io = capture()
+      expect(await run([spelling], io), spelling).toBe(0)
+      expect(io.stdout, spelling).toEqual([CLI_VERSION])
+      expect(io.stderr, spelling).toEqual([])
+    }
   })
 
   it("init scaffolds a complete project and refuses to overwrite", async () => {

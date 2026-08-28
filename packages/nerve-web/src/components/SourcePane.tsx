@@ -336,6 +336,11 @@ export function SourcePane({ projectId }: { projectId: string }) {
         ]}
         theme={grayscaleTheme}
         onCreateEditor={(view) => {
+          // @uiw/react-codemirror 4.25.11 supplies the EditorView here;
+          // @codemirror/view 6.43.8 exposes scrollDOM as its scroll element.
+          view.scrollDOM.tabIndex = 0
+          view.scrollDOM.setAttribute("role", "region")
+          view.scrollDOM.setAttribute("aria-label", "Harness source scroll area")
           viewRef.current = view
           registerEditor(view)
           // Automation hook: e2e tests and agent tooling drive real editor

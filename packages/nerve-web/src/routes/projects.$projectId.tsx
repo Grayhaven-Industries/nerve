@@ -184,7 +184,12 @@ function WorkspaceTabs({ projectId }: { projectId: string }) {
     setHover({ x: item.left - list.getBoundingClientRect().left, w: item.width })
   }
   return (
-    <nav className="tabs" ref={listRef} onMouseLeave={() => setHover(null)}>
+    <nav
+      className="tabs"
+      ref={listRef}
+      aria-label="Project views"
+      onMouseLeave={() => setHover(null)}
+    >
       {hover !== null && (
         <span
           className="tab-hover-pill"
@@ -226,10 +231,12 @@ function ProjectWorkspace() {
   return (
     <div className="workspace">
       <div className="workspace-header">
-        <h2>
+        {/* React 19.2.8 keeps the native heading semantics while TanStack
+            Router 1.170.27 continues to own only the surrounding route. */}
+        <h1>
           {data.hir.harness.id}
           {dirty ? " •" : ""}
-        </h2>
+        </h1>
         <span className="meta">rev {data.hir.harness.revision}</span>
         <SearchBox hir={data.hir} projectId={projectId} />
         <ShareButton projectId={projectId} />
