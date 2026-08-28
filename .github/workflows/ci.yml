@@ -100,13 +100,19 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20.6.0
+          node-version: 24
 
       - name: Install
         run: bun install --frozen-lockfile
 
       - name: Build packages
         run: bun run build
+
+      # Build tooling follows the repository's Node 24 floor; only the
+      # published consumer is expected to support the CLI runtime floor.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20.6.0
 
       - name: Exercise published tarballs on the minimum Node version
         run: bun scripts/smoke-tarballs.ts
