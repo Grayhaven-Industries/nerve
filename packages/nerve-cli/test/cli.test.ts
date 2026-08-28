@@ -264,6 +264,19 @@ describe("nerve render / export", () => {
     expect(readFileSync(join(out, "manufacturing-packet.pdf")).subarray(0, 5).toString()).toBe("%PDF-")
   })
 
+  it("leaves an incomplete marker when packet output fails", async () => {
+    const out = tmp()
+    mkdirSync(join(out, "manufacturing-packet.pdf"))
+
+    await expect(run(["export", FIXTURE, "--out", out], capture())).rejects.toThrow()
+
+    expect(existsSync(join(out, "COVER.txt"))).toBe(true)
+    expect(readFileSync(join(out, ".nerve-export-incomplete"), "utf8")).toContain(
+      "manufacturing export is incomplete"
+    )
+    expect(existsSync(join(out, "manufacturing-packet.zip"))).toBe(false)
+  })
+
   it("fails closed: blocks export when errors exist", async () => {
     const dir = tmp()
     const bad = join(dir, "bad.harness.ts")

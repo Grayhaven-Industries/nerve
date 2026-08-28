@@ -654,6 +654,9 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
               ? { sourceName: basename(file) }
               : { harnessId, sourceName: basename(file) }
           )
+          // Resolve before writing migration evidence so an unsupported runtime or
+          // broken package installation cannot leave a partial scaffold behind.
+          const coreModule = fileURLToPath(import.meta.resolve("@grayhaven/nerve"))
           const outDir = resolve(flags["out"] ?? "dist")
           writeOut(outDir, "column-map.json", wireListColumnMapJson(mapping), io)
           writeOut(
@@ -677,8 +680,6 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           writeScaffold(outDir, scaffoldFiles, io)
           writeOut(outDir, "src/main.harness.ts", imported.source, io)
           const sourcePath = join(outDir, "src", "main.harness.ts")
-          // Node v24.19.0 / @types/node 25.9.5: import.meta.resolve uses ESM export conditions and returns a URL.
-          const coreModule = fileURLToPath(import.meta.resolve("@grayhaven/nerve"))
           const compiled = await compileOrExit(sourcePath, io, {
             config: {},
             moduleAliases: { "@grayhaven/nerve": coreModule }
