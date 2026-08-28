@@ -11,10 +11,10 @@
  * Exit codes: 0 success · 1 validation/test failure · 2 usage, compile, or incomplete evidence.
  * All file output is deterministic and CI-suitable.
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs"
-import { createRequire } from "node:module"
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync, existsSync, statSync } from "node:fs"
 import { basename, dirname, extname, join, resolve } from "node:path"
-import { Effect, Exit, Cause, Predicate, Schema } from "effect"
+import { fileURLToPath } from "node:url"
+import { Effect, Exit, Cause, ParseResult, Predicate, Schema } from "effect"
 import {
   compileDesign,
   decodeHir,
@@ -374,6 +374,28 @@ const writeOut = (dir: string, name: string, contents: string | Uint8Array, io: 
   io.out(`wrote ${path}`)
 }
 
+const EXPORT_INCOMPLETE_MARKER = ".nerve-export-incomplete"
+
+/** Keep schema failures useful without printing the complete HIR type. */
+const formatInspectFailure = (cause: unknown): string => {
+  // Effect 3.22.1 ArrayFormatter preserves the failing property path without rendering the whole schema.
+  if (!ParseResult.isParseError(cause)) {
+    return cause instanceof Error ? cause.message : String(cause)
+  }
+  const issue = ParseResult.ArrayFormatter.formatErrorSync(cause)[0]
+  if (issue === undefined) return "invalid HIR"
+  const path = issue.path.reduce<string>((current, segment) => {
+    if (Predicate.isNumber(segment)) return `${current}[${segment}]`
+    if (Predicate.isString(segment) && /^[A-Za-z_$][\w$]*$/.test(segment)) {
+      return `${current}.${segment}`
+    }
+    const key = Predicate.isSymbol(segment) ? segment.description ?? segment.toString() : segment
+    return `${current}[${JSON.stringify(key)}]`
+  }, "$")
+  const detail = `${path}: ${issue.message}`
+  return detail.length <= 700 ? detail : `${detail.slice(0, 697)}...`
+}
+
 const USAGE = `nerve — deterministic harness review (Grayhaven Nerve)
 
 Findings print as object + message. Add --codes for the HK-* codes; every
@@ -431,6 +453,13 @@ const loadHirForDiff = async (path: string, io: Io): Promise<Hir | CommandExit> 
 }
 
 export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise<number> => {
+  if (
+    argv.length === 1 &&
+    (argv[0] === "--version" || argv[0] === "-v" || argv[0] === "-V" || argv[0] === "version")
+  ) {
+    io.out(cliVersion())
+    return 0
+  }
   const { command, positional, flags } = parseArgs(argv)
 
   switch (command) {
@@ -584,11 +613,18 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         (toggles?.csv === false && name.endsWith(".csv")) ||
         (toggles?.svg === false && name.endsWith(".svg")) ||
         (toggles?.pdf === false && name.endsWith(".pdf"))
+      const markerPath = join(outDir, EXPORT_INCOMPLETE_MARKER)
+      mkdirSync(outDir, { recursive: true })
+      writeFileSync(
+        markerPath,
+        "Nerve manufacturing export is incomplete. Re-run the export before using these artifacts.\n"
+      )
       for (const [name, contents] of packet.files) {
         if (skip(name)) continue
         writeOut(outDir, name, contents, io)
       }
       writeOut(outDir, "manufacturing-packet.zip", packet.zip, io)
+      unlinkSync(markerPath)
       io.out(summarize(result.hir))
       return 0
     }
@@ -641,7 +677,8 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
           writeScaffold(outDir, scaffoldFiles, io)
           writeOut(outDir, "src/main.harness.ts", imported.source, io)
           const sourcePath = join(outDir, "src", "main.harness.ts")
-          const coreModule = createRequire(import.meta.url).resolve("@grayhaven/nerve")
+          // Node v24.19.0 / @types/node 25.9.5: import.meta.resolve uses ESM export conditions and returns a URL.
+          const coreModule = fileURLToPath(import.meta.resolve("@grayhaven/nerve"))
           const compiled = await compileOrExit(sourcePath, io, {
             config: {},
             moduleAliases: { "@grayhaven/nerve": coreModule }
@@ -1301,9 +1338,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
         )
         return 0
       } catch (cause) {
-        io.err(
-          `Failed to inspect ${file}: ${cause instanceof Error ? cause.message : String(cause)}`
-        )
+        io.err(`Failed to inspect ${file}: ${formatInspectFailure(cause)}`)
         return 2
       }
     }

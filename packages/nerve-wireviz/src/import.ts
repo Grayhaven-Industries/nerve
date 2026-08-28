@@ -100,6 +100,14 @@ const SUPPORTED_CABLE_KEYS = new Set([
   "category",
   "notes"
 ])
+const SUPPORTED_TOP_LEVEL_KEYS = new Set([
+  "connectors",
+  "cables",
+  "connections",
+  "options",
+  "metadata",
+  "templates"
+])
 
 interface WireVizConnector {
   /** `mpn`, else `pn`, else `type`, else the designator — as text. */
@@ -318,6 +326,8 @@ const decodeDocument = (source: string): WireVizDocument => {
   // The core YAML schema (no custom tags) yields only strings, numbers,
   // booleans, null, arrays, and plain objects — exactly `YamlValue`. An
   // empty document parses to null.
+  // yaml 2.9.0: `merge` enables `<<`; alias expansion is bounded by the
+  // library, and unsupported values below are never traversed or stringified.
   const root: YamlValue = parse(source, { merge: true })
   const doc = root ?? {}
   if (!isMapping(doc)) throw new Error("WireViz source must be a YAML mapping.")
@@ -342,9 +352,7 @@ const decodeDocument = (source: string): WireVizDocument => {
     templateSeparator: hasSeparator ? separator : undefined,
     invalidTemplateSeparator: separator !== undefined && !hasSeparator,
     unsupportedOptions: Object.keys(options).filter((key) => key !== "template_separator"),
-    unsupportedSections: ["tweak", "additional_bom_items"].filter(
-      (section) => doc[section] !== undefined
-    ),
+    unsupportedSections: unsupportedKeysOf(doc, SUPPORTED_TOP_LEVEL_KEYS),
     metadata: {
       title: isText(title) ? title : undefined,
       pn: isText(pn) ? pn : undefined,

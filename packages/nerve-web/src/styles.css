@@ -815,7 +815,7 @@ textarea:focus-visible, select:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 /* The harness id is an ID — mono, as written in source. */
-.workspace-header h2 {
+.workspace-header h1 {
   margin: 0;
   font-size: 13px;
   font-family: var(--mono);

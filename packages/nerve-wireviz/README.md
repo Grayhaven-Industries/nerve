@@ -10,7 +10,7 @@ The importer preserves WireViz's compact authoring features where they have an u
 - connector pin labels plus cable wire-label and unique color references
 - numeric metre lengths and explicit `mm`, `cm`, `m`, `in`, or `ft` lengths
 
-Template definitions used only to create named instances are not emitted as physical parts. Unsupported or lossy constructs produce `HK-WV-001` diagnostics; unnamed template instances currently require an explicit designator.
+Template definitions used only to create named instances are not emitted as physical parts. Unsupported or lossy constructs produce `HK-WV-001` diagnostics; unnamed template instances currently require an explicit designator. Unknown top-level sections also produce an `HK-WV-001` warning naming the section, while `templates` remains available as a diagnostic-clean anchor container.
 
 ```bash
 nerve import ./harness.yml --prepend-file ./templates.yml --out ./migration

@@ -152,11 +152,33 @@ export const startDev = async (
     res.end("nerve dev: /, /board, /faces, /pinout, /state.json")
   })
 
-  await new Promise<void>((resolveListen) =>
-    // Bind loopback only — the URL we print is localhost, so don't quietly
-    // expose the dev server (and the source it serves) to the whole LAN.
-    server.listen(options.port ?? 4477, "127.0.0.1", () => resolveListen())
-  )
+  await new Promise<void>((resolveListen, rejectListen) => {
+    let settled = false
+    const onListening = (): void => {
+      if (settled) return
+      settled = true
+      server.off("error", onError)
+      server.off("listening", onListening)
+      resolveListen()
+    }
+    const onError = (cause: unknown): void => {
+      if (settled) return
+      settled = true
+      server.off("error", onError)
+      server.off("listening", onListening)
+      rejectListen(cause)
+    }
+    // Node v24.19.0 / @types/node 25.9.5: bind failures arrive through Server's native "error" event.
+    server.once("error", onError)
+    server.once("listening", onListening)
+    try {
+      // Bind loopback only — the URL we print is localhost, so don't quietly
+      // expose the dev server (and the source it serves) to the whole LAN.
+      server.listen(options.port ?? 4477, "127.0.0.1")
+    } catch (cause) {
+      onError(cause)
+    }
+  })
   const address = server.address()
   // A TCP listener reports an AddressInfo; only pipes and sockets report a string.
   const port =
