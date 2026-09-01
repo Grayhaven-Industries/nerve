@@ -16,11 +16,11 @@ error  connector:J1.pin:1  HK-MFG-004
   Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
 ```
 
-Severity, target, code, then the message. Add `--codes` to any command to
-print the code; every JSON artifact carries it either way.
+Severity, target, code, then the message. Add `--codes` to any command to print the code. Every JSON artifact carries it
+either way.
 
-Severity drives the exit code. Errors fail `nerve validate` with exit `1`;
-warnings and info findings pass with a notice. Severities are tunable per rule
+Severity drives the exit code. Errors fail `nerve validate` with exit `1`. Warnings and info findings pass
+with a notice. Severities are tunable per rule
 by name in `nerve.config.ts`, and that tuning also reaches the release gate.
 
 <Callout title="A passing rule is not a silent rule">
@@ -32,10 +32,11 @@ by name in `nerve.config.ts`, and that tuning also reaches the release gate.
 ## What the count does not tell you
 
 A rule can only judge facts the design supplied, so all of these can pass on a
-design that declares almost nothing. Use `nerve parts` to see which checks a
-part's data enables, `nerve provenance` to see which limits rest on unverified
-data, and [rule coverage](/docs/reference/rule-coverage) to see the rule set as
-a fraction of the actual problem.
+design that declares almost nothing. Three things tell you where you stand:
+
+- `nerve parts` reports which checks the data for a part enables.
+- `nerve provenance` reports which limits rest on unverified data.
+- [Rule coverage](/docs/reference/rule-coverage) gives the rule set as a fraction of the actual problem.
 
 ## The rules
 

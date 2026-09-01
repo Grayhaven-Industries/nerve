@@ -4,9 +4,8 @@ description: Release, packet, build record, redline, next revision, diff. How a 
 ---
 
 Design is half the product. The other half is what happens after: releases,
-build records, technician feedback, and the next revision. Every step here is
-a real command; the [CLI reference](/docs/reference/cli) has the full flag
-list for each.
+build records, technician feedback, and the next revision. Every step here is a real command. The [CLI reference](/docs/reference/cli)
+has the full flag list for each one.
 
 ## 1. Release a revision
 
@@ -34,11 +33,17 @@ produce it, so anyone can verify that a packet matches its release.
 nerve export ./src/main.harness.ts --out dist/packet-A
 ```
 
-The PDF build book, the schematic, board, connector-face and pinout drawings
-plus the interactive HTML viewer, the BOM, cut list, label and bill-of-process
-tables with their JSON twins, `graph.json`, `render-layout.json`, the
-continuity test plan, the assembly instructions, and a byte-identical zip of
-all of it. See [artifacts](/docs/reference/artifacts).
+This writes the full packet:
+
+- The PDF build book.
+- The schematic, board, connector-face and pinout drawings.
+- The interactive HTML viewer.
+- The BOM, cut list, label and bill-of-process tables, each with a JSON twin.
+- `graph.json` and `render-layout.json`.
+- The continuity test plan and the assembly instructions.
+- A byte-identical zip of all of it.
+
+See [artifacts](/docs/reference/artifacts).
 
 ## 3. Record the build
 
@@ -58,8 +63,8 @@ SN-0001: 362 pass / 0 fail / 0 not run → PASS
 ```
 
 A failing measurement exits nonzero and names the wire, its endpoints, and the
-expected state. Acceptance limits require an approved `TestSpecification`; see
-[what Nerve does not check](/docs/concepts/limits).
+expected state. Acceptance limits require an approved `TestSpecification`. See [what Nerve
+does not check](/docs/concepts/limits).
 
 ## 4. Capture technician feedback as a redline
 
@@ -122,7 +127,6 @@ wires:
       length: 520 -> 550
 ```
 
-The loop closes. A measurement on a real chassis became a tracked redline, an
-accepted change, a fingerprinted release, and a reviewable diff, with the
-build record of every serial number pointing at the revision it was built
-from.
+The loop closes. A measurement on a real chassis became a tracked redline, an accepted change,
+a fingerprinted release, and a reviewable diff. The build record of every
+serial number points at the revision it was built from.

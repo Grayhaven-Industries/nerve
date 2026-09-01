@@ -157,8 +157,8 @@ diagnostics 0 (0 errors)
 nerve diff <revA> <revB> [--json]
 ```
 
-Semantic diff between two revisions, down to a single pin swap. Each argument
-may be a `harness.json`, a `.harness.ts`, or a revision directory. Exits `1`
+Semantic diff between two revisions, down to a single pin swap. Each argument can be a `harness.json`, a `.harness.ts`, or a revision
+directory. Exits `1`
 on any difference.
 
 ## Draw and export
@@ -287,8 +287,7 @@ nerve release <file.harness.ts> --eco <id> --reason <text> --date <iso> [--again
 ```
 
 Freeze a revision with fail-closed validation. `--against` a previous release
-adds impact analysis computed from the semantic diff. The harness file is
-required here; `entry` is not used.
+adds impact analysis computed from the semantic diff. The harness file is required here. `entry` is not used.
 
 ### `nerve record`
 

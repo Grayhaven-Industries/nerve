@@ -34,8 +34,8 @@ outside the project is the usual cause.
 
 ## "Cannot find module '@grayhaven/nerve'"
 
-The harness file could not resolve its own imports. This is a project setup
-problem, not a design problem.
+The harness file cannot resolve its own imports. This is a project setup
+error, not a design error.
 
 - Run `npm install` in the directory that holds the `package.json`.
 - After `nerve import`, the emitted project under `--out` has its own
@@ -54,7 +54,7 @@ error  connector:J1.pin:1  HK-MFG-004
   Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
 ```
 
-Every JSON artifact carries the codes either way; only the terminal output
+Every JSON artifact carries the codes either way. Only the terminal output
 omits them by default.
 
 ## Everything passes and you do not believe it
@@ -92,7 +92,7 @@ If the range looks wrong, inspect the part rather than the harness:
 npx nerve parts ph-2
 ```
 
-If the part data is wrong, override it with your own provider; see the
+If the part data is wrong, override it with your own provider. See the
 [SDK reference](/docs/reference/sdk).
 
 ## Thermal checks are failing a design that is fine
@@ -104,11 +104,11 @@ and treat inrush as a separate concern.
 
 ## Derating or sleeve-fill numbers look wrong
 
-They depend on how many conductors Nerve believes are in the bundle. Membership
-is inferred from whether both endpoints of a wire appear in a branch's `path`,
-which makes it depend on an authoring accident: two physically identical
-bundles disagree if one path happens to name a shared source connector and the
-other does not.
+These numbers depend on how many conductors Nerve counts in the bundle. Nerve
+infers membership from whether both endpoints of a wire appear in the `path` of
+a branch. That makes the count depend on an authoring accident. Two physically
+identical bundles disagree when one path names a shared source connector and
+the other path does not.
 
 Set `branch` explicitly on the wires that matter.
 

@@ -33,8 +33,7 @@ const { compileDesign } = require('@grayhaven/nerve')
 ```
 
 `@grayhaven/nerve-cli` and `@grayhaven/nerve-compiler` are ESM-only. They read
-`import.meta`, which has no correct CommonJS equivalent, and neither is a
-module you would reach for from CommonJS anyway.
+`import.meta`, which has no correct CommonJS equivalent.
 
 Everything below works in any bundler.
 

@@ -16,6 +16,11 @@ async function createNextConfig(): Promise<NextConfig> {
     turbopack: {
       root: fileURLToPath(new URL('.', import.meta.url)),
     },
+    // The docs site is only docs. There is no separate home page, so the
+    // root sends the reader straight into them.
+    async redirects() {
+      return [{ source: '/', destination: '/docs', permanent: false }]
+    },
     reactStrictMode: true,
     poweredByHeader: false,
     productionBrowserSourceMaps: process.env.SOURCE_MAPS === 'true',

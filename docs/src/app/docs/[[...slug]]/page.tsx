@@ -39,9 +39,9 @@ export default async function Page(
 
   return (
     <DocsPage
-      footer={{
-        className: 'xl:pb-6',
-      }}
+      // No previous/next footer: the sidebar already carries the ordering,
+      // and a docs page should end at its own last sentence.
+      footer={{ enabled: false }}
       tableOfContent={{
         style: 'clerk',
       }}

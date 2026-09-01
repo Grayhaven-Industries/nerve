@@ -27,10 +27,9 @@ Several front ends produce the same thing. The TypeScript
 - Connector contracts from KiCad boards, pinout CSV, tscircuit, and Nerve's
   own JSON.
 
-Importers never guess. Every accepted or rejected source row stays visible in
-the import report with row and column diagnostics, and anything that cannot be
-represented without loss becomes a diagnostic rather than a silent
-approximation.
+Importers never guess. Every accepted or rejected source row stays visible in the import report, with
+row and column diagnostics. Anything that cannot be represented without loss
+becomes a diagnostic rather than a silent approximation.
 
 ## 2. HIR
 
@@ -45,8 +44,8 @@ Two properties matter downstream:
   TypeScript, your YAML, or your spreadsheet. A WireViz import and a
   hand-authored design that describe the same harness are judged identically.
 - **It is content-addressable.** The fingerprint printed by `nerve review` and
-  `nerve release` is a hash of the HIR, so a packet can be checked against the
-  release it claims to come from.
+`nerve release` is a hash of the HIR. You can therefore check a packet against
+the release it claims to come from.
 
 ## 3. Rules
 
@@ -65,23 +64,22 @@ forking it, and releases fail closed on any error.
 
 Two design decisions are worth knowing:
 
-- **Checks judge against the part, not against the design's own claims.** A
-  wire is judged against the contact that crimps it, not against the housing.
-  A pin is judged against the pinout its part fixes, not against what the
-  design says about itself.
-- **A check that lacks facts stays silent rather than guessing.** `nerve parts`
-  tells you which checks a given part currently enables and which are inactive
-  for want of data. This is why
+- **Checks judge against the part, not against the claims of the design.** A
+wire is judged against the contact that crimps it, not against the housing. A
+pin is judged against the pinout that its part fixes.
+- **A check that lacks facts stays silent rather than guessing.** `nerve
+parts` reports which checks a part enables. It also reports which checks stay
+inactive for want of data. This is why
   [rule coverage](/docs/reference/rule-coverage) matters more than the rule
   count.
 
 ## 4. Artifacts
 
-Exporters turn HIR into the things a shop actually uses: drawings, BOM, cut
-list, labels, bill of process, continuity tests, assembly instructions, and a
-PDF packet. The renderer never owns truth. Every line in every artifact traces
-back to a design object in the HIR, and `render-layout.json` records the exact
-geometry each renderer consumed so it is diffable outside Nerve.
+Exporters turn HIR into the things a shop uses. These are the drawings, the
+BOM, the cut list, the labels, the bill of process, the continuity tests, the
+assembly instructions, and a PDF packet. The renderer never owns truth. Every line in every artifact traces back to a design object in the HIR.
+`render-layout.json` records the exact geometry that each renderer consumed.
+That geometry is therefore diffable outside Nerve.
 
 ## 5. Records
 

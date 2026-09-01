@@ -24,12 +24,12 @@ makes the rest of the workflow possible.
 my-first-harness rev A: 0 finding(s), fingerprint 602020e15da5c711
 ```
 
-Because the hash covers the compiled representation rather than the source
-text, it is stable against formatting and comment changes and sensitive to
+The hash covers the compiled representation rather than the source text. It is
+therefore stable against formatting and comment changes, and sensitive to
 anything that changes the harness. That gives you three things:
 
-1. **Packet provenance.** A packet on the shop floor can be checked against the
-   release record it claims to come from.
+1. **Packet provenance.** You can check a packet on the shop floor against the
+release record it claims to come from.
 2. **Reproducibility gating.** CI can rebuild `dist/harness.json` from source
    and fail if it differs. `nerve setup` writes exactly that workflow.
 3. **Honest review.** A pull request that changes drawings but not the

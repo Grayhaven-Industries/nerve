@@ -67,13 +67,13 @@ npx nerve validate --codes
 
 This is the step people skip, and it is the one that matters. Every source row
 is accounted for as accepted or rejected, with row and column diagnostics.
-Nerve does not quietly drop what it could not parse.
+Nerve does not quietly drop what it cannot parse.
 
 Three behaviours are deliberate:
 
 - **Unknown connector parts are marked `unverified`.** Nerve will not invent a
-  housing to make the import look complete. An unverified part supplies no
-  limits, so the checks that would judge against those limits stay inactive.
+  housing to make the import look complete. An unverified part supplies no limits. The checks that judge against those
+limits stay inactive.
   Run `nerve provenance` to see exactly which ones.
 - **Missing signals stay missing.** A blank cell does not become an inferred
   name.

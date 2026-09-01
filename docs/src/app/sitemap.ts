@@ -22,16 +22,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // too would emit it twice with two different priorities.
   const docsIndex = url('/docs')
 
+  // `/` redirects to /docs, so it does not belong in the sitemap.
   return [
-    {
-      url: url('/'),
-      changeFrequency: 'monthly',
-      priority: 1,
-    },
     ...items
       .filter((v) => v !== undefined)
       .map((item) =>
-        item.url === docsIndex ? { ...item, priority: 0.8 } : item
+        item.url === docsIndex ? { ...item, priority: 1 } : item
       ),
   ]
 }

@@ -26,58 +26,62 @@ identity.
 5. **Verification evidence** — diagnostics, continuity/isolation tests,
    measurements, revisions, approvals, and as-built traceability.
 
-Each layer may refer to the layers above it, but it must not silently invent
-their facts. For example, a signal name cannot prove a shield termination
-strategy, and a connector housing's family gauge range cannot prove that a
-particular selected terminal accepts that wire.
+Each layer can refer to the layers above it. It must not silently invent their
+facts. For example, a signal name cannot prove a shield termination strategy.
+The family gauge range of a connector housing cannot prove that a selected
+terminal accepts that wire.
 
 ## Core identities
 
 - A **net** is an electrical equivalence class.
 - A **wire** is a physical conductor segment between two endpoints.
-- A **cable** is a physical jacketed product containing uniquely identified
-  conductors; cable membership and conductor identity are different facts.
+- A **cable** is a physical jacketed product that contains uniquely identified
+conductors. Cable membership and conductor identity are different facts.
 - A **splice** is an electrical junction and a manufacturing operation.
 - A **connector pin** is a logical reference to a physical cavity. Signal,
   terminal, and seal population are separate attributes of that cavity.
 - A **branch** is physical routing, not electrical connectivity.
 - A **test point** is an accessible physical endpoint, not every graph node.
 
-These distinctions prevent category errors such as treating two wires with
-the same signal name as one physical conductor, assigning two wires to the
-same cable conductor, or claiming continuity coverage for an inaccessible
-splice-only net.
+These distinctions prevent category errors. Three examples:
+
+- Two wires with the same signal name treated as one physical conductor.
+- Two wires assigned to the same cable conductor.
+- Continuity coverage claimed for an inaccessible splice-only net.
 
 ## Optional port constraints
 
-Connector pins may declare electrical port semantics: source, sink,
-bidirectional, passive, or ground; accepted voltage ranges; source capacity or
-sink demand; protocol identity; and differential-pair identity and polarity.
-These are optional constraints over the graph, not values inferred from signal
-names. Nerve propagates only facts that were declared and reports contradictions
-such as incompatible voltage domains, multiple sources, undriven loads,
-protocol disagreement, differential-semantic conflicts, and demand above source
+Connector pins can declare electrical port semantics:
+
+- The role: source, sink, bidirectional, passive, or ground.
+- The accepted voltage ranges.
+- The source capacity or the sink demand.
+- The protocol identity.
+- The differential-pair identity and polarity. They are optional constraints over
+the graph, not values inferred from signal names. Nerve propagates only declared facts. It reports contradictions such as
+incompatible voltage domains, multiple sources, undriven loads, protocol
+disagreement, differential-semantic conflicts, and demand above source
 capacity.
 
 Missing semantics remain unknown. Unknown facts can limit what a rule can prove,
 but they never become implicit evidence that a design is safe or compatible.
 An undriven-load conclusion requires every wired connector-pin role on the net
-to be known; any unknown peer role suppresses that conclusion.
-Constraint findings are deterministic review evidence over the supplied model;
-they are not standards certification.
+to be known. Any unknown peer role suppresses that conclusion. Constraint
+findings are deterministic review evidence over the supplied model. They are
+not standards certification.
 
 ## Unknown, absent, and invalid
 
 The model preserves three states:
 
-- **Unknown**: a fact has not been supplied yet; completeness rules may warn.
+- **Unknown**: nobody supplied the fact yet. Completeness rules can warn.
 - **Absent by design**: the fact does not apply, such as a solder-cup connector
   with no removable terminal MPN.
 - **Invalid**: supplied facts contradict physical identity or dimensional
-  constraints; compilation fails.
+constraints. Compilation fails.
 
-Defaults may fill organization policy, but must never turn unknown engineering
-facts into apparently verified facts.
+Defaults can fill organization policy. They must never turn unknown
+engineering facts into apparently verified facts.
 
 ## Where validation belongs
 
@@ -86,9 +90,9 @@ Validation ownership follows the earliest layer that can know the truth:
 - The **compiler** owns unconditional structural invariants: reference
   integrity, unique identities, valid quantities, and physically coherent
   cable-conductor assignments.
-- **Generic rules** own conclusions that follow from declared facts, such as a
-  missing terminal on a wired crimp-contact cavity or a net with too few
-  accessible points for continuity testing.
+- **Generic rules** own conclusions that follow from declared facts. Two
+examples are a missing terminal on a wired crimp-contact cavity, and a net
+with too few accessible points for continuity testing.
 - **Shop profiles** own capability limits such as approved tooling, sleeve
   capacity, tolerances, and local process requirements.
 - **Standards profiles** own versioned policy such as identification schemes,
@@ -99,8 +103,7 @@ guess facts that the HIR cannot represent.
 
 ## Verification principle
 
-Generated tests prove the physical net through accessible connector pins. For
-an electrical net with `N` accessible pins, the closed-circuit tests must form
-a connected graph over all `N` points; merely emitting one test with the net's
-name is not coverage. Nets with fewer than two accessible points are invalid
+Generated tests prove the physical net through accessible connector pins. For an electrical net with `N` accessible pins, the closed-circuit tests must
+form a connected graph over all `N` points. One test that carries the name of
+the net is not coverage. Nets with fewer than two accessible points are invalid
 for point-to-point continuity testing and block release.
