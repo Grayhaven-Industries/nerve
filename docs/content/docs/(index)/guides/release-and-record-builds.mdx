@@ -59,21 +59,26 @@ release fingerprint it claims to come from.
 npx nerve record ./src/main.harness.ts \
   --release dist/releases/A/release-A.json \
   --serial SN-0001 --operator "j.alvarez" --date 2026-06-07 \
-  --lot LOT-26W23 --results dist/results-SN-0001.json --out dist/builds
+  --lot LOT-26W23 --results dist/results-SN-0001.json \
+  --test-spec dist/test-spec-approved.json --out dist/builds
 ```
 
 ```text
-SN-0001: 362 pass / 0 fail / 0 not run → PASS
+SN-0001: 362 pass / 0 fail / 0 not run / 0 unassessed → PASS
 ```
 
-A failing measurement exits nonzero and names the wire, its endpoints, and the
-expected state. The build record retains the approved specification, the
+Without `--test-spec`, every measured electrical test stays **unassessed**: the
+command warns, the status is `INCOMPLETE`, and it exits nonzero. That is the
+gate working, not a bug. A measurement receives a verdict only against an
+approved, plan-matched specification.
+
+A failing measurement also exits nonzero and names the wire, its endpoints, and
+the expected state. The build record retains the approved specification, the
 measurements, raw-result references and hashes, tester and calibration
 identity, as-built lengths, and crimp-process evidence.
 
 Pass `--lengths lengths.json` with `--length-tolerance` to record as-built
-lengths against the design, and `--test-spec` to bind the record to an
-approved test specification.
+lengths against the design.
 
 <Callout type="warn" title="Limits need approval">
   A caller-authored, plan-matched `TestSpecification` must be approved before a
@@ -85,7 +90,7 @@ approved test specification.
 
 ```bash
 npx nerve redline add ./src/main.harness.ts \
-  --target wire:W_BUMP_L_RTN --type length \
+  --target wire:W_BUMP_L_RTN --type incorrect-length \
   --description "arrives 30mm short of the bumper bracket" \
   --value 550 --serial SN-0001 --by "j.alvarez" --file dist/redlines.json
 ```
@@ -97,7 +102,7 @@ To sweep an entire build record at once:
 
 ```bash
 npx nerve redline from-record ./src/main.harness.ts \
-  --record dist/builds/SN-0001.json --file dist/redlines.json --by "j.alvarez"
+  --record dist/builds/build-record-SN-0001.json --file dist/redlines.json --by "j.alvarez"
 ```
 
 Resolve each one explicitly. Rejections are retained with their reason, which

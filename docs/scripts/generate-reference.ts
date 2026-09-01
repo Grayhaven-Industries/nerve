@@ -192,13 +192,19 @@ These aliases resolve to the same housings as their primary specs: ${aliases}.
 const dslFragment = (): string => `${BANNER}${dslReferenceMd(extractDslMeta())}`
 
 /**
- * The repository CHANGELOG, demoted one level so its version headings sit
- * under the page title. Emitted as markdown rather than MDX on purpose: the
- * changelog is prose nobody writes with a docs parser in mind, and a stray
- * `Record<...>` outside backticks would otherwise fail the build.
+ * The published changelog, taken from packages/nerve/CHANGELOG.md because
+ * changesets maintains that file on every release. The hand-written root
+ * CHANGELOG.md is not a safe source: it stopped at 6.1.0 while the packages
+ * shipped 8.0.0, so generating from it silently published a two-major-stale
+ * page. Every package versions in lockstep, so one package's changelog is the
+ * release history.
+ *
+ * Emitted as markdown rather than MDX on purpose: the changelog is prose
+ * nobody writes with a docs parser in mind, and a stray `Record<...>` outside
+ * backticks would otherwise fail the build.
  */
 const changelogFragment = (): string => {
-  const src = readFileSync(join(ROOT, "CHANGELOG.md"), "utf8")
+  const src = readFileSync(join(ROOT, "packages", "nerve", "CHANGELOG.md"), "utf8")
   // Drop the file's own H1; the page title supplies it. Version headings
   // are already `##`, which is exactly the level a docs page section wants.
   const body = src.replace(/^#\s.*\n/, "")

@@ -16,11 +16,14 @@ export const maxBundleLength = rule(
   'maxBundleLength',
   (ctx) => {
     for (const b of ctx.hir.branches) {
-      if (b.length > 2000) {
+      // A branch carries nominalLength, and routedLength when waypoints let
+      // the compiler measure it. There is no plain `length` on a branch.
+      const length = b.routedLength ?? b.nominalLength
+      if (length !== undefined && length > 2000) {
         ctx.report({
           severity: 'error',
           target: `branch:${b.id}`,
-          message: `Branch ${b.id} is ${b.length}mm; shop limit is 2000mm.`,
+          message: `Branch ${b.id} is ${length}mm; shop limit is 2000mm.`,
         })
       }
     }
@@ -41,19 +44,35 @@ Three things make a rule usable a year later:
 
 ## Register it
 
+`plugins` takes module paths, not rule objects, so export a plugin from the
+same file:
+
+```ts title="rules/shop-rules.ts"
+import { definePlugin, HIR_SCHEMA_VERSION, rule } from '@grayhaven/nerve'
+
+export const maxBundleLength = rule(/* as above */)
+
+export default definePlugin({
+  name: 'acme-shop-rules',
+  hirSchemaVersions: [HIR_SCHEMA_VERSION],
+  rules: [maxBundleLength],
+})
+```
+
 ```ts title="nerve.config.ts"
 import { defineConfig } from '@grayhaven/nerve'
-import { maxBundleLength } from './rules/shop-rules.js'
 
 export default defineConfig({
   entry: './src/main.harness.ts',
-  plugins: [{ rules: [maxBundleLength] }],
+  plugins: ['./rules/shop-rules.js'],
   rules: { missingWireColor: 'error' },
 })
 ```
 
-The CLI picks it up from there. Severities for built-in and custom rules live
-in the same `rules` map, keyed by rule name.
+Paths are resolved relative to the harness file. The CLI loads each module and
+rejects anything that is not a `definePlugin` default export, so a plain object
+of rules fails to load. Severities for built-in and custom rules live in the
+same `rules` map, keyed by rule name.
 
 ## Run rules without the CLI
 

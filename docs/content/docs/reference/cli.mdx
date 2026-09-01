@@ -107,6 +107,7 @@ lines for passing checks, showing how much headroom was left.
 ```text
 2 measurement(s), 0 over budget. Tightest headroom:
     12.0%  contact voltage — connector:J1.pin:1 (12/100V)
+    12.0%  contact voltage — connector:J2.pin:1 (12/100V)
 my-first-harness rev A: 0 finding(s), fingerprint 602020e15da5c711
 ```
 
@@ -144,6 +145,8 @@ revision A
 units    mm
 connectors 2
 wires      2
+branches   0
+labels     0
 bom items  2
 diagnostics 0 (0 errors)
 ```
@@ -251,12 +254,19 @@ enables.
 ```text
 mpn        PHR-2
 specs      ph-2
+family     PH
+desc       JST PH housing, 2 circuits
+pins       2
+gender     receptacle
 gauge      24AWG to 32AWG
 current    2A
 voltage    100V
+mates with B2B-PH-K-S
 verified   inspired-by
 checks     6 active, 3 inactive
   inactive HK-CONN-013 — needs sealed
+  inactive HK-CONN-014 — needs compatibleSeals
+  inactive HK-CONN-015 — needs reservedPins
 ```
 
 ### `nerve parts scaffold`
@@ -296,7 +306,12 @@ nerve redline add <file.harness.ts> --target <hir-ref> --type <type> --descripti
 ```
 
 Record an as-built deviation against a design object. The target is validated
-against the design.
+against the design, so a redline against a wire that does not exist is
+rejected.
+
+`--type` accepts one of `ambiguity`, `incorrect-length`, `incorrect-label`,
+`orientation`, `process`, or `other`. Anything else exits `2` and lists the
+valid set.
 
 ### `nerve redline from-record`
 

@@ -281,8 +281,6 @@ textarea:focus-visible, select:focus-visible {
   margin-top: 40px;
   font-size: 14px;
 }
-/* The npm command is code — the one mono moment on the landing. */
-.landing-links a.cmd { font-family: var(--mono); font-size: 13px; }
 .landing-links a {
   color: var(--text);
   border-bottom: 1px solid var(--text);
@@ -424,10 +422,11 @@ textarea:focus-visible, select:focus-visible {
   from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
   to { opacity: 1; transform: none; filter: blur(0); }
 }
-.landing-copy > * { animation: spec-rise 0.5s var(--ease-out) both; }
-.landing-copy > h1 { animation-delay: 90ms; }
-.landing-copy > .landing-sub { animation-delay: 180ms; }
-.landing-copy > .landing-links { animation-delay: 270ms; }
+.landing-hero > * { animation: spec-rise 0.5s var(--ease-out) both; }
+.landing-hero > h1 { animation-delay: 90ms; }
+.landing-hero > .landing-sub { animation-delay: 180ms; }
+.landing-hero > .landing-lede { animation-delay: 270ms; }
+.landing-hero > .landing-links { animation-delay: 360ms; }
 
 .page { padding: 48px 24px; overflow: auto; max-width: 720px; margin: 0 auto; width: 100%; }
 .page h1 {

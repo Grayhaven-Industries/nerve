@@ -18,17 +18,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   )
 
+  // source.getPages() already contains the docs index, so listing /docs here
+  // too would emit it twice with two different priorities.
+  const docsIndex = url('/docs')
+
   return [
     {
       url: url('/'),
       changeFrequency: 'monthly',
       priority: 1,
     },
-    {
-      url: url('/docs'),
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    ...items.filter((v) => v !== undefined),
+    ...items
+      .filter((v) => v !== undefined)
+      .map((item) =>
+        item.url === docsIndex ? { ...item, priority: 0.8 } : item
+      ),
   ]
 }
