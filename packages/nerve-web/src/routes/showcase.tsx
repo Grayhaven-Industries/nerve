@@ -68,9 +68,12 @@ function Review({ proof }: { proof: JplHarnessProof }) {
 
       {proof.reviewDiagnostics.length > 0 ? (
         <ol className="showcase-findings">
-          {proof.reviewDiagnostics.map((diagnostic, index) => (
+          {proof.reviewDiagnostics.map((diagnostic) => (
             <Finding
-              key={`${diagnostic.code}-${diagnostic.target ?? index}`}
+              // Code plus target identifies a finding; message disambiguates
+              // the untargeted ones. Array position never enters the key, so
+              // filtering or reordering cannot re-key a row onto stale data.
+              key={`${diagnostic.code}-${diagnostic.target ?? diagnostic.message}`}
               diagnostic={diagnostic}
             />
           ))}
