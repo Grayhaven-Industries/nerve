@@ -50,7 +50,7 @@ export default harness('my-first-harness', {
 `revision` and `units` are required. Releases fail closed without them.
 
 Reach parts by compact spec rather than by memorizing MPNs. `part('ph-2')`
-resolves to `PHR-2`; raw MPNs work too, case-insensitively, and common vendor
+resolves to `PHR-2`. Raw MPNs also work, case-insensitively, and common vendor
 spellings normalize. The [part library](/docs/reference/parts) lists every
 spec.
 
@@ -75,9 +75,9 @@ wire('W1', j1.pin(1), j2.pin(1), {
 ```
 
 `currentEstimate` means **continuous** current. Not peak, not inrush, not
-stall. Every rule that reads it is thermal, and conductor heating is I²R
-integrated over time, so a brief peak neither sizes a wire nor should fail
-one. Handle inrush separately.
+stall. Every rule that reads it is thermal. Conductor heating is I²R integrated over
+time. A brief peak therefore does not size a wire, and it must not fail one.
+Handle inrush separately.
 
 Cut length is assembled from separate facts, and they are not
 interchangeable:
@@ -120,9 +120,8 @@ const controller = connector('J1', part('microfit-2x4'), {
 
 Nerve propagates only declared facts and reports contradictions: incompatible
 voltage domains, multiple sources, undriven loads, protocol disagreement,
-differential conflicts, and demand above source capacity. An undriven-load
-conclusion requires every wired role on the net to be known; one unknown peer
-suppresses it.
+differential conflicts, and demand above source capacity. An undriven-load conclusion requires every wired role on the net to be known.
+One unknown peer suppresses that conclusion.
 
 `terminationOhms` and `bitRateKbps` are what make the bus checks real. A
 high-speed CAN trunk carries exactly two ~120Ω terminations, one at each end,
@@ -153,10 +152,10 @@ branch('SPINE', {
   curvature are **computed** from the centerline rather than asserted by a
   number somebody typed.
 
-Wire membership in a bundle is otherwise inferred from whether both endpoints
-appear in the branch `path`, which depends on an authoring accident. Anything
-that counts conductors, such as derating and sleeve fill, is only as good as
-that count, so set `branch` on the wire explicitly when it matters.
+Nerve otherwise infers wire membership in a bundle from whether both endpoints
+appear in the branch `path`. That depends on an authoring accident. Anything
+that counts conductors is only as good as that count, and derating and sleeve
+fill both do. Set `branch` on the wire explicitly when it matters.
 
 ## Splices, cables, labels, and protection
 

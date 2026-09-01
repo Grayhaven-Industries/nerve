@@ -28,7 +28,8 @@ const hir = decodeHir(JSON.parse(fileContents)) // throws on schema mismatch
 const canonical = encodeHir(hir) // stable field order, diffs cleanly
 ```
 
-Types for every node (`HirWire`, `HirConnector`, `HirEndpoint`, and the rest)
-ship with the package, so downstream tools are typed end to end.
+Types for every node ship with the package. These include `HirWire`,
+`HirConnector`, and `HirEndpoint`. Downstream tools are therefore typed end to
+end.
 
 <include>../../generated/hir-schema.md</include>

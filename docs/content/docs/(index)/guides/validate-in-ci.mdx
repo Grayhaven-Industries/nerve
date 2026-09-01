@@ -3,9 +3,9 @@ title: Validate in CI
 description: Gate a pull request on HK-* errors, on drawing changes, and on byte reproducibility.
 ---
 
-Nerve is built to be a gate. Every command exits nonzero on validation errors,
-and every artifact is byte-identical for the same input, so a continuous
-integration job can check both correctness and reproducibility.
+Nerve is built to be a gate. Every command exits nonzero on validation errors. Every artifact is
+byte-identical for the same input. A continuous integration job can therefore
+check both correctness and reproducibility.
 
 ## Exit codes
 
@@ -34,7 +34,7 @@ file that already exists:
 
 ## The minimum gate
 
-If you would rather write it yourself:
+To write the workflow yourself:
 
 ```yaml title=".github/workflows/nerve.yml"
 name: Nerve validate
@@ -57,7 +57,7 @@ jobs:
 ```
 
 Add `--codes` in CI. The stable code is what a reviewer searches for and what
-a waiver cites; the message alone is not a durable reference.
+a waiver cites. The message alone is not a durable reference.
 
 ## Gate on drawings
 
@@ -69,7 +69,7 @@ npx nerve snapshot --update  # deliberately accept new snapshots
 ```
 
 This catches renderer changes and geometry changes that a findings-only gate
-would miss. Because output is byte-stable, a diff here is always a real
+misses. Because output is byte-stable, a diff here is always a real
 change.
 
 ## Gate on reproducibility

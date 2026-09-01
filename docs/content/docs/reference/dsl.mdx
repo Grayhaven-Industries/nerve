@@ -14,8 +14,7 @@ For a walkthrough of how to combine these, see
 
 ### `harness(id, options)`
 
-The root design object. `revision` and `units` are required; releases fail
-closed without them.
+The root design object. `revision` and `units` are required. Releases fail closed without them.
 
 ### `connector(id, part, { pins })`
 
@@ -27,15 +26,14 @@ rules.
 ### `wire(id, from, to, options)`
 
 Point-to-point conductor. Endpoints are `connector.pin(n)` references or
-splice ids. Gauge strings are checked against ampacity and against the
-connector range; any spelling (`"20 AWG"`, `"awg 20"`, `"20"`) canonicalizes
-to `"20AWG"` in HIR.
+splice ids. Gauge strings are checked against ampacity and against the connector range.
+Any spelling (`"20 AWG"`, `"awg 20"`, `"20"`) canonicalizes to `"20AWG"` in
+HIR.
 
 ### `splice(id, options)`
 
-A junction node (`type: "crimp"`, `"solder"`, and so on). Wires may terminate
-on a splice; nets are computed across it and splice-verification tests are
-generated. `branch` and `location` place it physically.
+A junction node (`type: "crimp"`, `"solder"`, and so on). Wires can terminate on a splice. Nets are computed across it, and
+splice-verification tests are generated. `branch` and `location` place it physically.
 
 ### `cable(id, options)`
 
@@ -45,11 +43,10 @@ pin or the rules flag it.
 
 ### `branch(id, { path, ... })`
 
-Physical bundle segment. `path` lists the connectors it runs between,
-`nominalLength` drives the board view and cut-length maths, and
-`sleeve`, `breakoutDistance`, `minBendRadius`, and `ambientTemperatureC` feed
-the manufacturing rules. `waypoints` route a centerline through space; when
-present, lengths and curvature are computed rather than asserted.
+Physical bundle segment. `path` lists the connectors it runs between. `nominalLength` drives the board
+view and the cut-length math. `sleeve`, `breakoutDistance`, `minBendRadius`,
+and `ambientTemperatureC` feed the manufacturing rules. `waypoints` route a centerline through space. When they are present, Nerve
+computes lengths and curvature rather than reading asserted values.
 
 ### `label(id, { text, attachTo })`
 

@@ -12,6 +12,8 @@ The wire list says J1 pin 3 is CAN_H. The datasheet says pin 3 is CAN_L. Both
 documents are internally consistent. Both have been signed. Nothing in that
 process is capable of noticing.
 
+![A technical drawing, a spreadsheet and a datasheet side by side, with one dashed orange line crossing all three at a different row on each](/illustrations/three-documents.webp)
+
 Nerve compiles the harness instead.
 
 ```text
@@ -32,17 +34,17 @@ against the pinout its part fixes.
 
 ## What you can do with it
 
-- **Review a design before it reaches the floor.** 53 built-in checks over
-  consistency, electrical, component, and manufacturing concerns, each with a
-  stable code you can gate on or waive by name.
-- **See margin, not just pass or fail.** A wire at 99% of its derated ampacity
+- **Review a design before it reaches the floor.** Nerve runs 53 built-in
+  checks over consistency, electrical, component, and manufacturing concerns.
+  Each check has a stable code. You can gate on that code or waive it by name.
+- **See margin, not only pass or fail.** A wire at 99% of its derated ampacity
   and a wire at 40% both pass. Nerve reports how close each passing check came
   to its limit.
-- **Bring the data you already have.** WireViz YAML, mapped CSV and Excel wire
-  lists, KiCad boards, tscircuit, and pinout CSV are inputs. The TypeScript API
+- **Bring the data you already have.** Nerve reads WireViz YAML, mapped CSV and
+  Excel wire lists, KiCad boards, tscircuit, and pinout CSV. The TypeScript API
   is one supported input, not an adoption requirement.
 - **Ship a packet that diffs.** The same source produces byte-identical
-  drawings, CSVs, PDF, and zip, so a review reads as a diff rather than a
+  drawings, CSVs, PDF, and zip. A review then reads as a diff rather than a
   re-read.
 
 ## What a Nerve report is not
@@ -51,10 +53,10 @@ A report records the checks that ran against the facts the design supplied. It
 is not a certification, it does not claim conformance to an industry or
 customer standard, and it does not replace qualified engineering review.
 
-A check can only use facts that are present, so two commands exist only to tell
-you where you actually stand: `nerve parts` reports which checks a part's data
-enables and which stay inactive, and `nerve provenance` reports which limits a
-clean report currently rests on that nobody has verified.
+A check can only use facts that are present. Two commands exist to tell you
+where you actually stand. `nerve parts` reports which checks the data for a
+part enables, and which stay inactive. `nerve provenance` reports which limits
+a clean report rests on that nobody has verified.
 
 ```text
 1 part(s) supply a limit a rule judges against without being verified.

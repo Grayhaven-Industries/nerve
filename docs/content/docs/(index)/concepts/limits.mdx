@@ -22,9 +22,9 @@ alongside the findings, not after the argument has already been made.
 Rules judge supplied facts. They do not infer missing ones, and an unknown
 fact never becomes implicit evidence that a design is safe.
 
-This has a direct consequence: **the rule count is not the coverage.** Fifty
-three rules can all pass on a design that declares almost nothing, because
-most of them had nothing to judge. Two tools tell you where you actually
+This has a direct consequence. **The rule count is not the coverage.** All 53
+rules can pass on a design that declares almost nothing, because most of them
+had nothing to judge. Two tools tell you where you actually
 stand:
 
 - `nerve parts <spec>` reports which checks a part's data enables and which
@@ -52,16 +52,16 @@ world:
 - The shop-floor layer is a headless reducer over unit events. It is not a
   user interface, an MES service, or a device gateway.
 - The VEC adapter is a loss-aware normalized subset, not a full XML parser or
-  validator, and the OPC UA mapping does not include a transport client.
+validator. The OPC UA mapping does not include a transport client.
 - The Cirris Easy-Wire style exporter is an explicit experimental
   compatibility export and is excluded from built-in production adapter
   discovery.
 
 ## Measurements need an approved specification
 
-A caller-authored, plan-matched `TestSpecification` must be approved before a
-generic tester program carries acceptance limits, or before an ingested
-measurement receives a pass or fail verdict. Without that approval, Nerve
+A caller-authored, plan-matched `TestSpecification` must be approved first.
+Only then does a generic tester program carry acceptance limits, or an
+ingested measurement receive a pass or fail verdict. Without that approval, Nerve
 records measurements without judging them.
 
 ## Continuity coverage has a precise meaning

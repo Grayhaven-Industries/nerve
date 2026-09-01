@@ -4,9 +4,9 @@ description: Compile in the browser, share a design as a URL, and let a compile-
 ---
 
 [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com/projects)
-runs the same compiler in a web worker. It is useful for three things the CLI
-is not: trying Nerve without installing it, sharing a reproducible example,
-and making an edit you can watch land.
+runs the same compiler in a web worker. It is useful for three things the CLI is not. You can try Nerve without
+installing it, share a reproducible example, and make an edit that you watch
+land.
 
 ## Compile as you type
 
@@ -15,9 +15,8 @@ backend for the editor, so the diagram, diagnostics, margins, and provenance
 tabs update from a local compile.
 
 The tabs mirror the artifacts the CLI writes: diagram, board, connectors, BOM,
-cut list, labels, tests, margins, and provenance. The Margins tab is the one
-worth opening first, because it reports how close each passing check came to
-its limit rather than only that it passed.
+cut list, labels, tests, margins, and provenance. Open the Margins tab first. It reports how close each passing check came to
+its limit, rather than only that the check passed.
 
 ## Share a design as a URL
 
@@ -33,8 +32,8 @@ example, which is what makes it useful in a bug report or a review thread.
 
 ## Compile-verified edits
 
-The left pane is an agent that changes the harness: "add a third sensor on the
-CAN bus", "swap W2 to 18AWG and fix whatever breaks". It is not a chat box
+The left pane is an agent that changes the harness. You ask it for "a third
+sensor on the CAN bus", or to "swap W2 to 18AWG and fix whatever breaks". It is not a chat box
 that pastes code. Every proposed edit is a structured patch.
 
 Each tool call the agent makes is compiled in the local worker **before** it
@@ -43,9 +42,8 @@ errors is visible to the agent, which must converge on a clean compile. It
 cannot bypass a rule failure. Applied edits write through the editor and the
 diagram live, exactly like keystrokes.
 
-That constraint is the whole point. An assistant that can write plausible
-harness code is not useful; one that cannot hand you a design that fails to
-compile is.
+That constraint is the whole point. An assistant that writes plausible harness code is not useful. An assistant
+that cannot hand you a design that fails to compile is useful.
 
 ## Keys and privacy
 

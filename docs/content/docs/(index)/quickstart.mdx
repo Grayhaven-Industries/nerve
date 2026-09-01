@@ -4,9 +4,10 @@ description: Scaffold a project, review a harness, and write a manufacturing pac
 icon: Rocket
 ---
 
-By the end of this page you will have compiled a harness to HIR, watched a
-rule catch an error your drawing could not, and written a full manufacturing
-packet. About five minutes, and nothing installs globally.
+This page takes about five minutes. Nothing installs globally.
+
+At the end you have three things: a harness compiled to HIR, a rule that
+caught an error, and a full manufacturing packet.
 
 ## Before you start
 
@@ -81,9 +82,9 @@ my-first-harness rev A — 2 connectors, 2 wires — 4 error(s), 0 warning(s)
 
 The command exits `1`.
 
-That gauge range is not a guess and it is not something the design asserted
-about itself. It came from the JST PH part the connector was declared with. A
-PDF of this harness would have rendered the 10AWG wire correctly, and said
+That gauge range is not a guess. It is also not something the design asserted
+about itself. It came from the JST PH part that the connector was declared
+with. A PDF of this harness renders the 10AWG wire correctly and reports
 nothing.
 
 `--codes` prints the stable `HK-*` code beside each finding, which is what you
@@ -120,11 +121,16 @@ against a release.
 npx nerve export
 ```
 
-This writes the full set into `dist/`: the PDF build book, the schematic,
-board, connector-face and pinout drawings, the interactive HTML viewer, the
-BOM, cut list, labels and bill of process with their JSON twins, the
-continuity tests, the assembly instructions, and a zip of all of it. See
-[artifacts](/docs/reference/artifacts) for what each file contains.
+This writes the full set into `dist/`:
+
+- The PDF build book.
+- The schematic, board, connector-face and pinout drawings.
+- The interactive HTML viewer.
+- The BOM, cut list, labels and bill of process, each with a JSON twin.
+- The continuity tests and the assembly instructions.
+- A zip of all of it.
+
+See [artifacts](/docs/reference/artifacts) for the contents of each file.
 
 Run it twice. The bytes are identical, including the PDF and the zip, so a
 packet diff shows design changes and nothing else.
