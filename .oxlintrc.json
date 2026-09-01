@@ -14,6 +14,7 @@
     ".windsurf/**",
     ".vercel/**",
     "tools/oxlint/anti-slop/**",
+    "dogfood-output/**",
     "docs/**",
     "**/dist/**",
     "**/routeTree.gen.ts"
