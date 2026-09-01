@@ -3,17 +3,28 @@ title: How Nerve works
 description: The stages a harness passes through, and what each stage is allowed to know.
 ---
 
+![A wiring harness as a graph: connector housings joined by conductors that bundle through a sleeve and branch out again, with one conductor traced in orange](/illustrations/harness-graph.webp)
+
 Nerve is a compiler with a fixed pipeline. Understanding which stage owns
 which fact explains most of its behaviour, including why some checks stay
 silent until you supply more data.
 
-```text
-input            →  HIR             →  rules            →  artifacts
-.harness.ts         harness.json       HK-* findings       drawings, tables,
-WireViz YAML        versioned,         severities,         test plan, PDF,
-CSV / Excel         canonically        margins             packet, records
-KiCad / tscircuit   sorted
-```
+<Mermaid
+  chart={`flowchart LR
+  A1[".harness.ts"]
+  A2["WireViz YAML"]
+  A3["CSV / Excel"]
+  A4["KiCad / tscircuit"]
+  HIR["HIR<br/>harness.json<br/>versioned, canonically sorted"]
+  RULES["Rules<br/>HK-* findings<br/>severities, margins"]
+  OUT["Artifacts<br/>drawings, tables, test plan<br/>PDF packet, records"]
+  A1 --> HIR
+  A2 --> HIR
+  A3 --> HIR
+  A4 --> HIR
+  HIR --> RULES --> OUT
+`}
+/>
 
 ## 1. Input
 
