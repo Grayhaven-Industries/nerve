@@ -3,24 +3,25 @@ title: Rule coverage
 description: What Nerve checks, on whose authority, and what it does not check. Read this before a clean compile becomes an argument.
 ---
 
-This document exists so that someone who has to sign a process control plan can
-determine what Nerve actually checks, on whose authority, and — more
-importantly — what it does not check. A clean compile is evidence that a
+This document exists for one reader: the person who has to sign a process
+control plan. It says what Nerve actually checks, on whose authority, and,
+more importantly, what it does not check. A clean compile is evidence that a
 specific list of deterministic checks passed over the facts that were supplied.
 It is not a certification, and it is not a substitute for the review activities
 listed under [What Nerve does not check](#what-nerve-does-not-check).
 
-The rule tables say what the checks are.
-[The coverage matrix](#the-coverage-matrix) says how much of the problem they
-are, by failure mode, and which failure modes no design representation can
+The rule tables say what the checks are. [The coverage
+matrix](#the-coverage-matrix) says how much of the problem they are, by
+failure mode. It also says which failure modes no design representation can
 decide at all.
 
-This document measures compiler-rule coverage. Nerve can also retain external
-process authority and evidence: an approved electrical `TestSpecification`,
-tester results, crimp observations, serialized unit-build events, deviations,
-and rework. Those records do not become design checks and do not add to the 53
-built-in rules. They show what a caller recorded about a physical process; they
-do not prove that Nerve performed, witnessed, or certified that process.
+This document measures compiler-rule coverage. Nerve can also retain external process authority and evidence:
+
+- An approved electrical `TestSpecification`.
+- Tester results and crimp observations.
+- Serialized unit-build events, deviations, and rework.
+
+Those records do not become design checks. They do not add to the 53 built-in rules. They show what a caller recorded about a physical process. They do not prove that Nerve performed, witnessed, or certified that process.
 
 ## How to read the table
 
@@ -32,56 +33,54 @@ itself:
 - **clause** — the section within that document. Never present without a
   standard, because a clause number with no document names a section of
   nothing.
-- **ruleVersion** — semver for the rule's own logic, bumped when the same HIR
-  can get a different verdict. It is addressable independently of the toolchain
-  release, so a field failure can be attributed to a rule-set state rather than
-  to "whatever version of the CLI was installed that week."
+- **ruleVersion** — semver for the logic of the rule itself. It is bumped when the same HIR can get a different verdict. It is addressable independently of the toolchain release. A reviewer can therefore attribute a field failure to a rule-set state, rather than to "whatever version of the CLI was installed that week."
 
 **Every rule in the built-in table below reads "not established" in the
 standard column.** That is a statement about evidence, not a gap in effort.
-These rules are structural and engineering-consistency invariants of Nerve's
-own model: a cavity count against a housing, a reserved pin put into service,
-a differential half with no partner.
-They derive from the model described in
-[modeling principles](/docs/concepts/harness-modeling), not from a governing document,
-and most of them have no governing document to derive from.
+These rules are structural and engineering-consistency invariants of the model that Nerve holds. Three examples:
+
+- A cavity count against a housing.
+- A reserved pin put into service.
+- A differential half with no partner.
+
+They derive from the model described in [modeling principles](/docs/concepts/harness-modeling), not from a governing document. Most of them have no governing document to derive from.
 
 The two rules that look standards-shaped are not. `HK-WIRE-004` and
-`HK-ELEC-010` consult the ampacity table in `packages/nerve-rules/src/wire-data.ts`,
-which documents itself as "conservative bundled-harness values (chassis-wiring
-tables derated for bundling)" with standards-informed data explicitly deferred
-to a future rule pack. That table is the rule's basis; no standard is. Naming
-one would convert an in-house engineering table into an authority claim.
+`HK-ELEC-010` consult the ampacity table in
+`packages/nerve-rules/src/wire-data.ts`. That table documents itself as
+"conservative bundled-harness values (chassis-wiring tables derated for
+bundling)". It defers standards-informed data to a future rule pack. The table
+is the basis for both rules. No standard is. Naming one converts an in-house
+engineering table into an authority claim.
 
 Four rules do carry a standard, and they are the exception that shows what the
 field costs. `HK-ELEC-018` through `HK-ELEC-021` in
 `packages/nerve-rules/src/bus-topology.ts` record `standard: "ISO 11898-2"` and
-deliberately record no clause. The file says why in its own header: the
-document is paywalled and was not available, so the numeric limits it uses
-(120Ω nominal termination, a 0.3 m stub at 1 Mbit/s, 40/100/500 m of bus at
-1000/500/125 kbit/s) come from secondary sources, and two of the three stub
-figures are derived by scaling rather than quoted at all. The rules name the
-document they are about. They are not evidence of conformance to it, and the
-header says so in the same words a reviewer would need.
+deliberately record no clause. The file says why in its own header. The document is paywalled and was not
+available. The numeric limits therefore come from secondary sources:
 
-A `standard` is added to a rule only when this repository contains the evidence
-that the rule implements that document. Guessing a plausible standard name,
-revision, or clause would destroy the one property this table exists to
-provide, so where the basis is not established the field is left empty.
+- 120Ω nominal termination.
+- A 0.3 m stub at 1 Mbit/s.
+- 40/100/500 m of bus at 1000/500/125 kbit/s. Two of the three stub figures are derived by scaling
+rather than quoted at all. The rules name the
+document they are about. They are not evidence of conformance to it, and the header says so in the same words a reviewer needs.
+
+Nerve adds a `standard` to a rule only when this repository contains the
+evidence that the rule implements that document. A guessed standard name,
+revision, or clause destroys the one property this table exists to provide.
+Where the basis is not established, the field stays empty.
 
 ## Built-in rules
 
-47 rules are defined in `packages/nerve-rules/src/rules.ts`. 45 are active by
-default in `builtinRules`; two (marked *opt-in*) must be registered
-deliberately. Eight more are defined in sibling modules and appended to the
-same `builtinRules` array, so the pack ships 53 active rules over 55 defined
-codes; they are tabulated under
+47 rules are defined in `packages/nerve-rules/src/rules.ts`. 45 are active by default in `builtinRules`. Two, marked *opt-in*, must be registered deliberately. Eight more are defined in sibling modules and appended to the
+same `builtinRules` array, so the pack ships 53 active rules over 55 defined codes. Those eight are
+tabulated under
 [bus and return-path topology](#bus-and-return-path-topology) and
-[part pinout](#part-pinout) below. A rule added to the pack in another module
-belongs in this table too — the table is the coverage claim, and a rule missing
-from it is a check nobody outside the codebase knows exists. Both counts are
-read from `builtinRules` itself, so a rule that exists in the tree but is not
-registered would not be counted here, because it does not run for anyone.
+[part pinout](#part-pinout) below. A rule added to the pack in another module belongs in this table too. The
+table is the coverage claim. A rule missing from it is a check that nobody
+outside the codebase knows exists. Both counts come from `builtinRules` itself. A rule that exists in the tree
+but is not registered does not appear in these counts, because it does not run
+for anyone.
 
 | Code | Rule | What it checks | Governing standard | Rule version |
 | --- | --- | --- | --- | --- |
@@ -102,7 +101,7 @@ registered would not be counted here, because it does not run for anyone.
 | HK-MFG-011 | missingCableConductor | A wire that belongs to a cable identifies which conductor it uses. | Not established | 1.0.0 |
 | HK-MFG-012 | insulationOutsideTerminalRange | A wire part's outer diameter falls inside the insulation-barrel window of the contact crimped onto it. | Not established | 1.0.0 |
 | HK-MFG-013 | insulationOutsideSealRange | A wire part's outer diameter falls inside the diameter window of the cavity seal around it. | Not established | 1.0.0 |
-| HK-WIRE-004 | gaugeCurrentMismatch | A wire's declared current estimate is within the pack's ampacity value for its AWG, derated by the number of current-carrying conductors declaring the same branch (shop profiles may override the table). | Not established — in-house bundled-harness table, see above | 1.2.0 |
+| HK-WIRE-004 | gaugeCurrentMismatch | A wire's declared current estimate is within the pack's ampacity value for its AWG, derated by the number of current-carrying conductors declaring the same branch (shop profiles can override the table). | Not established — in-house bundled-harness table, see above | 1.2.0 |
 | HK-ELEC-001 | differentialPairNotTwisted | Both halves of a differential pair share a twist group. | Not established | 1.0.0 |
 | HK-ELEC-002 | twistGroupTooSmall | A twist group contains at least two wires. | Not established | 1.0.0 |
 | HK-ELEC-003 | missingGroundReturn | A harness carrying power signals also carries a ground return. | Not established | 1.0.0 |
@@ -133,73 +132,73 @@ registered would not be counted here, because it does not run for anyone.
 | HK-CONN-020 | cavityLayoutMismatch | A declared cavity grid multiplies out to exactly the housing's cavity count. | Not established | 1.0.0 |
 | HK-CONN-021 | missingTerminal | Every wired cavity of a connector that publishes a terminal allow-list has a terminal MPN. | Not established | 1.0.0 |
 
-Five rules have left the 1.0.0 baseline, and every one of them left it for the
-same reason: the rule stopped deciding on a number the author typed and started
-deciding on one the compiler or a part record supplies. HK-WIRE-004 derates
-ampacity by the conductors sharing a bundle, HK-ELEC-010 walks the splice graph
-past the declared `protects` list, HK-MFG-005 prefers a routed centerline's
-computed curvature to the asserted bend radius, and HK-MFG-004 and HK-CONN-016
-judge a wire against the contact fitted to the cavity rather than against the
-housing that was standing in for it. Each can return a different verdict on HIR
+Five rules have left the 1.0.0 baseline, and every one left it for the same
+reason. The rule stopped deciding on a number the author typed. It started
+deciding on one that the compiler or a part record supplies. Four of them derive rather than compare:
+
+- HK-WIRE-004 derates ampacity by the conductors sharing a bundle.
+- HK-ELEC-010 walks the splice graph past the declared `protects` list.
+- HK-MFG-005 prefers the curvature computed from a routed centerline to the asserted bend radius.
+- HK-MFG-004 and HK-CONN-016 judge a wire against the contact fitted to the cavity, rather than against the housing that was standing in for it. Each can return a different verdict on HIR
 that has not changed by a byte, which is exactly what `ruleVersion` exists to
-record. HK-WIRE-004 is at 1.2.0 because it moved twice: the conductor count it
-derates by is now a count of current-carrying conductors rather than of every
-wire on the branch, which can change a verdict in the passing direction.
+record. HK-WIRE-004 is at 1.2.0 because it moved twice. The conductor count it derates
+by is now a count of current-carrying conductors, rather than of every wire on
+the branch. That can change a verdict in the passing direction.
 
 ### Bus and return-path topology
 
 Six rules live outside `rules.ts` and are appended to `builtinRules` from
-`bus-topology.ts` and `ground-shield.ts`. They are the only rules in the pack
-that ask about the shape of the graph rather than the adequacy of one part, and
-the four CAN rules are the only ones carrying a `standard` at all. See
+`bus-topology.ts` and `ground-shield.ts`. They are the only rules in the pack that ask about the shape of the graph,
+rather than about the adequacy of one part. The four CAN rules are also the
+only ones carrying a `standard` at all. See
 [how to read the table](#how-to-read-the-table) for what that citation does and
 does not mean.
 
 | Code | Rule | What it checks | Governing standard | Rule version |
 | --- | --- | --- | --- | --- |
-| HK-ELEC-018 | canTerminationCountWrong | A CAN bus declares exactly two terminations, and each declared value sits in a 100-130Ω band. Zero declared terminations reports as info, because the resistors usually live off-harness. | ISO 11898-2, no clause; limits from secondary sources | 1.0.0 |
-| HK-ELEC-019 | canTerminationNotAtBusEnd | A declared termination sits on a degree-1 node of the bus subgraph, which is what an end of a linear trunk is. | ISO 11898-2, no clause; limits from secondary sources | 1.0.0 |
-| HK-ELEC-020 | canBusNotLinear | A CAN bus has no node where three or more bus wires meet (warning) and closes no ring (error). | ISO 11898-2, no clause; limits from secondary sources | 1.0.0 |
-| HK-ELEC-021 | canStubTooLong | Each drop off the trunk stays inside the stub budget for the highest declared bit rate, from declared wire lengths. Silent when no bit rate is declared. | ISO 11898-2, no clause; limits from secondary sources | 1.0.0 |
+| HK-ELEC-018 | canTerminationCountWrong | A CAN bus declares exactly two terminations, and each declared value sits in a 100-130Ω band. Zero declared terminations reports as info, because the resistors usually live off-harness. | ISO 11898-2, no clause. Limits from secondary sources | 1.0.0 |
+| HK-ELEC-019 | canTerminationNotAtBusEnd | A declared termination sits on a degree-1 node of the bus subgraph, which is what an end of a linear trunk is. | ISO 11898-2, no clause. Limits from secondary sources | 1.0.0 |
+| HK-ELEC-020 | canBusNotLinear | A CAN bus has no node where three or more bus wires meet (warning) and closes no ring (error). | ISO 11898-2, no clause. Limits from secondary sources | 1.0.0 |
+| HK-ELEC-021 | canStubTooLong | Each drop off the trunk stays inside the stub budget for the highest declared bit rate, from declared wire lengths. Silent when no bit rate is declared. | ISO 11898-2, no clause. Limits from secondary sources | 1.0.0 |
 | HK-ELEC-022 | groundLoop | The ground subgraph offers no second return path between the same two endpoints. Union-find over the wires, not over `ctx.nets`, which has already collapsed the cycles. | Not established | 1.0.0 |
-| HK-ELEC-023 | shieldTerminationScheme | A `shieldGroup` is grounded at exactly one end. Zero ends warns; two ends reports as info, because double-ended termination is a deliberate high-frequency choice. | Not established | 1.0.0 |
+| HK-ELEC-023 | shieldTerminationScheme | A `shieldGroup` is grounded at exactly one end. Zero ends warns. Two ends reports as info, because double-ended termination is a deliberate high-frequency choice. | Not established | 1.0.0 |
 
 ### Part pinout
 
 Two rules live in `pinout.ts` and are appended to `builtinRules` from there.
-They are the only rules in the pack that judge a design against something other
-than the design, which is why they are worth separating out rather than folding
-into the connector block above.
+They are the only rules in the pack that judge a design against something
+other than the design. That is why they are worth separating out, rather than
+folding into the connector block above.
 
 | Code | Rule | What it checks | Governing standard | Rule version |
 | --- | --- | --- | --- | --- |
 | HK-CONN-023 | pinoutSignalContradiction | A pin's assigned signal matches the signal the part's own `pinout` fixes on that pin. Errors, including where the part declares the pin a no-connect. | Not established | 1.0.0 |
 | HK-CONN-024 | pinoutPinUnassigned | A pin the part's `pinout` fixes a signal on is assigned one by the design. Warns, because leaving a device pin unused is often deliberate. No-connect pins are exempt. | Not established | 1.0.0 |
 
-Neither carries a standard, and the file says why in the same terms this
-document uses: the authority is the part's own datasheet, which is per-part and
-already recorded on `provenance.datasheet`. Naming a standards document would
-launder "the sensor vendor says so" into "the standard says so". Neither rule
-emits a margin either, because a pin either carries the signal the part fixes
-or it does not, and a fraction-of-pins-matching score would let a harness with
+Neither carries a standard. The file says why, in the same terms this document
+uses. The authority is the datasheet of the part itself, which is per-part and
+already recorded on `provenance.datasheet`. Naming a standards document launders "the sensor vendor says so" into "the
+standard says so". Neither rule emits a margin either. A pin either carries the signal the part
+fixes, or it does not. A fraction-of-pins-matching score lets a harness with
 one catastrophically wrong pin in forty read as 0.975 correct.
 
 Comparison is by trimmed, case-folded signal name and nothing else, which is a
 deliberate choice with a stated cost. `AGND` does not match `GND` and `CAN_H`
-does not match `CAN_L`, because those are the swaps the rule exists to catch;
-the price is that a design which legitimately calls the part's `GND` net
-`GND_SIG` is reported as a contradiction it will have to rename or waive.
+does not match `CAN_L`, because those are the swaps the rule exists to catch. The price is a false report. A design that legitimately calls the `GND` net of
+the part `GND_SIG` reads as a contradiction, and has to rename or waive it.
 
 Structural codes such as `HK-CONN-001`, `HK-WIRE-001`, `HK-BRANCH-001`,
 `HK-SPLICE-001`, `HK-CABLE-001`, `HK-BRANCH-004`, and `HK-CONN-007` also appear
-in a review report. They are compiler-owned invariants — reference integrity,
-unique identity, valid quantities, an authored length that contradicts its own
-waypoints, a part pinout naming a pin the part does not have or reserves — not
-rules, so they carry no rule version and are not configurable. One of them,
-`HK-BRANCH-004`, is cited in the matrix below, because a coverage table is
-about what the tool decides and not about which module decides it.
+in a review report. They are compiler-owned invariants, not rules:
+
+- Reference integrity, unique identity, and valid quantities.
+- An authored length that contradicts its own waypoints.
+- A part pinout naming a pin the part does not have, or reserves.
+
+They therefore carry no rule version and are not configurable. One of them, `HK-BRANCH-004`, is cited in the matrix below. A coverage table
+is about what the tool decides, not about which module decides it.
 Plugins and rule packs registered by a project can contribute further codes
-beyond this table; the report lists the codes that were actually run.
+beyond this table. The report lists the codes that actually ran.
 
 ## The coverage matrix
 
@@ -214,16 +213,16 @@ countable:
 Neither is measured here. Soundness needs field data mapped back to rule
 verdicts, and no such data exists in this repository. Coverage can at least be
 laid out honestly, which is what this section does. What the repository does
-contain is two direct pieces of evidence that a covered cell is not the same
-thing as a correct one; they are recorded under
+contain is two direct pieces of evidence that a covered cell is not the same thing as a correct one. Both are recorded
+under
 [what covered does not mean](#what-covered-does-not-mean) rather than folded
 into the table, because they change no cell.
 
-The matrix has one row per harness failure mode as it occurs in the field, and
-one column per class of information required to decide it. The columns are a
-ladder in increasing cost of acquisition. A cell says what Nerve does with the
-information at that tier for that failure mode, not what the tier could support
-in principle for someone else's tool.
+The matrix has one row per harness failure mode, as it occurs in the field. It
+has one column per class of information needed to decide that mode. The columns are a
+ladder in increasing cost of acquisition. A cell says what Nerve does with the information at that tier, for that
+failure mode. It is not what the tier can support in principle for another
+tool.
 
 Cell vocabulary, and the reason it has four words rather than two:
 
@@ -236,17 +235,18 @@ Cell vocabulary, and the reason it has four words rather than two:
   `ambientTemperatureC`, and a declared minimum bend radius are all inputs
   somebody typed. See
   [declarations versus derivations](#declarations-versus-derivations).
-- **none**: the tier's information would decide it and nothing checks it.
+- **none**: the information at that tier can decide it, and nothing checks it.
 - **n/a**: the tier contributes nothing this row needs.
 
 A cell records what the rule set can decide, not how often it gets the chance.
-Three cells rest on checks nothing in this repository currently exercises,
-because the data they need is absent from the bundled library and from the
-examples: the part-data cell of wrong pin, and the geometry cells of wrong
-length and over-bend at a breakout. Each says so under its row.
+Three cells rest on checks that nothing in this repository currently
+exercises. The data they need is absent from the bundled library and from the
+examples. They are the part-data cell of wrong pin, and the geometry cells of
+wrong length and over-bend at a breakout. Each says so under its row.
 
 A partial cell reported as a full one is the failure mode this table exists to
-prevent, so the shortfalls are spelled out rather than left to the word.
+prevent. The shortfalls are therefore spelled out, rather than left to the
+word.
 
 | Failure mode | Netlist alone | Plus full part data | Plus geometry | Plus thermal state | Undecidable from any design representation |
 | --- | --- | --- | --- | --- | --- |
@@ -275,109 +275,97 @@ prevent, so the shortfalls are spelled out rather than left to the word.
   exists.
 - **Connector seal and corrosion.** HK-CONN-013 fires only when the housing
   declares `sealed: true`, and only for cavities a wire lands on. HK-CONN-014
-  checks membership of a `compatibleSeals` list. HK-MFG-013 checks the one
-  physical fit that matters, the wire's insulation diameter against the seal's
-  own window, but it needs two part records to fire: a `SealPart` on the pin
-  and a `WirePart` carrying an `outerDiameter`. A seal named as a bare MPN
-  still checks nothing dimensional, and `packages/nerve-connectors` ships no
-  seal records at all, so nothing in the bundled library exercises it. Nothing
+  checks membership of a `compatibleSeals` list. HK-MFG-013 checks the one physical fit that matters: the insulation diameter
+of the wire against the window of the seal. It needs two part records to fire.
+Those are a `SealPart` on the pin, and a `WirePart` carrying an
+`outerDiameter`. A seal named as a bare MPN still checks nothing dimensional.
+`packages/nerve-connectors` ships no seal records at all, so nothing in the
+bundled library exercises it. Nothing
   checks that unused cavities of a sealed housing are plugged, because cavity
   plugs are not modeled at all.
-- **Crimp failure and wrong terminal.** HK-CONN-021 checks a terminal is
-  named and HK-CONN-012 checks it appears on the housing's allow-list; both
-  read the housing's lists and neither has changed. HK-MFG-004 now prefers the
-  fitted contact's own `wireGaugeRange` and falls back to the housing's only
-  when no contact record was supplied, which retires the category error
-  [modeling principles](/docs/concepts/harness-modeling) warns about for designs that
-  supply the record and leaves it in place for designs that do not. HK-MFG-012
+- **Crimp failure and wrong terminal.** HK-CONN-021 checks that a terminal is named, and HK-CONN-012 checks that it
+appears on the allow-list of the housing. Both
+  read the housing's lists and neither has changed. HK-MFG-004 now prefers the `wireGaugeRange` of the fitted contact. It falls
+back to the range of the housing only when no contact record was supplied.
+That retires the category error [modeling
+principles](/docs/concepts/harness-modeling) warns about for designs that
+supply the record. It leaves the error in place for designs that do not. HK-MFG-012
   adds the insulation-barrel fit, the grip that is the harness's strain relief.
-  What is still absent is the crimp itself: `TerminalPart` carries
-  `crimpHeight`, `pullForceN`, and `stripLength` fields, no rule reads any of
-  them, and the nine contacts in `packages/nerve-connectors/src/terminals.ts`
-  populate none of them, on the stated grounds that manufacturers publish those
-  figures per gauge and per tool rather than per part. A crimp is still
+  What is still absent is the crimp itself. `TerminalPart` carries
+`crimpHeight`, `pullForceN`, and `stripLength` fields. No rule reads any of
+them. The nine contacts in `packages/nerve-connectors/src/terminals.ts`
+populate none of them. The stated grounds are that manufacturers publish those
+figures per gauge and per tool, rather than per part. A crimp is still
   measured on the shop floor. HK-CONN-018 catches two wires of differing gauge
   in one contact, and is opt-in.
 - **Thermal degradation.** HK-WIRE-004 divides a declared current estimate by
-  an ampacity table derated for the bundle the wire runs in. The count is of
-  current-carrying conductors rather than of wires, because the derating
-  factors count what puts heat into a bundle and twenty signal wires do not
-  (`isCurrentCarrying` in `wire-data.ts` owns that test, and excludes a wire
-  only on positive evidence: a declared zero, a declared load under a tenth of
-  its own gauge's ampacity, or a shield). Membership for this rule is the
-  wire's explicit `branch` and nothing else, so a wire that names no branch is
-  not derated at all, exactly as it was before derating existed. HK-CONN-016
+  an ampacity table derated for the bundle the wire runs in. The count is of current-carrying conductors rather than of wires. The derating
+factors count what puts heat into a bundle, and twenty signal wires do not.
+`isCurrentCarrying` in `wire-data.ts` owns that test. It excludes a wire only on positive evidence:
+
+- A declared zero.
+- A declared load under a tenth of the ampacity for its own gauge.
+- A shield. Membership for this rule is the explicit `branch` of the wire and nothing
+else. A wire that names no branch is not derated at all, exactly as before
+derating existed. HK-CONN-016
   now judges against the fitted contact's own current rating where one exists.
   Mutual heating, duty cycle, and altitude remain outside the model. HK-ELEC-009
-  compares a wire's rating to a branch's `ambientTemperatureC`, which is a
-  number the author typed; nothing computes a temperature.
-- **Wrong pin.** The netlist cell is the one cell in the table that is
-  complete, and it is complete about a narrow question: whether the design's
-  own declarations agree with each other. HK-CONN-011 compares a wire's signal
-  to the signal assigned to the pin it lands on, and both were written by the
-  same author, so a consistently wrong pinout agrees with itself and compiles
-  clean. No rule reads `matingMpn`, and `matingMpn` carries no pinout to read.
+  compares a wire's rating to a branch's `ambientTemperatureC`, which is a number the author typed. Nothing computes a temperature.
+- **Wrong pin.** The netlist cell is the one cell in the table that is complete. It is complete about a narrow question: whether the declarations of the design agree with each other. HK-CONN-011 compares the signal of a wire to the signal assigned to the pin it
+lands on. The same author wrote both. A consistently wrong pinout therefore
+agrees with itself and compiles clean. No rule reads `matingMpn`, and `matingMpn` carries no pinout to read.
   The part-data cell is what addresses that, and it is now occupied.
-  `ConnectorPart.pinout` carries the signals a part itself fixes per pin, the
-  compiler carries it into `HirConnector.pinout` and rejects a pinout naming a
-  pin the part does not have or reserves (`HK-CONN-007`), and HK-CONN-023 and
-  HK-CONN-024 decide the design against it. That is the first thing in the
+  `ConnectorPart.pinout` carries the signals a part itself fixes per pin. The
+compiler carries it into `HirConnector.pinout`, and rejects a pinout naming a
+pin the part does not have or reserves (`HK-CONN-007`). HK-CONN-023 and
+HK-CONN-024 then decide the design against it. That is the first thing in the
   table that judges a harness against a claim originating outside it.
 
-  It is partial, for three reasons worth separating. A part that declares no
-  pinout produces nothing, which is correct rather than a shortfall — a bare
-  housing genuinely fixes no signal on any pin — but it means the check applies
-  only to device-shaped parts. A partial pinout is a partial claim, judged pin
-  by pin, so a header fixing pins 1 to 4 leaves 5 to 8 unexamined. And the
-  pinout is still a record in this repository: nothing verifies it against the
-  manufacturer's datasheet, so the rules relocate the authority from the
-  harness author to the part library rather than importing an external one,
-  which is the same trust boundary
-  [what covered does not mean](#what-covered-does-not-mean) is about.
+  It is partial, for three reasons worth separating. A part that declares no pinout produces nothing. That is correct rather than a
+shortfall, because a bare housing genuinely fixes no signal on any pin. It
+does mean the check applies only to device-shaped parts. A partial pinout is a partial claim, judged pin
+  by pin, so a header fixing pins 1 to 4 leaves 5 to 8 unexamined. The pinout is also still a record in this repository. Nothing verifies it
+against the datasheet of the manufacturer. The rules therefore relocate the
+authority from the harness author to the part library, rather than importing
+an external one. That is the same trust boundary [what covered does not
+mean](#what-covered-does-not-mean) is about.
 
   No part in `packages/nerve-connectors` declares a pinout and no example
   supplies one, so nothing in this repository currently exercises either rule.
-  The mechanism exists and is registered; the data that would make it fire does
-  not ship yet, and a cell that is covered by a mechanism nothing uses is worth
-  reading as capability rather than as practice.
+  The mechanism exists and is registered. The data that makes it fire does not ship yet. Read a cell covered by a
+mechanism that nothing uses as capability, rather than as practice.
 - **Wrong length.** HK-MFG-001 checks a length is present and HK-MFG-008 checks
-  it is positive; neither checks a length is right. The geometry tier now
-  decides part of it. `waypoints`, `routedLength`, and `routedMinBendRadius`
-  are on `HirBranch`, the compiler measures them off an authored centerline,
-  and `HK-BRANCH-004` reports a branch whose authored `nominalLength`
-  contradicts its own waypoints by more than a relative tolerance. Two caveats
+  it is positive. Neither checks that a length is right. The geometry tier now
+  decides part of it. `waypoints`, `routedLength`, and `routedMinBendRadius` are on `HirBranch`. The
+compiler measures them from an authored centerline. `HK-BRANCH-004` reports a
+branch whose authored `nominalLength` contradicts its own waypoints by more
+than a relative tolerance. Two caveats
   keep the cell partial. `HK-BRANCH-004` is a compiler-owned structural code,
   not a configurable rule, so it carries no rule version and no severity
-  override. And it decides a branch's length, not a wire's: wire lengths stay
-  authored numbers with nothing to check them against, which is the larger half
-  of the row and where a cut list actually goes wrong. No example in
+  override. It also decides the length of a branch, not of a wire. Wire lengths stay
+authored numbers with nothing to check them against. That is the larger half
+of the row, and where a cut list actually goes wrong. No example in
   `examples/` declares waypoints today, so nothing ships that exercises it.
 - **Bus reflection.** HK-ELEC-018 to HK-ELEC-021 are the deepest checks in the
   pack and they cover one bus family. `canBusKey` matches CAN signal names
   only, so RS-485, USB, LVDS, and Ethernet get nothing beyond the pairing and
-  twist rules. The checks are topological plus two declared quantities:
-  termination resistance has to be declared per pin, and the stub budget stays
-  silent unless a `bitRateKbps` is declared somewhere on the bus. No
+  twist rules. The checks are topological, plus two declared quantities. Termination
+resistance has to be declared per pin. The stub budget stays silent unless a
+`bitRateKbps` is declared somewhere on the bus. No
   characteristic impedance, twist pitch, or connector discontinuity is
   represented anywhere in HIR.
-- **Ground loop.** HK-ELEC-022 is a genuine traversal: an incremental union-find
-  over the ground subgraph, which finds a second return path that continuity
-  testing cannot see. It is partial because membership of that subgraph is
-  decided by a signal-name regex and a declared `role: "ground"`, so a return
-  conductor named outside the convention is not in the graph the rule walks.
-  HK-ELEC-003 is weaker still: it reports that no wire anywhere in the harness
-  has a ground-shaped name, which is a harness-wide presence check and not a
-  per-net return check. Loop area, the quantity that actually governs pickup,
+- **Ground loop.** HK-ELEC-022 is a genuine traversal. It is an incremental union-find over the ground subgraph, and it finds a second return path that continuity testing cannot see. It is partial because a signal-name regex and a declared `role: "ground"`
+decide membership of that subgraph. A return conductor named outside the
+convention is not in the graph the rule walks.
+  HK-ELEC-003 is weaker still. It reports that no wire anywhere in the harness
+has a ground-shaped name. That is a harness-wide presence check, not a per-net
+return check. Loop area, the quantity that actually governs pickup,
   needs geometry.
-- **Protection coordination.** HK-ELEC-010 was a pure declaration check and is
-  not one any more: it takes the author's `protects` list as a seed and walks
-  the splice graph downstream of it, so a run that necks down three splices
-  past the fuse is caught even though nobody listed it. The traversal stops at
+- **Protection coordination.** HK-ELEC-010 was a pure declaration check and is not one any more. It takes the `protects` list of the author as a seed, then walks the splice graph downstream of it. A run that necks down three splices past the fuse is therefore caught, even though nobody listed it. The traversal stops at
   any splice reaching a conductor another device declares, which keeps the rule
-  from reporting a wire it does not protect. It is partial rather than derived
-  because the walk still starts from a declaration: a device whose `protects`
-  list is empty, or a conductor fed from a run nobody listed, is unprotected
-  and unreported. The thermal cell beside it, derating the device itself, is
+  from reporting a wire it does not protect. It is partial rather than derived, because the walk still starts from a
+declaration. A device with an empty `protects` list is unprotected and
+unreported. So is a conductor fed from a run that nobody listed. The thermal cell beside it, derating the device itself, is
   still empty.
 - **Insulation breakdown.** HK-ELEC-005 and HK-CONN-017 both compare a rating
   to a voltage inferred from the signal name by a regex. HK-CONN-017 warns
@@ -386,26 +374,27 @@ prevent, so the shortfalls are spelled out rather than left to the word.
 - **Over-bend at a breakout.** HK-MFG-005 occupies two cells because it decides
   the same question from two different tiers. Given only a netlist it compares
   two authored numbers, a declared breakout distance against a declared or
-  shop-profile bend radius. Given waypoints it prefers the curvature the
-  compiler measured off the centerline, which is the bend the bundle is
-  actually being asked to take rather than the one somebody believed it would
-  take. The geometry cell is partial because an absent `routedMinBendRadius`
-  means a straight run or an unrouted branch and falls back to the assertion,
-  and because the radius a bundle can survive is a function of its
-  construction, which is not modeled.
+  shop-profile bend radius. Given waypoints, it prefers the curvature that the compiler measured from the
+centerline. That is the bend the bundle is actually asked to take, rather than
+the bend somebody believed it takes. The geometry cell is partial for two reasons. An absent `routedMinBendRadius`
+means a straight run or an unrouted branch, and falls back to the assertion.
+The radius a bundle survives is also a function of its construction, which is
+not modeled.
 
 ### Declarations versus derivations
 
 Some rules traverse the model and derive a conclusion. Others read a fact the
-author asserted and check it for internal consistency. Both are useful, and
-they carry different weight in a review, so the distinction is worth stating
-per rule rather than leaving it to be discovered.
+author asserted and check it for internal consistency. Both are useful, and they carry different weight in a review. The distinction
+is worth stating per rule, rather than leaving a reader to discover it.
 
-Rules that derive: HK-ELEC-022 walks the ground subgraph, HK-ELEC-020 and
-HK-ELEC-021 walk the bus graph for degree, rings, stubs, and weighted diameter,
-HK-ELEC-011 walks nets to accessible pins, HK-MFG-009 walks the branch parent
-chain for cycles, HK-MFG-006 computes a bundle diameter from member wires,
-HK-ELEC-010 walks splices downstream of a protected run.
+Rules that derive:
+
+- HK-ELEC-022 walks the ground subgraph.
+- HK-ELEC-020 and HK-ELEC-021 walk the bus graph for degree, rings, stubs, and weighted diameter.
+- HK-ELEC-011 walks nets to accessible pins.
+- HK-MFG-009 walks the branch parent chain for cycles.
+- HK-MFG-006 computes a bundle diameter from member wires.
+- HK-ELEC-010 walks splices downstream of a protected run.
 
 Rules whose subject is a declaration:
 
@@ -416,24 +405,23 @@ Rules whose subject is a declaration:
   design, so silence here means unknown, not clear.
 - **HK-CONN-012, HK-CONN-014, HK-CONN-021** check membership of allow-lists
   that arrive with the connector part, so the check is only as good as the
-  library entry. That qualifier is not hypothetical; see
+  library entry. That qualifier is not hypothetical. See
   [what covered does not mean](#what-covered-does-not-mean).
 - **HK-CONN-013** depends on a `sealed: true` flag, and **HK-ELEC-018** and
   **HK-ELEC-019** depend on a `terminationOhms` declared per pin.
 - **HK-MFG-005** compares two authored numbers when the branch has no route,
-  and prefers the compiler's `routedMinBendRadius` when it has one. It was the
-  first rule in the pack to judge a branch on a measured quantity rather than a
-  claimed one, and it is bumped to 1.1.0 for that reason. Because no example
+  and prefers the compiler's `routedMinBendRadius` when it has one. It was the first rule in the pack to judge a branch on a measured quantity
+rather than a claimed one. It is bumped to 1.1.0 for that reason. Because no example
   declares waypoints, every evaluation that ships today still takes the
   declared path.
 - **HK-MFG-004, HK-CONN-016, HK-MFG-012, HK-MFG-013, HK-CONN-023,
   HK-CONN-024** read part records rather than harness assertions, which moves
-  the trust from the design to the library. That is the better place for it,
-  since a library entry is checked once and used by everyone and a harness is
-  typed once per project, and the pinout rules are the strongest form of it,
-  since the record they read describes the device the harness has to satisfy.
-  It is still not the same as deriving the answer: an incorrect part record
-  produces a confident, wrong verdict, and four of them were found here.
+  the trust from the design to the library. That is the better place for it. A library entry is checked once and used by
+everyone, and a harness is typed once per project. The pinout rules are the
+strongest form of it, because the record they read describes the device the
+harness has to satisfy.
+  It is still not the same as deriving the answer. An incorrect part record
+produces a confident, wrong verdict, and four of them were found here.
 
 ### What covered does not mean
 
@@ -442,42 +430,36 @@ to the question. It says nothing about whether the rule answers correctly. Two
 things found in this repository are worth recording, because they are the only
 soundness evidence there is and both point the same way.
 
-The first is a membership defect. Anything that counts conductors in a bundle
-depends on knowing which wires are in it, and that count was inferred from
-whether both of a wire's endpoints appeared in a branch's `path`. That is a
+The first is a membership defect. Anything that counts conductors in a bundle depends on knowing which wires are
+in it. That count came from whether both endpoints of a wire appeared in the
+`path` of a branch. That is a
 statement about how the path was authored, not about what is inside the sleeve.
-On `examples/robot-platform` it counted four conductors on one drive bundle and
-zero on its physically identical twin, because one path named the distribution
-connector and the other did not. Zero conductors is a sleeve that always fits
-and a bundle that never derates, so the rules fed by that count were passing
-designs on an empty set. `WireProps.branch` now lets a wire state its bundle,
-`wiresOnBranch` honours it before falling back to path adjacency, and
-HK-MFG-006 no longer keeps its own copy of the adjacency test. Nothing about
+On `examples/robot-platform` it counted four conductors on one drive bundle,
+and zero on the physically identical twin. One path named the distribution
+connector and the other did not. Zero conductors is a sleeve that always fits and a bundle that never derates.
+The rules fed by that count were passing designs on an empty set. `WireProps.branch` now lets a wire state its bundle. `wiresOnBranch` honours
+it before falling back to path adjacency. HK-MFG-006 no longer keeps its own
+copy of the adjacency test. Nothing about
 that changed which cells are covered. It changed how many of the answers in
 those cells were right, and nobody knows what that number was.
 
-The second is reference data. Modelling the contacts meant reading the contact
-ranges rather than inheriting the housing's, and doing so turned up four errors
-in `packages/nerve-connectors`: two JST contact ranges recorded from the wrong
-column of the catalog (the PH pair documented the wrong way round, and XH's
-housing range claiming a 30 AWG floor that belongs to a contact these housings
-do not accept), a DEUTSCH size-16 range published as 14-20 AWG when both listed
-contacts take 16-20, and Molex Mega-Fit housings whose `compatibleTerminals`
-were kit part numbers from PicoBlade, an unrelated 1.25mm family, carrying that
-family's 23 AWG floor with them. Every one was a housing range standing in for
-a contact range. The last was load-bearing: with the real 16 AWG floor in
-place, a drive feed in `examples/robot-platform` had a Micro-Fit end and a
-Mega-Fit end whose gauge ranges do not overlap, so the harness could not be
-built as drawn and nothing said so.
+The second is reference data. Modelling the contacts meant reading the contact ranges rather than inheriting the range of the housing. That turned up four errors in `packages/nerve-connectors`:
 
-Both are the same finding from different directions. A rule that reads a
-declaration inherits every error in the declaration, and the tool's own
-reference library was wrong in four places until modelling the contacts forced
-it to be read. What each entry was corrected against is in its own file header,
-including which sources were used where a manufacturer site refused automated
-fetches, because a correction on unnamed authority is the same problem again.
-Soundness is not measured here and these are not a measurement, but they are
-the reason the table's covered cells should not be read as settled.
+- Two JST contact ranges recorded from the wrong column of the catalog. The PH pair was documented the wrong way round. The XH housing range claimed a 30 AWG floor that belongs to a contact these housings do not accept.
+- A DEUTSCH size-16 range published as 14-20 AWG, when both listed contacts take 16-20.
+- Molex Mega-Fit housings whose `compatibleTerminals` were kit part numbers from PicoBlade, an unrelated 1.25mm family. Those part numbers carried the 23 AWG floor of that family with them. Every one was a housing range standing in for
+a contact range. The last was load-bearing. With the real 16 AWG floor in place, a drive feed in `examples/robot-platform`
+had two ends whose gauge ranges do not overlap. One is Micro-Fit, one is
+Mega-Fit. The harness was impossible to build as drawn, and
+nothing said so.
+
+Both are the same finding from different directions. A rule that reads a declaration inherits every error in that declaration. The
+reference library of the tool itself was wrong in four places, until modelling
+the contacts forced somebody to read it. What each entry was corrected against is in its own file header. That includes
+which sources were used where a manufacturer site refused automated fetches. A
+correction on unnamed authority is the same problem again.
+Soundness is not measured here, and these are not a measurement. They are the
+reason to not read the covered cells in this table as settled.
 
 ### What the matrix implies about what to build next
 
@@ -489,18 +471,15 @@ partial, three declared. Thirteen live cells have nothing.
 Sorted by column, the shape of the remaining work is not a matter of opinion:
 
 - **Netlist alone: 8 live cells, and Nerve is in all 8.** One checked, five
-  partial, two declared. The cheap tier is exhausted by coverage and is not
-  exhausted by depth: five of the eight rest on quantities the author asserted,
-  so the work left here is turning declarations into derivations rather than
-  filling empty cells. Everything else has an acquisition cost attached, and
+  partial, two declared. The cheap tier is exhausted by coverage and is not exhausted by depth. Five of
+the eight rest on quantities the author asserted. The work left here is
+turning declarations into derivations, rather than filling empty cells. Everything else has an acquisition cost attached, and
   the ranking below is a ranking of those costs.
-- **Full part data: 11 live cells, 7 partial, 4 empty.** This tier moved more
-  than any other and is now the best-covered tier after the netlist. The
-  asymmetry that used to explain its partials is gone: `TerminalPart` and
-  `SealPart` are full records, `HirPin` carries `terminalPart` and `sealPart`
-  beside the MPN strings, and the three cells blocked on it have moved, with
-  HK-MFG-004 and HK-CONN-016 judging against the fitted contact, HK-MFG-012
-  checking the insulation-barrel fit and HK-MFG-013 the seal fit. A fourth cell
+- **Full part data: 11 live cells, 7 partial, 4 empty.** This tier moved more than any other. It is now the best-covered tier after the netlist. The asymmetry that used to explain its partials is gone. `TerminalPart` and
+`SealPart` are full records, and `HirPin` carries `terminalPart` and
+`sealPart` beside the MPN strings. The three cells blocked on it have moved. HK-MFG-004 and HK-CONN-016 judge
+against the fitted contact. HK-MFG-012 checks the insulation-barrel fit, and
+HK-MFG-013 checks the seal fit. A fourth cell
   moved for a different reason: a part can now declare the pinout it fixes, and
   the wrong-pin row is decided against it. None of the four became complete,
   and the crimp specification is the clearest gap left. `TerminalPart` has
@@ -513,39 +492,35 @@ Sorted by column, the shape of the remaining work is not a matter of opinion:
   and the table argues against taking it first for coverage reasons. A routed
   centerline is one kind of geometry and the cells want three. The waypoint
   work converted exactly two of the ten, wrong length and over-bend at a
-  breakout, and both are partial. Four more need the structure the harness is
-  installed in (chafe, seal and mating access, vibration mounts, loop area) and
-  four need the bundle's internal cross-section (mutual heating, conductor
-  spacing, creepage, sleeve fit along the route). Neither of those follows from
-  a centerline through space. The two the centerline does convert are worth
-  having on their own merits, since a cut list is where a wrong number gets
-  expensive, but they should not be counted as an entry into chafe, fit,
-  vibration, or signal integrity. No example in the repository declares
+  breakout, and both are partial. Four more need the structure the harness is installed in: chafe, seal and
+mating access, vibration mounts, and loop area. Four need the internal
+cross-section of the bundle: mutual heating, conductor spacing, creepage, and
+sleeve fit along the route. Neither of those follows from
+  a centerline through space. The two that the centerline does convert are worth having on their own merits,
+because a cut list is where a wrong number gets expensive. They are not an
+entry into chafe, fit, vibration, or signal integrity. No example in the repository declares
   waypoints, so both converted cells are capability rather than practice.
 - **Thermal state: 2 live cells.** One is served by a declared ambient, and the
   other, thermal derating of the protection device itself, is empty. It is the
-  smallest tier in the table. The bundle derating that landed improves the part
-  data cell it sits next to rather than adding a cell here, because a conductor
-  count is not a temperature.
+  smallest tier in the table. The bundle derating that landed improves the part-data cell beside it, rather
+than adding a cell here. A conductor count is not a temperature.
 
 Two counts about the rule set itself follow from the same exercise. Of the 55
-defined codes, 41 appear somewhere in the matrix. The other 14 make no claim
-about a field failure mode at all: HK-DOC-001 to HK-DOC-004, HK-MFG-002,
-HK-MFG-003, HK-MFG-007, HK-MFG-009, HK-MFG-010, HK-MFG-011, HK-ELEC-002,
-HK-ELEC-011, HK-CONN-019, and HK-CONN-020 keep the model well formed, keep the
-harness documented, or keep it testable. That is not padding, and HK-MFG-007
-earns its place twice over: it reports gauges the AWG-keyed rules cannot read,
-which makes a silently unchecked wire visible instead of letting it pass as a
-checked one.
+defined codes, 41 appear somewhere in the matrix. The other 14 make no claim about a field failure mode at all. They are
+HK-DOC-001 to HK-DOC-004, HK-MFG-002, HK-MFG-003, HK-MFG-007, HK-MFG-009,
+HK-MFG-010, HK-MFG-011, HK-ELEC-002, HK-ELEC-011, HK-CONN-019, and
+HK-CONN-020. They keep the model well formed, keep the harness documented, or
+keep it testable. That is not padding, and HK-MFG-007 earns its place twice over. It reports
+gauges that the AWG-keyed rules cannot read. That makes a silently unchecked
+wire visible, instead of letting it pass as a checked one.
 
 And no row of the matrix is fully decided. Fourteen failure modes, 53 active
 rules, and every row still has an open cell or a residue in the last column.
-That is the honest state of the theory, and it is the number a roadmap should
-be written against.
+That is the honest state of the theory. It is the number to write a roadmap against.
 
 ### On the undecidable column
 
-The last column is the most valuable one in the table, and it is the reason the
+The last column is the most valuable one in the table. It is the reason this
 table is worth publishing rather than an inflated one.
 
 Everything in it belongs to externally executed test and process control, not
@@ -557,11 +532,9 @@ inspection. Emissions and immunity are measured in a chamber. Available fault
 current is a property of the vehicle's power system, not of the harness
 drawing.
 
-No amount of additional design modeling moves these cells. Recording the
-result makes a unit history traceable; it does not make a clean compile a
-substitute for the activity that produced the result. A tool that claimed
-otherwise would be claiming to replace the inspection or test that catches the
-failure. This column is the list of physical activities that a passing compile
+No amount of additional design modeling moves these cells. Recording the result makes a unit history traceable. It does not make a clean
+compile a substitute for the activity that produced the result. A tool that claims otherwise claims to replace the inspection or test that
+catches the failure. This column is the list of physical activities that a passing compile
 says nothing about.
 
 ## What Nerve does not check
@@ -572,36 +545,30 @@ Nerve compile provides no evidence about any of them. Where a process record
 can represent an external result, its meaning remains bounded by the supplied
 authority, identity, and evidence.
 
-- **Thermal derating of bundles.** The ampacity check derates its table by the
-  number of current-carrying conductors that declare the same branch, which is
-  a count and not a thermal model. It does not model bundle geometry, mutual
-  heating, duty cycle, altitude, or ambient outside the one declared branch
-  temperature, and a wire that declares no branch is not derated at all. A
-  bundle in which every wire passes HK-WIRE-004 individually may still overheat.
+- **Thermal derating of bundles.** The ampacity check derates its table by the number of current-carrying conductors that declare the same branch. That is a count, not a thermal model. It does not model bundle geometry, mutual heating, duty cycle, altitude, or
+ambient outside the one declared branch temperature. A wire that declares no
+branch is not derated at all. A bundle in which every wire passes HK-WIRE-004 individually can still
+overheat.
 - **Geometry and routing.** A branch can carry routed centerline waypoints, but
   Nerve has no model of the vehicle or enclosure around that line. There is no
   clearance analysis, interference or collision check, sag, vibration,
   chafe-point analysis, or proof that a route is physically achievable.
 - **Mechanical fit and reach.** A branch length can be authored or measured
-  from a routed centerline. Nerve does not verify that its wires reach their
-  destinations in the installed system, compute service loops or dressing
-  slack, or verify connector mating access, backshell clearance, or tooling
-  reach.
+  from a routed centerline. Nerve does not verify that its wires reach their destinations in the installed
+system. It does not compute service loops or dressing slack. It does not
+verify connector mating access, backshell clearance, or tooling reach.
 - **EMC coupling.** HK-ELEC-008 reports that a wire classified `aggressor` and
   a wire classified `victim` share a branch. That is a bookkeeping check on
   labels a human applied. There is no field solving, no coupling or crosstalk
   calculation, no impedance, no shielding-effectiveness model, and no immunity
   or emissions prediction.
-- **Crimp process verification.** Generic rules check that a terminal is
-  selected, is compatible with the housing, accepts the wire's gauge, and
-  closes on its insulation diameter. Build records and shop-floor events can
+- **Crimp process verification.** Generic rules check that a terminal is selected and is compatible with the housing. They also check that it accepts the gauge of the wire and closes on its insulation diameter. Build records and shop-floor events can
   retain caller-supplied height, width, pull force, force-curve references,
-  material and tool lots, setup, operator, and disposition. Nerve does not take
-  those measurements, establish their limits, authenticate their source, or
-  inspect bell-mouth, brush position, insulation-support form, strand damage,
-  applicator setup, or operator qualification. `TerminalPart` has fields for a
-  crimp-height window and a pull force; no generic rule reads them and the
-  bundled contact library populates neither.
+  material and tool lots, setup, operator, and disposition. Nerve does not take those measurements, establish their limits, or
+authenticate their source. It does not inspect bell-mouth, brush position,
+insulation-support form, strand damage, applicator setup, or operator
+qualification. `TerminalPart` has fields for a crimp-height window and a pull force. No
+generic rule reads them, and the bundled contact library populates neither.
 - **Terminator and stub checks only where declared.** Bus topology conclusions
   follow from declared facts. Where a design does not declare a terminator, a
   port role, a stub length, or a protocol identity, the corresponding rules are
@@ -609,40 +576,35 @@ authority, identity, and evidence.
 - **Physical part and supply data.** Nerve trusts the connector, terminal,
   seal, wire, and supply records it is given. The supply registry can preserve
   caller- or provider-supplied provenance, lifecycle, approval, availability,
-  lead time, alternates, and price breaks in a deterministic snapshot. It does
-  not query a distributor or manufacturer, verify an MPN against a datasheet,
-  discover a lifecycle change, convert currencies, or confirm that a declared
-  current, voltage, or gauge range matches the real component. The library
-  that ships with Nerve is not exempt from that: four of its entries were wrong
-  until they were read against manufacturer documents, and the record is under
-  [what covered does not mean](#what-covered-does-not-mean).
-- **Assembly, inspection, and test execution.** Nerve can generate a topology
-  test plan, bind caller-supplied limits to it through an approved
-  `TestSpecification`, export a generic tester program, ingest named-column
-  result evidence, and preserve the result in a build record or unit event
-  log. It does not operate a tester, perform continuity, hipot,
-  insulation-resistance, or functional testing, validate a generic artifact
-  against a specific machine, or prove that supplied evidence came from the
-  named hardware. Measurements receive verdicts only against an approved,
-  valid specification matched to the exact plan; otherwise they remain
-  unassessed. The Cirris Easy-Wire-style pseudo-format is experimental,
+  lead time, alternates, and price breaks in a deterministic snapshot. It does not query a distributor or a manufacturer. It does not verify an MPN
+against a datasheet, discover a lifecycle change, or convert currencies. It
+does not confirm that a declared current, voltage, or gauge range matches the
+real component. The library that ships with Nerve is not exempt from that. Four of its entries
+were wrong until somebody read them against manufacturer documents. The record
+is under [what covered does not mean](#what-covered-does-not-mean).
+- **Assembly, inspection, and test execution.** Nerve can generate a topology test plan. It can bind caller-supplied limits to that plan through an approved `TestSpecification`, export a generic tester program, and ingest named-column result evidence. It preserves the result in a build record or a unit event log. It does not operate a tester. It does not perform continuity, hipot,
+insulation-resistance, or functional testing. It does not validate a generic
+artifact against a specific machine, or prove that supplied evidence came from
+the named hardware. Measurements receive verdicts only against an approved, valid specification
+matched to the exact plan. Without one they remain unassessed. The Cirris Easy-Wire-style pseudo-format is experimental,
   unvalidated against hardware, and excluded from built-in production adapter
   discovery.
-- **Environmental and lifetime qualification.** No sealing or ingress-protection
-  verification beyond "a seal is assigned, and where a seal record and a wire
-  record both exist, its diameter window contains the wire". No fluid or
+- **Environmental and lifetime qualification.** No sealing or ingress-protection verification, beyond two things. A seal is assigned. Where a seal record and a wire record both exist, the diameter window of the seal contains the wire. No fluid or
   chemical compatibility, no abrasion, no thermal or vibration cycling, no life
   prediction.
 - **Anything absent from the model.** A fact that was never supplied cannot be
-  checked. Nerve distinguishes unknown from absent-by-design precisely so that
-  an unsupplied fact never reads as a verified one, but the practical
-  consequence stands: coverage is bounded by what the design declares.
+  checked. Nerve distinguishes unknown from absent-by-design, precisely so that an
+unsupplied fact never reads as a verified one. The practical consequence
+stands: what the design declares bounds the coverage.
 
 The evidence APIs change what Nerve can retain, not what a clean compile proves.
-A measured centerline is not a model of the vehicle around it, a conductor
-count is not a temperature, a contact's gauge range is not a crimp, an ingested
-result is not proof of hardware execution, and a part's declared pinout is an
-authority about pin assignment and nothing else on this list.
+Each derivation stops well short of the physical fact:
+
+- A measured centerline is not a model of the vehicle around it.
+- A conductor count is not a temperature.
+- The gauge range of a contact is not a crimp.
+- An ingested result is not proof of hardware execution.
+- A declared part pinout is an authority about pin assignment, and about nothing else on this list.
 
 ## On mapping to IPC/WHMA-A-620
 
@@ -652,21 +614,19 @@ and its absence is deliberate.
 IPC/WHMA-A-620 is a paywalled, purchase-only document. This repository does not
 contain it, and neither the standard's text nor its clause numbering can be
 established from anything in the repository. The product requirements document
-(§38) names IPC/WHMA-A-620, IPC-D-620, NASA-STD-8739.4, and SAE-AS50881 as
-intended inputs to future standards-informed rule packs, which is a roadmap
-entry and not authority; the PRD does not name a revision, so the applicable revision is not
-established here either. Publishing a mapping to clause numbers nobody here has
-read would fabricate exactly the traceability this document exists to make
-auditable.
+(§38) names IPC/WHMA-A-620, IPC-D-620, NASA-STD-8739.4, and SAE-AS50881 as intended inputs to future standards-informed rule packs. That is a roadmap
+entry, not authority. The PRD does not name a revision,
+so the applicable revision is not established here either. Publishing a mapping to clause numbers nobody here has read fabricates exactly
+the traceability this document exists to make auditable.
 
 Producing a real mapping requires the purchased standard and a qualified
-reviewer working from it. `@grayhaven/nerve-interop` now provides a separate
-profile for recording an exact issuer, document id, revision, addendum, scope,
+reviewer working from it. `@grayhaven/nerve-interop` now provides a separate profile. It records an
+exact issuer, document id, revision, addendum, and scope. It also records
 source identity, applicability decision, parameter authority, reviewer, and
 expected evidence. It distinguishes design requirements, workmanship
-observations, and process evidence. The profile contains no licensed text,
-tables, clause prose, acceptance values, or built-in compliant rule pack, and
-it rejects vague `latest` revisions and compliance or certification claims.
+observations, and process evidence. The profile contains no licensed text, tables, clause prose, acceptance
+values, or built-in compliant rule pack. It rejects vague `latest` revisions,
+and compliance or certification claims.
 Populating that profile does not establish that a built-in rule implements the
 named document.
 
@@ -686,16 +646,16 @@ built-in acceptance rule or physical execution capability:
   acceptance-condition photography or criteria.
 
 Organizations that hold the standard can map their internal rule codes onto it
-themselves. Exact-authority standards profiles are the vehicle for layered
-requirements and evidence; per-rule provenance remains the vehicle for a claim
-that a specific rule implements a named document.
+themselves. Exact-authority standards profiles are the vehicle for layered requirements
+and evidence. Per-rule provenance remains the vehicle for a claim that a
+specific rule implements a named document.
 
 ## Changing a rule
 
 When a rule's logic changes such that the same HIR can produce a different
-verdict, bump that rule's `ruleVersion`. Reports pin the version that ran, so a
-harness that passed under `1.0.0` and fails under `1.1.0` is a traceable event
-rather than an unexplained regression.
+verdict, bump that rule's `ruleVersion`. Reports pin the version that ran. A harness that passed under `1.0.0` and
+fails under `1.1.0` is therefore a traceable event, not an unexplained
+regression.
 
 Adding a `standard` or `clause` to a rule requires evidence in this repository
 that the rule implements that document. `packages/nerve-rules/test/provenance.test.ts`
