@@ -1,0 +1,60 @@
+---
+title: The browser workspace
+description: Compile in the browser, share a design as a URL, and let a compile-verified agent make the edit.
+---
+
+[nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com/projects)
+runs the same compiler in a web worker. It is useful for three things the CLI
+is not: trying Nerve without installing it, sharing a reproducible example,
+and making an edit you can watch land.
+
+## Compile as you type
+
+The workspace compiles in your browser. Nothing is uploaded and there is no
+backend for the editor, so the diagram, diagnostics, margins, and provenance
+tabs update from a local compile.
+
+The tabs mirror the artifacts the CLI writes: diagram, board, connectors, BOM,
+cut list, labels, tests, margins, and provenance. The Margins tab is the one
+worth opening first, because it reports how close each passing check came to
+its limit rather than only that it passed.
+
+## Share a design as a URL
+
+**Share** places the project files in the URL fragment. There is no server in
+this path: the fragment stays in the browser, and opening the link recompiles
+the same design. A share URL therefore carries a reproducible software
+example, which is what makes it useful in a bug report or a review thread.
+
+<Callout type="warn" title="The fragment is the document">
+  Anyone with the link has the design. Do not put restricted customer data in
+  a share URL.
+</Callout>
+
+## Compile-verified edits
+
+The left pane is an agent that changes the harness: "add a third sensor on the
+CAN bus", "swap W2 to 18AWG and fix whatever breaks". It is not a chat box
+that pastes code. Every proposed edit is a structured patch.
+
+Each tool call the agent makes is compiled in the local worker **before** it
+lands. Diagnostics feed back into the loop: a patch that introduces `HK-*`
+errors is visible to the agent, which must converge on a clean compile. It
+cannot bypass a rule failure. Applied edits write through the editor and the
+diagram live, exactly like keystrokes.
+
+That constraint is the whole point. An assistant that can write plausible
+harness code is not useful; one that cannot hand you a design that fails to
+compile is.
+
+## Keys and privacy
+
+There is no server. Your browser calls the model provider directly with an API
+key you paste into the pane. The key lives in `localStorage` and is sent
+nowhere else. The "key ✕" button forgets it.
+
+## When to use the CLI instead
+
+The workspace is for exploration and review. Anything that has to be
+repeatable belongs in the CLI: CI gating, releases, build records, and the
+manufacturing packet. See [validate in CI](/docs/guides/validate-in-ci).

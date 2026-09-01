@@ -1,0 +1,82 @@
+---
+title: DSL
+description: The typed design surface. Builders and props, extracted from @grayhaven/nerve source.
+---
+
+Everything imports from `@grayhaven/nerve`. The DSL builds a typed design
+graph, and `compileDesign` lowers it to the versioned
+[HIR](/docs/reference/hir) that every exporter and rule consumes.
+
+For a walkthrough of how to combine these, see
+[author a harness](/docs/guides/author-a-harness).
+
+## The builders
+
+### `harness(id, options)`
+
+The root design object. `revision` and `units` are required; releases fail
+closed without them.
+
+### `connector(id, part, { pins })`
+
+Place a connector from a part definition. `pins` maps pin numbers to signal
+names. Parts declare `pinCount`, `gender`, and `wireGaugeRange`, and the rules
+hold wires to them. Per-pin `terminals` and `seals` feed the compatibility
+rules.
+
+### `wire(id, from, to, options)`
+
+Point-to-point conductor. Endpoints are `connector.pin(n)` references or
+splice ids. Gauge strings are checked against ampacity and against the
+connector range; any spelling (`"20 AWG"`, `"awg 20"`, `"20"`) canonicalizes
+to `"20AWG"` in HIR.
+
+### `splice(id, options)`
+
+A junction node (`type: "crimp"`, `"solder"`, and so on). Wires may terminate
+on a splice; nets are computed across it and splice-verification tests are
+generated. `branch` and `location` place it physically.
+
+### `cable(id, options)`
+
+Groups wires into a multi-conductor cable, optionally shielded. Wires opt in
+through their own `cable` and `conductor` props. Shield drains must land on a
+pin or the rules flag it.
+
+### `branch(id, { path, ... })`
+
+Physical bundle segment. `path` lists the connectors it runs between,
+`nominalLength` drives the board view and cut-length maths, and
+`sleeve`, `breakoutDistance`, `minBendRadius`, and `ambientTemperatureC` feed
+the manufacturing rules. `waypoints` route a centerline through space; when
+present, lengths and curvature are computed rather than asserted.
+
+### `label(id, { text, attachTo })`
+
+Printed label on the loom, attached to a branch or connector with an optional
+`offsetFrom` and `distance`. Exported to the label schedule.
+
+### `protection(id, { kind, ratingA, protects })`
+
+A fuse or breaker. `protects` lists wire ids explicitly, because Nerve does
+not infer current flow. The rating must not exceed the ampacity of any wire it
+guards.
+
+### `variant(base, overrides)`
+
+Derive a configuration from a base harness, adding or removing wires per
+option code without forking the file.
+
+### `rule(name, run, { code })`
+
+Author a custom validation rule with a stable code. See
+[write a custom rule](/docs/guides/write-a-custom-rule).
+
+### `defineConfig(config)`
+
+Project configuration: `entry`, `units`, `outputDir`, `defaultWireTolerance`,
+per-rule severities, `plugins`, `costing`, and `exports`.
+
+## Generated reference
+
+<include>../../generated/dsl-reference.md</include>

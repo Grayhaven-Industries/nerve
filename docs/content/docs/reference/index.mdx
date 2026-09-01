@@ -1,0 +1,38 @@
+---
+title: Reference
+description: Commands, types, schemas, rules, and parts. Generated from source where generation is possible.
+icon: Wrench
+index: true
+---
+
+Four of these pages are generated from `@grayhaven/*` source at build time, so
+they cannot drift from the code: the [DSL](/docs/reference/dsl) prop tables,
+the [HIR](/docs/reference/hir) schema, the [rule](/docs/reference/rules) list,
+and the [part library](/docs/reference/parts).
+
+<Cards>
+  <Card href="/docs/reference/cli" title="CLI">
+    Every command, its arguments, and its exit codes.
+  </Card>
+  <Card href="/docs/reference/dsl" title="DSL">
+    Builders and props for authoring a harness in TypeScript.
+  </Card>
+  <Card href="/docs/reference/sdk" title="TypeScript SDK">
+    Everything the CLI does, as library calls.
+  </Card>
+  <Card href="/docs/reference/hir" title="HIR schema">
+    The compiled harness contract that rules and exporters read.
+  </Card>
+  <Card href="/docs/reference/artifacts" title="Artifacts">
+    What `nerve export` writes, file by file.
+  </Card>
+  <Card href="/docs/reference/parts" title="Part library">
+    The bundled connectors and their compact specs.
+  </Card>
+  <Card href="/docs/reference/rules" title="Validation rules">
+    Every built-in `HK-*` check.
+  </Card>
+  <Card href="/docs/reference/rule-coverage" title="Rule coverage">
+    What the rule set is as a fraction of the problem, and what it is not.
+  </Card>
+</Cards>

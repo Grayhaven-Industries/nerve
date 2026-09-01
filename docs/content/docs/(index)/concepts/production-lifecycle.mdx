@@ -1,0 +1,128 @@
+---
+title: The production lifecycle
+description: Release, packet, build record, redline, next revision, diff. How a measurement on a real chassis becomes a tracked change.
+---
+
+Design is half the product. The other half is what happens after: releases,
+build records, technician feedback, and the next revision. Every step here is
+a real command; the [CLI reference](/docs/reference/cli) has the full flag
+list for each.
+
+## 1. Release a revision
+
+A release freezes the design with an ECO, a fingerprint, and fail-closed
+validation. Errors block the export.
+
+```bash
+nerve release ./src/main.harness.ts --eco ECO-001 \
+  --reason "initial production release" --author tyler \
+  --date 2026-06-07 --out dist/releases/A
+```
+
+```text
+wrote dist/releases/A/harness.json
+wrote dist/releases/A/release-A.json
+Release my-first-harness@A (ECO-001) — fingerprint 602020e15da5c711
+```
+
+The fingerprint is a content hash of the HIR. Byte-identical inputs always
+produce it, so anyone can verify that a packet matches its release.
+
+## 2. Export the manufacturing packet
+
+```bash
+nerve export ./src/main.harness.ts --out dist/packet-A
+```
+
+The PDF build book, the schematic, board, connector-face and pinout drawings
+plus the interactive HTML viewer, the BOM, cut list, label and bill-of-process
+tables with their JSON twins, `graph.json`, `render-layout.json`, the
+continuity test plan, the assembly instructions, and a byte-identical zip of
+all of it. See [artifacts](/docs/reference/artifacts).
+
+## 3. Record the build
+
+The tester, or a technician with a multimeter, produces measurements keyed to
+the generated test plan. The build record ties serial number, operator, lot,
+and results to the release.
+
+```bash
+nerve record ./src/main.harness.ts \
+  --release dist/releases/A/release-A.json \
+  --serial SN-0001 --operator "j.alvarez" --date 2026-06-07 \
+  --lot LOT-26W23 --results dist/results-SN-0001.json --out dist/builds
+```
+
+```text
+SN-0001: 362 pass / 0 fail / 0 not run → PASS
+```
+
+A failing measurement exits nonzero and names the wire, its endpoints, and the
+expected state. Acceptance limits require an approved `TestSpecification`; see
+[what Nerve does not check](/docs/concepts/limits).
+
+## 4. Capture technician feedback as a redline
+
+On the assembled chassis a wire comes up short. Instead of a PDF markup that
+dies in a drawer, the technician records it against the design object:
+
+```bash
+nerve redline add ./src/main.harness.ts \
+  --target wire:W_BUMP_L_RTN --type incorrect-length \
+  --description "W_BUMP_L_RTN arrives 30mm short of the bumper bracket" \
+  --value 550 --serial SN-0001 --by "j.alvarez" --file dist/redlines.json
+```
+
+```text
+Recorded RL-001 against wire:W_BUMP_L_RTN in dist/redlines.json
+```
+
+The target is validated: a redline against a wire that does not exist is
+rejected. The engineer then reviews it.
+
+```bash
+nerve redline resolve dist/redlines.json --id RL-001 \
+  --accept true --reason "confirmed against chassis rev3 mounting" \
+  --by tyler --date 2026-06-08
+```
+
+Acceptance emits a structured patch suggestion. Rejection is retained with its
+reason. `nerve redline patch` merges every accepted redline into one
+`variant()` patch.
+
+## 5. Release the next revision
+
+The engineer applies the change in source, then releases against revision A:
+
+```bash
+nerve release ./src/main.harness.ts --eco ECO-002 \
+  --reason "RL-001: lengthen W_BUMP_L_RTN per chassis rev3" \
+  --author tyler --date 2026-06-08 \
+  --against dist/releases/A/release-A.json --out dist/releases/B
+```
+
+```text
+Release robot-platform-harness@B (ECO-002) — fingerprint cef8b86602d8e746 — impact: 2 (low), 0 pinout / 1 wire change(s)
+```
+
+The impact analysis is computed from the semantic diff, not from the prose in
+the reason field: zero pinout changes, one wire change, low risk.
+
+## 6. Review the diff
+
+```bash
+nerve diff dist/releases/A dist/releases/B
+```
+
+```text
+harness:
+  ~ revision: A -> B
+wires:
+  ~ wire:W_BUMP_L_RTN
+      length: 520 -> 550
+```
+
+The loop closes. A measurement on a real chassis became a tracked redline, an
+accepted change, a fingerprinted release, and a reviewable diff, with the
+build record of every serial number pointing at the revision it was built
+from.

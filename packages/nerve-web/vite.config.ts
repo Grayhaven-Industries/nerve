@@ -4,25 +4,26 @@ import { defineConfig } from "vite"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { tanstackRouter } from "@tanstack/router-plugin/vite"
-import { SITE } from "./scripts/site.js"
+import { DOCS_SITE, SITE } from "./scripts/site.js"
 
 // shadcn generates "@/..." imports; mirror the tsconfig path alias here.
 const srcDir = fileURLToPath(new URL("./src", import.meta.url))
 
-const genScript = fileURLToPath(new URL("./scripts/gen-llms.ts", import.meta.url))
+const genScript = fileURLToPath(new URL("./scripts/gen-meta.ts", import.meta.url))
 
 // Agent-readable docs variants regenerate on every build AND dev-server
 // start (they previously existed only after a build, so dev served stale
 // mirrors). Spawned under Bun: the script uses Bun-native TS imports.
-const genLlms = (): void => {
+const genMeta = (): void => {
   execFileSync("bun", [genScript], { stdio: "inherit" })
 }
 
-// AX discovery headers; production equivalents live in the deploy script's
-// vercel.json. Served in dev/preview too so agent testing works locally.
+// AX discovery headers. The documents themselves live on the docs deployment
+// now, so these point off-origin; the app no longer serves llms.txt.
+// Served in dev/preview too so agent testing works locally.
 const axHeaders = {
-  Link: '</llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full-txt"',
-  "X-Llms-Txt": "/llms.txt"
+  Link: `<${DOCS_SITE}/llms.txt>; rel="llms-txt", <${DOCS_SITE}/llms-full.txt>; rel="llms-full-txt"`,
+  "X-Llms-Txt": `${DOCS_SITE}/llms.txt`
 }
 
 export default defineConfig({
@@ -118,12 +119,12 @@ export default defineConfig({
   preview: { headers: axHeaders },
   plugins: [
     {
-      name: "gen-llms",
-      buildStart: () => genLlms(),
-      configureServer: () => genLlms()
+      name: "gen-meta",
+      buildStart: () => genMeta(),
+      configureServer: () => genMeta()
     },
     {
-      // One source for the canonical URL: scripts/site.ts feeds gen-llms
+      // One source for the canonical URL: scripts/site.ts feeds gen-meta
       // and replaces %SITE% in index.html OG tags.
       name: "inject-site",
       transformIndexHtml: (html: string) => html.replaceAll("%SITE%", SITE)

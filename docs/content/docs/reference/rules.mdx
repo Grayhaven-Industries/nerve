@@ -1,0 +1,42 @@
+---
+title: Validation rules
+description: Every built-in HK-* check, generated from the shipped rule set.
+---
+
+Every built-in rule has a stable `HK-*` code, suitable for CI gating and for
+waivers that still mean something in a year. The table is generated from the
+`builtinRules` array shipped in `@grayhaven/nerve-rules`, so it cannot drift
+from the code. Custom rules use the same
+[`rule()` API](/docs/guides/write-a-custom-rule) and carry their own codes.
+
+## Reading a finding
+
+```text
+error  connector:J1.pin:1  HK-MFG-004
+  Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+```
+
+Severity, target, code, then the message. Add `--codes` to any command to
+print the code; every JSON artifact carries it either way.
+
+Severity drives the exit code. Errors fail `nerve validate` with exit `1`;
+warnings and info findings pass with a notice. Severities are tunable per rule
+by name in `nerve.config.ts`, and that tuning also reaches the release gate.
+
+<Callout title="A passing rule is not a silent rule">
+  `nerve review` reports how close each passing check came to its limit. A
+  wire at 99% of its derated ampacity and a wire at 40% both pass, and they are
+  not the same design.
+</Callout>
+
+## What the count does not tell you
+
+A rule can only judge facts the design supplied, so all of these can pass on a
+design that declares almost nothing. Use `nerve parts` to see which checks a
+part's data enables, `nerve provenance` to see which limits rest on unverified
+data, and [rule coverage](/docs/reference/rule-coverage) to see the rule set as
+a fraction of the actual problem.
+
+## The rules
+
+<include>../../generated/rules-table.md</include>

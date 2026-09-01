@@ -1,4 +1,4 @@
-# Agents: machine-readable docs index at https://nerve.grayhavenindustries.com/llms.txt
+# Agents: machine-readable docs index at https://docs.grayhavenindustries.com/llms.txt
 User-agent: *
 Allow: /
 

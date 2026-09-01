@@ -1,0 +1,75 @@
+---
+title: Check a connector against a board
+description: Compare a harness connector with a KiCad board, a tscircuit design, a pinout CSV, or another interface contract.
+---
+
+`HK-CONN-011` compares a wire's signal against its pin assignment, but both are
+written by the same author in the same file. A consistently wrong pinout, which
+is the mistake people actually make, agrees with itself and compiles clean.
+
+`nerve contract` is the answer to that. It checks a connector against an
+authority outside the harness.
+
+## Against a KiCad board
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve contract ./src/main.harness.ts \
+  --connector J1 \
+  --against ./controller.kicad_pcb \
+  --component J7 \
+  --out ./dist/contracts
+```
+
+- `--connector` is the reference in your harness.
+- `--component` is the footprint reference on the board.
+
+The adapter reads footprint reference properties, pad-to-net assignments, and
+explicit no-connect pads from a KiCad 6 or newer board file. It writes
+`contract-J1.normalized.json` carrying the board revision, the ECAD component,
+the generator and version, and a content fingerprint, so the normalized input
+can itself be reviewed and committed.
+
+<Callout type="warn" title="Board file, not schematic">
+  The adapter does not infer graphical connectivity from a schematic. Point it
+  at the `.kicad_pcb`.
+</Callout>
+
+## Against tscircuit
+
+```bash
+# Validate the harness against a tscircuit board:
+nerve contract ./src/main.harness.ts --connector J1 --against board.circuit.json
+
+# Or hand tscircuit the harness side as Circuit JSON:
+nerve contract ./src/main.harness.ts --connector J1 --format circuit-json
+```
+
+## Against a pinout CSV or another contract
+
+```bash
+nerve contract ./src/main.harness.ts --connector J1 --against ./pinout.csv
+nerve contract ./src/main.harness.ts --connector J1 --against ./contract.json
+```
+
+Use this when the authority is a datasheet you transcribed once, a customer
+interface control document, or another team's harness.
+
+## Declare the pinout on the part instead
+
+Where a part fixes its own pinout, say so on the part rather than checking it
+after the fact. A bare housing has no pinout: pin 1 of a Micro-Fit receptacle
+is whatever you crimp into it. A device does: a sensor, a module, or a board
+header has its pinout defined by the thing.
+
+```ts
+pinout: { '1': 'VBAT_24V', '2': 'GND', '3': 'CAN_H', '4': 'CAN_L' }
+```
+
+Declaring it turns pin assignment into a claim that an outside authority can
+contradict. `matingMpn` does not help here; it is a part number with nothing
+behind it.
+
+## Put it in the gate
+
+`nerve contract` exits nonzero on a mismatch, so it belongs in CI next to
+`nerve validate` for any harness that mates with a board you also control.

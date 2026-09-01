@@ -1,0 +1,7 @@
+{
+  "title": "Changelog",
+  "description": "Released versions",
+  "icon": "List",
+  "root": true,
+  "pages": ["index"]
+}

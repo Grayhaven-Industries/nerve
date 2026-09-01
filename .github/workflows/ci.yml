@@ -65,6 +65,52 @@ jobs:
           node ../../packages/nerve-cli/bin/nerve.js export ./src/main.harness.ts --out /tmp/packet
           test -f /tmp/packet/manufacturing-packet.pdf
 
+  # The docs site is a separate project with its own lockfile, so the `ci` job
+  # above never touches it. Without this, a broken MDX include, a dead internal
+  # link, or a failing twoslash block only surfaces on the Vercel docs deploy.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # The generated reference fragments are committed, but they are produced
+      # from packages/ source by the root build, so the workspace install has
+      # to happen before the drift check below can mean anything.
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Generated docs reference is current
+        run: |
+          bun run docs:reference
+          if ! git diff --exit-code --stat -- docs/content/generated; then
+            echo "::error::docs/content/generated is stale. Run 'bun run docs:reference' and commit the result."
+            exit 1
+          fi
+
+      - name: Install docs
+        run: bun install --frozen-lockfile
+        working-directory: docs
+
+      - name: Typecheck
+        run: bun run typecheck
+        working-directory: docs
+
+      - name: Internal links resolve
+        run: bun run lint:links
+        working-directory: docs
+
+      - name: Build
+        run: bun run build
+        working-directory: docs
+        env:
+          NEXT_PUBLIC_BASE_URL: https://docs.grayhavenindustries.com
+
   # Tests the PUBLISHED tarball shape, not the source workspace — the test
   # class that would have caught the three consecutive broken releases
   # (src-pointing exports, phantom dep pins, missing dist).
@@ -147,7 +193,7 @@ jobs:
   # the guard step flips `skip` and every later step no-ops.
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [ci, tarball-smoke, node-floor-smoke, e2e]
+    needs: [ci, docs, tarball-smoke, node-floor-smoke, e2e]
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: team_12KWBEUhkMyQ7SoMeW388x0l

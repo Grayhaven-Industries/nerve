@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://nerve.grayhavenindustries.com/</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs</loc></url>
   <url><loc>https://nerve.grayhavenindustries.com/showcase</loc></url>
   <url><loc>https://nerve.grayhavenindustries.com/projects</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/quickstart</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/dsl</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/sdk</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/cli</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/artifacts</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/ai</loc></url>
-  <url><loc>https://nerve.grayhavenindustries.com/docs/lifecycle</loc></url>
 </urlset>

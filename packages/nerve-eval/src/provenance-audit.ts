@@ -3,8 +3,8 @@
  *
  * Coverage and soundness are independent quantities. Coverage — what fraction
  * of real failure modes the rule set speaks to — is counted honestly in
- * docs/rule-coverage.md. Soundness — of the claims it makes, how many are
- * correct — has never been measured at all, and the gap is not hypothetical:
+ * docs/content/docs/reference/rule-coverage.mdx. Soundness — of the claims
+ * it makes, how many are correct — has never been measured at all, and the gap is not hypothetical:
  * four errors in this repository's own reference data surfaced in one batch,
  * and every one surfaced as a side effect of modelling terminals rather than
  * because anything was looking. Two JST contact ranges recorded backwards, a

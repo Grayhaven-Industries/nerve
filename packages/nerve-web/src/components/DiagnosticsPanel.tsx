@@ -1,7 +1,7 @@
 import type { Diagnostic } from "@grayhaven/nerve"
-import { Link } from "@tanstack/react-router"
 import rulesMeta from "../docs/rules-meta.json"
 import { RULE_SUMMARIES } from "../docs/rule-summaries.js"
+import { docsUrl } from "../lib/site.js"
 import { jumpToSource } from "../lib/editor-registry.js"
 import { selectionFromTarget, setSelection } from "../lib/selection.js"
 
@@ -52,9 +52,15 @@ export function DiagnosticsPanel({
           // target becomes a real button instead (§11.3: selecting a
           // diagnostic selects its object everywhere).
           <div key={keyFor(d)} className={`diag ${d.severity}`}>
-            <Link to="/docs/rules" className="code" title={ruleSummaries.get(d.code)}>
+            <a
+              href={docsUrl("/docs/reference/rules")}
+              target="_blank"
+              rel="noreferrer"
+              className="code"
+              title={ruleSummaries.get(d.code)}
+            >
               {d.code}
-            </Link>
+            </a>
             {sel !== undefined && refChips.length === 0 && d.target !== undefined ? (
               <button
                 type="button"

@@ -32,7 +32,8 @@ export interface DslMeta {
   readonly interfaces: ReadonlyArray<InterfaceMeta>
 }
 
-// import.meta.dirname works under both bun (gen-llms) and node (vitest).
+// import.meta.dirname works under both bun (gen-meta, the docs generator)
+// and node (vitest).
 const NERVE_SRC = join(import.meta.dirname, "../../nerve/src")
 
 /** Builders documented in the DSL reference, in presentation order. */
@@ -150,7 +151,8 @@ const extractBuilders = (): Array<BuilderMeta> => {
   return out.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name))
 }
 
-/** The generated reference block injected into docs-content/dsl.md. */
+/** The generated reference block the docs site includes into its DSL page
+ * (docs/content/generated/dsl-reference.md). */
 export const dslReferenceMd = (meta: DslMeta): string => {
   const sigs = meta.builders.map((b) => `${b.signature}`).join("\n")
   const tables = meta.interfaces

@@ -121,13 +121,14 @@ test("export packet downloads a zip built in the worker", async ({ page }) => {
   expect(file.suggestedFilename()).toBe("motor-controller-packet.zip")
 })
 
-test("docs render with copy-as-markdown and highlighted code", async ({ page }) => {
-  await page.goto("/docs/dsl")
-  await expect(page.locator(".docs-content, .docs-body").first()).toBeVisible()
-  await expect.poll(async () => page.locator("pre code span[class*='tok-']").count(), {
-    timeout: 10_000
-  }).toBeGreaterThan(5)
-  await expect(page.getByRole("button", { name: /copy.*markdown/i }).first()).toBeVisible()
+test("the docs link leaves the app for the docs site", async ({ page }) => {
+  // Prose docs live in their own deployment (docs/); the workspace only
+  // links out. This guards against the link silently becoming a dead
+  // in-app route again.
+  await page.goto("/")
+  const docsLink = page.getByRole("link", { name: /^docs$/i }).first()
+  await expect(docsLink).toHaveAttribute("href", /^https:\/\/[^/]+\/docs/)
+  await expect(docsLink).toHaveAttribute("target", "_blank")
 })
 
 test("reset is undoable: Undo reset restores pre-reset edits", async ({ page }) => {

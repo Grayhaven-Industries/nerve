@@ -1,0 +1,159 @@
+---
+title: Troubleshooting
+description: The failures people actually hit, what they mean, and what to change.
+icon: LifeBuoy
+---
+
+## Read the exit code first
+
+| Code | Meaning | Usually means |
+| --- | --- | --- |
+| `0` | Success | Warnings and info findings do not fail a command. |
+| `1` | Validation or test failure | The harness has an `HK-*` error, or a measurement failed. |
+| `2` | Usage, compile, or incomplete evidence | The command is wrong, the file did not load, or required evidence is missing. |
+
+A `2` is a job configuration problem far more often than a design problem.
+
+## "Missing required argument."
+
+The command printed the usage block. Either pass the harness file explicitly:
+
+```bash
+npx nerve validate ./src/main.harness.ts
+```
+
+or set `entry` in `nerve.config.ts` and run the command from a directory at or
+below the config:
+
+```ts title="nerve.config.ts"
+export default defineConfig({ entry: './src/main.harness.ts' })
+```
+
+Nerve finds the config by walking up from the current directory. Running from
+outside the project is the usual cause.
+
+## "Cannot find module '@grayhaven/nerve'"
+
+The harness file could not resolve its own imports. This is a project setup
+problem, not a design problem.
+
+- Run `npm install` in the directory that holds the `package.json`.
+- After `nerve import`, the emitted project under `--out` has its own
+  `package.json`. Install inside it before compiling it.
+
+## A findings message with no code
+
+Add `--codes`:
+
+```bash
+npx nerve validate --codes
+```
+
+```text
+error  connector:J1.pin:1  HK-MFG-004
+  Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+```
+
+Every JSON artifact carries the codes either way; only the terminal output
+omits them by default.
+
+## Everything passes and you do not believe it
+
+This is the correct instinct. A rule can only judge facts that were supplied,
+so a design that declares little passes easily. Two commands tell you where
+you stand:
+
+```bash
+npx nerve parts ph-2     # which checks this part's data enables
+npx nerve provenance     # which limits rest on unverified part data
+```
+
+```text
+  inspired-by  connector  PHR-2  (wireGaugeRange, currentLimitA, voltageLimitV, cavityLayout, compatibleTerminals)
+1 part(s) supply a limit a rule judges against without being verified.
+```
+
+Then read [rule coverage](/docs/reference/rule-coverage), which breaks the
+rule set down by failure mode, including failure modes no design
+representation can catch.
+
+## A wire fails a gauge check that looks right
+
+The check judges the wire against the **contact that crimps it** and the
+connector's accepted range, not against the housing family or the signal name.
+
+```text
+Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+```
+
+If the range looks wrong, inspect the part rather than the harness:
+
+```bash
+npx nerve parts ph-2
+```
+
+If the part data is wrong, override it with your own provider; see the
+[SDK reference](/docs/reference/sdk).
+
+## Thermal checks are failing a design that is fine
+
+`currentEstimate` means continuous current. Not peak, not inrush, not stall.
+Every rule that reads it is thermal. Putting a startup surge there oversizes
+the harness or fails a design that is correct. Size for the continuous draw
+and treat inrush as a separate concern.
+
+## Derating or sleeve-fill numbers look wrong
+
+They depend on how many conductors Nerve believes are in the bundle. Membership
+is inferred from whether both endpoints of a wire appear in a branch's `path`,
+which makes it depend on an authoring accident: two physically identical
+bundles disagree if one path happens to name a shared source connector and the
+other does not.
+
+Set `branch` explicitly on the wires that matter.
+
+## An imported harness lost something
+
+Check `import-report.json` first. Every source row is accounted for as accepted
+or rejected with row and column diagnostics, and lossy WireViz constructs
+appear as `HK-WV-001`.
+
+For WireViz specifically, a bare `gauge:` number is mm², not AWG. Verify
+imported gauges for standard metric cross-sections.
+
+## Snapshots fail in CI but the design did not change
+
+`nerve snapshot --ci` is byte-exact, so it also catches renderer and geometry
+changes. If the change is intended, accept it deliberately:
+
+```bash
+npx nerve snapshot --update
+```
+
+Commit the updated snapshots with the change that caused them.
+
+## "Release blocked" or "Export blocked" with no errors printed
+
+`nerve release` and `nerve export --target manufacturing-packet` fail closed.
+They block on two things, and only the first one prints as a finding:
+
+1. Any diagnostic at **error** severity, after severity tuning.
+2. Any net without adequate continuity coverage, beyond what `HK-ELEC-011`
+   already reported.
+
+The second is the one that surprises people. Generated tests must form a
+connected graph over every accessible pin on a net. A net with fewer than two
+accessible points cannot be tested point to point and blocks release. Check the
+test plan in `dist/test-plan.json` against the nets in `dist/graph.json`.
+
+Note that severity tuning **does** apply here: a rule you downgrade to
+`warning` in `nerve.config.ts` no longer blocks a release. That is a decision
+worth making deliberately and in a commit, not by filtering output.
+
+## Still stuck
+
+Open an issue at
+[github.com/tylergibbs1/nerve](https://github.com/tylergibbs1/nerve/issues)
+with the `review-report.json` from `nerve review`. It carries the harness
+revision, HIR schema version, fingerprint, tool and rule versions, findings,
+and limitations, which is everything needed to reproduce a report.

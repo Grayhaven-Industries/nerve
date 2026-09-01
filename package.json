@@ -11,7 +11,8 @@
     "lint": "oxlint",
     "typecheck": "for p in packages/* examples/*; do (cd $p && node ../../node_modules/typescript-7/bin/tsc -p . --noEmit) || exit 1; done",
     "typecheck:ts5": "for p in packages/* examples/*; do (cd $p && bunx tsc -p . --noEmit) || exit 1; done",
-    "build": "bun run --filter './packages/*' build"
+    "build": "bun run --filter './packages/*' build && bun run docs:reference",
+    "docs:reference": "bun docs/scripts/generate-reference.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

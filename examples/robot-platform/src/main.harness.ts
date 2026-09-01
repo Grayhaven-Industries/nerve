@@ -186,7 +186,8 @@ const drive = (
 
 // Drives 1-2 run in the left breakout, 3-4 in the right. Stating it on the
 // wire rather than leaving it to path adjacency is what makes the two bundles
-// count the same number of conductors — see docs/rule-coverage.md.
+// count the same number of conductors — see the rule coverage page in
+// docs/content/docs/reference/.
 const drives = [
   drive(1, 450, 120, "drive_l"),
   drive(2, 470, 120, "drive_l"),

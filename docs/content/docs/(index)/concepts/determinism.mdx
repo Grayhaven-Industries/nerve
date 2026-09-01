@@ -1,0 +1,60 @@
+---
+title: Determinism and fingerprints
+description: Why byte-identical output is a feature, and what the fingerprint lets you prove.
+---
+
+Nerve is deterministic by construction: the same input produces the same
+bytes, every time, on any machine. That is not a performance claim. It is what
+makes the rest of the workflow possible.
+
+## What is deterministic
+
+- **HIR.** `compileDesign` is pure. Collections are canonically sorted and
+  optional fields are omitted rather than emitted as null.
+- **Every artifact.** Drawings, CSVs, the PDF, and the zip are byte-identical
+  across runs. The zip uses fixed timestamps, so archives hash-verify.
+- **Findings.** Rule order and finding order are stable, so a diagnostics file
+  diffs cleanly.
+
+## The fingerprint
+
+`nerve review` and `nerve release` print a content hash of the HIR:
+
+```text
+my-first-harness rev A: 0 finding(s), fingerprint 602020e15da5c711
+```
+
+Because the hash covers the compiled representation rather than the source
+text, it is stable against formatting and comment changes and sensitive to
+anything that changes the harness. That gives you three things:
+
+1. **Packet provenance.** A packet on the shop floor can be checked against the
+   release record it claims to come from.
+2. **Reproducibility gating.** CI can rebuild `dist/harness.json` from source
+   and fail if it differs. `nerve setup` writes exactly that workflow.
+3. **Honest review.** A pull request that changes drawings but not the
+   fingerprint changed the renderer, not the design.
+
+## Why this matters in review
+
+A non-deterministic toolchain forces reviewers to re-read whole documents
+because they cannot tell noise from change. When output is byte-stable, a
+harness revision reads as a diff:
+
+```text
+harness:
+  ~ revision: A -> B
+wires:
+  ~ wire:W_BUMP_L_RTN
+      length: 520 -> 550
+```
+
+`nerve diff` produces that from two revisions, down to a single pin swap. It
+is a semantic diff over HIR, not a text diff over drawings.
+
+## What determinism does not give you
+
+Byte-stability says the tool behaved the same way twice. It says nothing about
+whether the design is correct, whether the part data is right, or whether the
+harness was built as drawn. See
+[what Nerve does not check](/docs/concepts/limits).

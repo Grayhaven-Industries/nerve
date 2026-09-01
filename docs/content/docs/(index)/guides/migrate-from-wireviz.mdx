@@ -1,0 +1,81 @@
+---
+title: Migrate from WireViz
+description: Review a WireViz project directly, including one that keeps its anchors in a prepend file.
+---
+
+WireViz YAML is a first-class input. You can review a project without
+converting it by hand, and see exactly which concepts did not survive the
+translation.
+
+## Review a project
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve import ./harness.yml \
+  --id my-harness \
+  --out ./migration
+```
+
+For projects that keep reusable YAML anchors in a separate file:
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve import ./harness.yml \
+  --prepend-file ./templates.yml \
+  --id my-harness \
+  --out ./migration
+```
+
+The WireViz path writes two files:
+
+```text
+migration/
+  harness.json       the compiled HIR
+  diagnostics.json   every finding, including the lossy-construct warnings
+```
+
+<Callout title="This is not the wire-list import">
+  The [CSV and Excel path](/docs/guides/import-a-wire-list) emits a scaffolded,
+  editable project (`src/main.harness.ts`, `nerve.config.ts`, `package.json`)
+  plus an `import-report.json`. The WireViz path does not. It compiles straight
+  to HIR, so review `harness.json` and `diagnostics.json` rather than looking
+  for a project to install.
+</Callout>
+
+## What the adapter resolves
+
+- Named template instances.
+- Ranges and pin labels.
+- Wire labels and unique colour references.
+- Explicit length units.
+
+## What becomes a diagnostic
+
+Concepts that cannot be represented without loss stay visible as `HK-WV-001`
+diagnostics rather than being approximated silently. Read them before you
+trust the imported design; each one marks a fact that did not make the trip.
+
+## Gauge units
+
+WireViz treats a bare `gauge:` number as mm², not AWG. Check imported gauges
+against the source, particularly for standard metric cross-sections (1, 4, 6,
+10, 16, 25, 35 mm²), and prefer explicit units in the source YAML where you
+can.
+
+## Author in Nerve, export back to WireViz
+
+The translation is not one-way. Once you have a Nerve source file, whether you
+wrote it or the [wire-list import](/docs/guides/import-a-wire-list) generated
+it, you can emit WireViz YAML from it:
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve export ./src/main.harness.ts \
+  --target wireviz --out ./dist
+```
+
+That lets a team keep WireViz for the parts of its workflow that depend on it
+while Nerve owns the review gate.
+
+<Callout type="warn" title="This takes a Nerve source file, not the import output">
+  `nerve export` compiles a `.harness.ts` file. The WireViz import above does
+  not produce one, so this command is for a design you author in Nerve or
+  generate from a wire list, not for round-tripping the YAML you just imported.
+</Callout>

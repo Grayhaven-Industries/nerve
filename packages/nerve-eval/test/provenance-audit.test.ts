@@ -1,10 +1,11 @@
 /**
  * The soundness counterpart to coverage.
  *
- * docs/rule-coverage.md counts what the rule set checks. Nothing counted what
- * those checks rest on, and the cost of that showed up as four wrong entries
- * in this repository's own reference data, all found as a side effect of
- * other work rather than because anything was looking.
+ * docs/content/docs/reference/rule-coverage.mdx counts what the rule set
+ * checks. Nothing counted what those checks rest on, and the cost of that
+ * showed up as four wrong entries in this repository's own reference data,
+ * all found as a side effect of other work rather than because anything was
+ * looking.
  *
  * These tests pin the distinction the audit exists to make: a clean report
  * over verified limits and a clean report over transcribed ones are not the
