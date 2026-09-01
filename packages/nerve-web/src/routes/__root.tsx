@@ -82,7 +82,9 @@ function RootLayout() {
             <GrayhavenMark />
             <span className="brand-label">Grayhaven Nerve</span>
           </Link>
-          <nav className="topnav">
+          {/* React 19.2.8 renders aria-label on nav; TanStack Router
+              1.170.27 keeps the Link anchors and routes unchanged. */}
+          <nav className="topnav" aria-label="Primary">
             <Link to="/showcase" activeProps={{ className: "active" }}>
               Showcase
             </Link>

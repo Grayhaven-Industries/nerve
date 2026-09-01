@@ -154,4 +154,4 @@ Types for every node (`HirWire`, `HirConnector`, `HirEndpoint`, and the rest) sh
 
 ## Loading .harness.ts files
 
-The CLI loads design files through `@grayhaven/nerve-compiler` (jiti under the hood, no build step needed). Use it when your tool takes a file path rather than an imported module; everything in this page works in any bundler, Node 20+, or Bun.
+The CLI loads design files through `@grayhaven/nerve-compiler` (jiti under the hood, no build step needed). Use it when your tool takes a file path rather than an imported module; everything in this page works in any bundler, Node 20.6+, or Bun.

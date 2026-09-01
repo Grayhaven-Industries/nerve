@@ -88,6 +88,35 @@ jobs:
       - name: Pack, install, and exercise tarballs
         run: bun scripts/smoke-tarballs.ts
 
+  # Keep the documented CLI runtime floor honest. The smoke script builds the
+  # release tarballs, installs them in a clean npm consumer, and exercises the
+  # mapped CSV path that relies on ESM package resolution.
+  node-floor-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run build
+
+      # Build tooling follows the repository's Node 24 floor; only the
+      # published consumer is expected to support the CLI runtime floor.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20.6.0
+
+      - name: Exercise published tarballs on the minimum Node version
+        run: bun scripts/smoke-tarballs.ts
+
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -118,7 +147,7 @@ jobs:
   # the guard step flips `skip` and every later step no-ops.
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [ci, tarball-smoke, e2e]
+    needs: [ci, tarball-smoke, node-floor-smoke, e2e]
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: team_12KWBEUhkMyQ7SoMeW388x0l

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+// Vitest 4.1.10: describe/it/expect exports verified against installed types.
 import { describe, expect, it } from "vitest"
 import { compileDesign } from "@grayhaven/nerve"
 import { exportWireViz, importWireViz } from "@grayhaven/nerve-wireviz"
@@ -54,6 +55,81 @@ describe("WireViz import (PRD §27.2)", () => {
     const { hir: h } = compileDesign(result.design)
     expect(h.cables).toEqual([])
     expect(h.wires.map((w) => w.color)).toEqual(["white", "brown"])
+  })
+
+  it("reports unknown top-level scalar and object sections", () => {
+    const result = importWireViz(`connectors: {}
+cables: {}
+connections: []
+vendor_note: keep out
+vendor_extension:
+  nested: value
+`)
+
+    expect(result.design.wires).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "HK-WV-001",
+        severity: "warning",
+        message: expect.stringContaining('"vendor_note"')
+      }),
+      expect.objectContaining({
+        code: "HK-WV-001",
+        severity: "warning",
+        message: expect.stringContaining('"vendor_extension"')
+      })
+    ])
+  })
+
+  it("reports recursive values by key without traversing the alias", () => {
+    const result = importWireViz(`recursive: &loop [*loop]
+connectors: {}
+cables: {}
+connections: []
+`)
+
+    expect(result.design.wires).toEqual([])
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "HK-WV-001",
+        message: expect.stringContaining('"recursive"')
+      })
+    ])
+  })
+
+  it("accepts top-level templates as a diagnostic-clean anchor container", () => {
+    const result = importWireViz(`templates:
+  connector: &connector
+    type: JST-XH
+connectors:
+  X1:
+    <<: *connector
+cables: {}
+connections: []
+`)
+
+    expect(result.design.connectors).toHaveLength(1)
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it("continues to report known unsupported top-level sections", () => {
+    const result = importWireViz(`connectors: {}
+cables: {}
+connections: []
+tweak: {}
+additional_bom_items: []
+`)
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "HK-WV-001",
+        message: expect.stringContaining('"tweak"')
+      }),
+      expect.objectContaining({
+        code: "HK-WV-001",
+        message: expect.stringContaining('"additional_bom_items"')
+      })
+    ])
   })
 
   it("supports prepend files, YAML merges, descending ranges, and explicit length units", () => {

@@ -1,7 +1,8 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createServer } from "node:http"
 import { join } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
-import { Schema } from "effect"
+import { Predicate, Schema } from "effect"
 import { startDev } from "@grayhaven/nerve-cli"
 
 const FIXTURE = join(
@@ -33,6 +34,35 @@ const readState = async (url: string) =>
   Schema.decodeUnknownSync(DevState)(await (await fetch(`${url}/state.json`)).json())
 
 describe("nerve dev server", () => {
+  it("rejects a listen failure and can reuse the port after the conflict clears", async () => {
+    const blocker = createServer()
+    await new Promise<void>((resolveListen, rejectListen) => {
+      const onError = (cause: unknown): void => rejectListen(cause)
+      blocker.once("error", onError)
+      blocker.listen(0, "127.0.0.1", () => {
+        blocker.off("error", onError)
+        resolveListen()
+      })
+    })
+    const address = blocker.address()
+    if (address === null || Predicate.isString(address)) {
+      throw new Error("loopback listener did not return a TCP address")
+    }
+    const port = address.port
+    try {
+      // Vitest 4.1.10: promise rejection assertions preserve native error properties for matching.
+      await expect(startDev(harnessPath, { io: sink(), port })).rejects.toMatchObject({
+        code: "EADDRINUSE"
+      })
+    } finally {
+      await new Promise<void>((resolveClose) => blocker.close(() => resolveClose()))
+    }
+
+    const dev = await startDev(harnessPath, { io: sink(), port })
+    expect(dev.port).toBe(port)
+    await dev.close()
+  }, 30000)
+
   it("serves live views, reports state, and picks up edits (fresh module cache)", async () => {
     const io = sink()
     const dev = await startDev(harnessPath, { io, port: 0 })

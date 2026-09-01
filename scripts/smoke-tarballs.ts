@@ -12,9 +12,9 @@
  *      bin must exist in the tarball listing.
  *   3. Consumer install: npm-install the tarballs (overrides force every
  *      internal dep to the local artifact) in a temp dir, then run
- *      `nerve init/validate/export`, and load every package from dist under
- *      BOTH `import` and `require` (an import-only exports map broke every
- *      CJS consumer).
+ *      `nerve --version/init/validate/export`, immediately compile a mapped
+ *      CSV migration, and load every package from dist under BOTH `import`
+ *      and `require` (an import-only exports map broke every CJS consumer).
  *
  *   bun run build && bun scripts/smoke-tarballs.ts
  */
@@ -206,6 +206,71 @@ writeFileSync(
   )
 )
 run("npm", ["install", "--no-audit", "--no-fund"], consumer)
+
+const packedCliVersion = packed.get("@grayhaven/nerve-cli")!.pkg["version"]
+if (!isJsonString(packedCliVersion)) {
+  throw new Error("@grayhaven/nerve-cli tarball has no string version")
+}
+const versionOutput = execFileSync("npx", ["nerve", "--version"], {
+  cwd: consumer,
+  encoding: "utf8"
+})
+if (versionOutput !== `${packedCliVersion}\n`) {
+  console.error(
+    `✗ published CLI version output was ${JSON.stringify(versionOutput)}; expected ${JSON.stringify(`${packedCliVersion}\n`)}`
+  )
+  process.exit(1)
+}
+console.log(`✓ published CLI reports exact package version ${packedCliVersion}`)
+
+// This compiles the generated TypeScript during import. It specifically
+// exercises ESM-condition resolution from the installed CLI tarball.
+writeFileSync(
+  join(consumer, "wire-list.csv"),
+  "Wire,From,From Pin,To,To Pin,Signal,Gauge,Color,Length\nW1,J1,1,J2,1,GND,20AWG,black,100\n"
+)
+writeFileSync(
+  join(consumer, "columns.json"),
+  JSON.stringify({
+    wireId: "Wire",
+    fromConnector: "From",
+    fromPin: "From Pin",
+    toConnector: "To",
+    toPin: "To Pin",
+    signal: "Signal",
+    gauge: "Gauge",
+    color: "Color",
+    length: "Length"
+  })
+)
+run(
+  "npx",
+  [
+    "nerve",
+    "import",
+    "./wire-list.csv",
+    "--map",
+    "./columns.json",
+    "--id",
+    "smoke-csv",
+    "--out",
+    "./csv-migration"
+  ],
+  consumer
+)
+const CsvHir = Schema.Struct({
+  harness: Schema.Struct({ id: Schema.String }),
+  connectors: Schema.Array(Schema.Unknown),
+  wires: Schema.Array(Schema.Unknown)
+})
+const csvHir = Schema.decodeUnknownSync(CsvHir)(
+  JSON.parse(readFileSync(join(consumer, "csv-migration", "harness.json"), "utf8"))
+)
+if (csvHir.harness.id !== "smoke-csv" || csvHir.connectors.length !== 2 || csvHir.wires.length !== 1) {
+  console.error("✗ published CLI did not immediately compile the mapped CSV migration")
+  process.exit(1)
+}
+console.log("✓ published CLI immediately compiles mapped CSV migrations")
 
 // The published bin, against the published dist, compiling a scaffolded
 // project whose imports resolve from the installed tarballs.

@@ -19,7 +19,9 @@ const INK = {
   border: "#2a2723",
   ivory: "#f4f2ec",
   muted: "#9a948a",
-  faint: "#6f6a62"
+  faint: "#6f6a62",
+  // 4.65:1 on canvas: WCAG AA for the 13px line numbers without adding hue.
+  lineNumber: "#858077"
 }
 const HUE = {
   keyword: "#e8823f", // signal orange, lifted for text contrast on black
@@ -40,6 +42,7 @@ const grayhavenHighlight = HighlightStyle.define([
   { tag: [tags.punctuation, tags.bracket, tags.operator], color: INK.muted }
 ])
 
+// @codemirror/view 6.43.8: theme() scopes descendant selectors to the editor.
 const grayhavenEditor = EditorView.theme(
   {
     "&": { backgroundColor: INK.canvas, color: INK.ivory },
@@ -50,7 +53,7 @@ const grayhavenEditor = EditorView.theme(
     ".cm-activeLine": { backgroundColor: INK.raised },
     ".cm-gutters": {
       backgroundColor: INK.canvas,
-      color: INK.faint,
+      color: INK.lineNumber,
       border: "none",
       borderRight: `1px solid ${INK.border}`
     },
