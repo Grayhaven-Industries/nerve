@@ -14,3 +14,7 @@ playwright-report/
 .vercel
 .env*.local
 .env*
+
+# dogfood skill report output: screenshots, repro fixtures and findings.
+# Regenerated per run, and its repros are deliberately broken TypeScript.
+dogfood-output/
