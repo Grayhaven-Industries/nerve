@@ -13,7 +13,8 @@
  *   3. Consumer install: npm-install the tarballs (overrides force every
  *      internal dep to the local artifact) in a temp dir, then run
  *      `nerve --version/init/validate/export`, immediately compile a mapped
- *      CSV migration, and import every package from dist.
+ *      CSV migration, and load every package from dist under BOTH `import`
+ *      and `require` (an import-only exports map broke every CJS consumer).
  *
  *   bun run build && bun scripts/smoke-tarballs.ts
  */
@@ -354,6 +355,43 @@ console.log("✓ dist exports resolve: " + checks.map(c => c[0]).join(", "))
 `
 writeFileSync(join(consumer, "import-check.mjs"), importCheck)
 run("node", ["import-check.mjs"], consumer)
+
+// Every library package must also load under require(). Publishing an
+// "import"-only exports map made require("@grayhaven/nerve") fail with a
+// misleading `No "exports" main defined`, which broke CJS consumers and any
+// tool resolving with require conditions. The two tool packages
+// (nerve-cli, nerve-compiler) are deliberately ESM-only: they read
+// import.meta, which has no correct CJS shim.
+const requireCheck = `
+const checks = [
+  ["@grayhaven/nerve", ["harness", "connector", "wire", "defineConfig", "compileDesign"]],
+  ["@grayhaven/nerve-connectors", ["part", "allParts", "partSpecs"]],
+  ["@grayhaven/nerve-eval", ["createReviewReport", "decodeEvalManifest", "evaluateCase"]],
+  ["@grayhaven/nerve-exporters", ["createBuildRecord", "generateTestPlan", "createRelease"]],
+  ["@grayhaven/nerve-importers", ["importWireList", "parseCsvWireList", "parseXlsxWireList"]],
+  ["@grayhaven/nerve-interop", ["importVec22Subset", "createOpc40570Job", "evaluateAutomationReadiness"]],
+  ["@grayhaven/nerve-platform", ["createWorkOrder", "replayUnitBuild", "ShopFloorCodes"]],
+  ["@grayhaven/nerve-react", ["Harness", "Connector", "Wire"]],
+  ["@grayhaven/nerve-react/jsx-runtime", ["jsx"]],
+  ["@grayhaven/nerve-rules", ["builtinRules", "ruleCategory", "parseAwg"]],
+  ["@grayhaven/nerve-wireviz", ["importWireViz", "exportWireViz"]]
+]
+for (const [mod, names] of checks) {
+  const m = require(mod)
+  for (const n of names) {
+    if (m[n] === undefined) throw new Error(mod + " is missing require export " + n)
+  }
+}
+// Not just resolvable — usable. This compiles a design through the CJS copy.
+const { harness, compileDesign } = require("@grayhaven/nerve")
+const { hir } = compileDesign(
+  harness("cjs-smoke", { revision: "A", units: "mm", connectors: [], wires: [] })
+)
+if (hir.harness.id !== "cjs-smoke") throw new Error("CJS compileDesign did not produce the design")
+console.log("✓ require() resolves: " + checks.map(c => c[0]).join(", "))
+`
+writeFileSync(join(consumer, "require-check.cjs"), requireCheck)
+run("node", ["require-check.cjs"], consumer)
 
 rmSync(consumer, { recursive: true, force: true })
 rmSync(packsFrom, { recursive: true, force: true })
