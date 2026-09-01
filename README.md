@@ -2,18 +2,16 @@
 
 **The open harness verification compiler.**
 
-[![CI](https://github.com/tylergibbs1/nerve/actions/workflows/ci.yml/badge.svg)](https://github.com/tylergibbs1/nerve/actions/workflows/ci.yml)
+[![CI](https://github.com/Grayhaven-Industries/nerve/actions/workflows/ci.yml/badge.svg)](https://github.com/Grayhaven-Industries/nerve/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40grayhaven%2Fnerve)](https://www.npmjs.com/package/@grayhaven/nerve)
 [![license](https://img.shields.io/badge/license-Apache--2.0-white)](./LICENSE)
 
-A harness review is a schematic PDF, a wire list in a spreadsheet, and a
-connector datasheet in somebody's downloads folder.
+A harness review often uses a schematic PDF, a wire-list spreadsheet, and a connector datasheet.
 
-The wire list says J1 pin 3 is CAN_H. The datasheet says pin 3 is CAN_L. Both
-documents are internally consistent. Both have been signed. Nothing in that
-process is capable of noticing.
+The wire list can identify J1 pin 3 as CAN_H. The datasheet can identify the same pin as CAN_L.
+Each document can be internally consistent. A document review can miss the conflict.
 
-Nerve compiles the harness instead:
+Nerve compiles the harness data and finds conflicts across its sources:
 
 ```text
 existing data or Nerve source
@@ -27,58 +25,88 @@ error  connector:J1.pin:1  HK-MFG-004
   Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
 ```
 
-That range came from the connector's data, not from the design's claims about
-itself. A wire is judged against the contact that crimps it. A pin is judged
-against the pinout its part fixes.
+The connector data supplies this range. The design does not judge its own claims.
+Nerve compares each wire with its contact. It compares each pin with the pinout for its part.
 
 ![Nerve reviews a 22-connector harness: no errors, a sleeve at 95% fill, and a pinout swap caught against the part](./docs/assets/nerve-demo.gif)
 
-The demo runs against the bundled `examples/robot-platform`. It calls the real
-CLI, so the recording fails when the output no longer matches. The tape is
-[`docs/assets/nerve.tape`](./docs/assets/nerve.tape).
+This demo uses the bundled `examples/robot-platform` project. It calls the real CLI.
+If the output changes, the recording fails. The source tape is [`docs/assets/nerve.tape`](./docs/assets/nerve.tape).
 
-The same harness in the browser workspace. The Margins tab reports how close
-each passing check came to its limit. The Provenance tab reports what the
-verdict rests on.
+The browser workspace uses the same harness. The Margins tab shows how close each passing check is to its limit.
+The Provenance tab shows the data that supports the result.
 
 ![The Nerve workspace on the Margins tab: 53 measurements, none over budget, the spine sleeve at 95.2% fill](./docs/assets/nerve-web-demo.gif)
 
-The TypeScript API is one input format, not an adoption requirement. Nerve
-imports WireViz, mapped CSV wire lists, and mapped Excel wire lists. It also
-imports connector contracts from KiCad boards, pinout CSV, tscircuit, and its
-own JSON format.
+Use the browser workspace at [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com).
+Read the full documentation at [docs.grayhavenindustries.com](https://docs.grayhavenindustries.com).
 
-[Harness modeling principles](./docs/content/docs/(index)/concepts/harness-modeling.mdx)
-explains the domain boundaries and the owner of each check, and
-[rule coverage](./docs/content/docs/reference/rule-coverage.mdx) says what the
-rule set is as a fraction of the problem.
+## Quick start
 
-Full documentation: [docs.grayhavenindustries.com](https://docs.grayhavenindustries.com).
-The site is the `docs/` directory in this repository.
+Install the packages:
 
-## What it checks
+```bash
+npm install @grayhaven/nerve @grayhaven/nerve-connectors @grayhaven/nerve-cli
+```
 
-53 built-in consistency, electrical, component, and manufacturing checks, each
-with a stable `HK-*` code you can gate a pull request on or cite in a waiver.
-Four properties matter more than the count:
+Review a harness:
 
-- **Margins, not just verdicts.** A wire at 99% of its derated ampacity and a
-  wire at 40% both pass. They are not the same design, so a report says how
-  close each passing check came to its limit.
-- **Measured, not asserted.** The length of a routed branch is computed from
-  its centerline rather than read from a number somebody typed.
-- **Accounted for.** Every mapped CSV or Excel row comes back as accepted or
-  rejected, with row and column diagnostics. Nothing is silently dropped.
-- **Reproducible.** The same source produces byte-identical drawings, tables,
-  PDF and zip, so a revision reads as a diff instead of a re-read.
+```bash
+npx --package=@grayhaven/nerve-cli nerve review ./src/main.harness.ts
+# dist/review-report.json
+```
 
-## What it will not claim
+Run the evaluation corpus:
 
-Nerve does not certify a harness. It does not claim compliance with an industry
-standard or with a customer standard. A report records the checks that ran
-against the facts the design supplied, and says so inside the report.
+```bash
+npx --package=@grayhaven/nerve-cli nerve eval ./eval-corpus/manifest.json
+# dist/eval/eval-report.json
+```
 
-Two commands exist only to tell you where you actually stand:
+The review report contains the harness revision, HIR schema, content fingerprint, tool versions, rule versions, findings, and limitations.
+If the report contains errors, the command returns a nonzero exit code.
+
+## Input formats
+
+The TypeScript API is one input format. You do not have to rewrite existing harness data.
+
+Nerve imports these formats:
+
+- WireViz projects
+- Mapped CSV wire lists
+- Mapped Excel wire lists
+- Connector contracts from KiCad boards
+- Pinout CSV
+- tscircuit
+- Nerve JSON
+
+Nerve also exports WireViz projects.
+
+## What Nerve checks
+
+Nerve has 53 built-in consistency, electrical, component, and manufacturing checks.
+Each check has a stable `HK-*` code for pull-request gates and waivers.
+
+Four properties define the results:
+
+- **Margins, not only verdicts.** A wire at 99% of its derated ampacity is different from a wire at 40%.
+  The report shows the remaining margin for each passing check.
+- **Measured, not asserted.** Nerve calculates a routed branch length from its centerline.
+  It does not use an authored length for this result.
+- **Accounted for.** Each mapped CSV or Excel row is accepted or rejected.
+  The diagnostics identify the source row and column.
+- **Reproducible.** The same source creates byte-identical drawings, tables, PDFs, and zip files.
+  As a result, a revision produces a useful diff.
+
+[Harness modeling principles](./docs/content/docs/(index)/concepts/harness-modeling.mdx) explains the domain boundaries and the owner of each check.
+[Rule coverage](./docs/content/docs/reference/rule-coverage.mdx) identifies the supported and unsupported failure modes.
+
+## What Nerve does not claim
+
+Nerve does not certify a harness. It does not claim compliance with an industry or customer standard.
+A report records the supplied facts and the checks that ran against them.
+
+Use these commands to examine the limits of a result:
 
 ```bash
 nerve parts ph-2     # which checks this part's data enables, and which stay inactive
@@ -90,47 +118,12 @@ nerve provenance     # which limits a clean report rests on that nobody has veri
 A clean report is only as good as these.
 ```
 
-[Rule coverage](./docs/content/docs/reference/rule-coverage.mdx) counts the rule
-set as a fraction of the problem, by failure mode, including the failure modes
-that no design representation can catch. Read it before a clean compile becomes
-an argument.
+Read [rule coverage](./docs/content/docs/reference/rule-coverage.mdx) before you use a clean compile as approval evidence.
+This page includes failure modes that no design representation can find.
 
-## Product and factory foundations
+## Import a wire list
 
-- **Approved electrical test authority.** A caller-authored, plan-matched `TestSpecification` must be approved before a generic tester program carries acceptance limits or an ingested measurement receives a pass or fail verdict. Build records retain the approved specification, measurements, raw-result references and hashes, tester and calibration identity, as-built lengths, and crimp-process evidence.
-- **Headless shop-floor execution.** `@grayhaven/nerve-platform` models released work orders and replays immutable unit events for required evidence, step completion, deviation disposition, rework, reopening, and final closure. Callers supply every identity and timestamp; unit starts require authoritative progress or build context, and the caller owns atomic reservation and persistence.
-- **Product-family configuration.** A family can define ordered options, requirements, exclusions, and deterministic patches. Nerve rejects unknown or conflicting selections, supports bounded enumeration of valid combinations, and lets variants add, override, or remove protection devices.
-- **Supply snapshots.** Core supply records retain provenance, lifecycle, approval, alternates, compatible tooling and processes, availability, lead time, minimum order quantity, and price breaks. Canonical snapshots keep unresolved requests and provider conflicts visible.
-- **Standards and factory interoperability.** `@grayhaven/nerve-interop` provides exact-authority standards profiles, a loss-aware normalized VEC 2.2 subset, transport-neutral OPC UA 40570 cut/strip/crimp/seal job and result mappings, and caller-parameterized automation and high-voltage fact checks.
-
-These APIs describe software records and mappings. They do not certify
-standards conformance, operate or authenticate tester hardware, or prove that a
-physical process occurred. The Cirris Easy-Wire-style exporter remains an
-explicit experimental compatibility export and is excluded from built-in
-production adapter discovery. The shop-floor layer is a headless reducer, not
-a user interface, MES service, or device gateway. The VEC adapter is not a full
-XML parser or validator, and the OPC mapping does not include an OPC UA
-transport client.
-
-The browser workspace at [nerve.grayhavenindustries.com](https://nerve.grayhavenindustries.com) shows the examples and the authoring API.
-
-## Review a harness
-
-```bash
-npm install @grayhaven/nerve @grayhaven/nerve-connectors @grayhaven/nerve-cli
-
-npx --package=@grayhaven/nerve-cli nerve review ./src/main.harness.ts
-# dist/review-report.json
-
-npx --package=@grayhaven/nerve-cli nerve eval ./eval-corpus/manifest.json
-# dist/eval/eval-report.json
-```
-
-`review-report.json` includes the harness revision, HIR schema, content fingerprint, tool and rule versions, findings, and limitations. The command exits nonzero when the report contains errors.
-
-## Import an existing wire list
-
-Create an explicit column map:
+Create a column map:
 
 ```json
 {
@@ -147,7 +140,7 @@ Create an explicit column map:
 }
 ```
 
-Then run:
+Run the import:
 
 ```bash
 npx --package=@grayhaven/nerve-cli nerve import ./wire-list.xlsx \
@@ -157,9 +150,24 @@ npx --package=@grayhaven/nerve-cli nerve import ./wire-list.xlsx \
   --out ./migration
 ```
 
-The output is a complete editable project: `src/main.harness.ts`, `nerve.config.ts`, `package.json`, `tsconfig.json`, the reusable normalized `column-map.json`, `harness.json`, `diagnostics.json`, and `import-report.json`. The CLI immediately compiles the emitted source before reporting success. Unknown connector parts are marked `unverified`; missing signals stay missing; and every accepted or rejected source row remains visible in the report with row/column diagnostics.
+The command creates an editable project with these files:
 
-WireViz projects can be reviewed directly, including projects that keep reusable YAML anchors in a separate prepend file:
+- `src/main.harness.ts`
+- `nerve.config.ts`
+- `package.json`
+- `tsconfig.json`
+- `column-map.json`
+- `harness.json`
+- `diagnostics.json`
+- `import-report.json`
+
+The CLI compiles the new source before it reports success.
+Unknown connector parts receive the `unverified` status. Missing signals stay missing.
+The report contains each accepted or rejected source row and its diagnostics.
+
+### Import WireViz
+
+If the WireViz project keeps reusable YAML anchors in a separate prepend file, run this command:
 
 ```bash
 npx --package=@grayhaven/nerve-cli nerve import ./harness.yml \
@@ -168,9 +176,12 @@ npx --package=@grayhaven/nerve-cli nerve import ./harness.yml \
   --out ./migration
 ```
 
-The adapter resolves named template instances, ranges, pin labels, wire labels, unique color references, and explicit length units. Concepts that cannot be represented without loss remain visible as `HK-WV-001` diagnostics.
+The adapter resolves template instances, ranges, pin labels, wire labels, color references, and explicit length units.
+An `HK-WV-001` diagnostic identifies each concept that the adapter cannot represent without data loss.
 
 ## Compare a board connector
+
+Run the contract command:
 
 ```bash
 npx --package=@grayhaven/nerve-cli nerve contract ./src/main.harness.ts \
@@ -180,15 +191,23 @@ npx --package=@grayhaven/nerve-cli nerve contract ./src/main.harness.ts \
   --out ./dist/contracts
 ```
 
-The adapter reads footprint reference properties, pad-to-net assignments, and explicit no-connect pads from a KiCad 6+ board file. It writes `contract-J1.normalized.json` with the board revision, ECAD component, generator/version, and a content fingerprint so the normalized input can be reviewed or committed. It does not infer graphical connectivity from a schematic.
+The adapter reads footprint references, pad-to-net assignments, and explicit no-connect pads from a KiCad 6+ board file.
+It writes `contract-J1.normalized.json` for review or source control.
 
-## Authoring quick start
+The file contains the board revision, ECAD component, generator version, and content fingerprint.
+The adapter does not infer graphical connectivity from a schematic.
+
+## Author a harness
+
+Create a project:
 
 ```bash
 npx --package=@grayhaven/nerve-cli nerve init .
 npx --package=@grayhaven/nerve-cli nerve compile ./src/main.harness.ts
 npx --package=@grayhaven/nerve-cli nerve export ./src/main.harness.ts
 ```
+
+Use the TypeScript API to define the harness:
 
 ```ts
 import { connector, harness, wire } from "@grayhaven/nerve"
@@ -201,61 +220,96 @@ const j1 = connector("J1", MolexMicroFit["43025-0800"], {
 // See examples/motor-controller for a complete design.
 ```
 
-## Questions you probably have
+## Product and factory APIs
 
-**"We already use WireViz."** Good. Point Nerve at the YAML, including a project
-that keeps reusable anchors in a separate prepend file. Anything that cannot be
-represented without loss becomes an `HK-WV-001` diagnostic instead of quietly
-disappearing, and `nerve export --target wireviz` translates back.
+Nerve includes APIs for product configuration, supply data, release control, and factory records.
 
-**"Our harnesses aren't complicated enough for this."** The errors that cost
-money usually are not complicated. A swapped pair. A gauge at the edge of a
-contact's range. A wire that arrives 30mm short of its bracket.
+- **Electrical test authority.** An approved `TestSpecification` supplies acceptance limits to a generic tester program.
+  Build records retain the specification, measurements, source hashes, tester identity, calibration identity, lengths, and crimp evidence.
+- **Shop-floor execution.** `@grayhaven/nerve-platform` models released work orders and immutable unit events.
+  The caller supplies each identity and timestamp. The caller also owns atomic reservation and persistence.
+- **Product configuration.** A product family defines ordered options, requirements, exclusions, and deterministic patches.
+  Nerve rejects unknown or conflicting selections. A variant can add, override, or remove protection devices.
+- **Supply snapshots.** Supply records include provenance, lifecycle, approval, alternates, tooling, processes, availability, lead time, quantity, and price breaks.
+  A canonical snapshot retains unresolved requests and provider conflicts.
+- **Standards and factory interoperability.** `@grayhaven/nerve-interop` supplies standards profiles and a normalized VEC 2.2 subset.
+  It also supplies OPC UA 40570 mappings and caller-defined automation checks.
 
-**"I'm not rewriting our wire lists in TypeScript."** Don't. `nerve import`
-takes CSV and Excel through a column map you write, and emits a complete
-editable project. The TypeScript API is one input format, not an adoption
-requirement.
+These APIs describe software records and mappings. They do not prove that a physical process occurred.
+They do not certify standards compliance or authenticate tester hardware.
 
-**"This is just a linter."** It is also the packet. One compile writes the
-drawings, BOM, cut list, labels, bill of process, continuity tests, assembly
-instructions and PDF build book, byte-identically.
+The shop-floor layer is a headless reducer. It is not a user interface, MES service, or device gateway.
+The VEC adapter is not a complete XML parser or validator. The OPC mapping does not include an OPC UA transport client.
 
-**"How do I know the checks are any good?"** You do not have to take it on
-faith. [Rule coverage](./docs/content/docs/reference/rule-coverage.mdx) counts
-what the rule set is and is not, and `nerve provenance` names the part data a
-clean report currently depends on.
+The Cirris Easy-Wire-style exporter is experimental. Built-in production adapter discovery excludes it.
 
-**"Would our designs leave our machines?"** No. The CLI runs locally and the
-browser workspace compiles in the browser. Apache-2.0.
+## Common questions
+
+### Can Nerve use an existing WireViz project?
+
+Yes. Give Nerve the YAML file and an optional prepend file.
+Nerve reports unsupported data with `HK-WV-001`. It does not silently remove the data.
+
+Use `nerve export --target wireviz` to translate a Nerve project to WireViz.
+
+### Is Nerve useful for a small harness?
+
+Yes. Expensive harness errors can be simple.
+A swapped pair, an invalid wire gauge, or a short wire can stop production.
+
+### Must a team rewrite its wire lists in TypeScript?
+
+No. `nerve import` converts CSV and Excel data through an explicit column map.
+The command creates a complete editable project.
+
+### Is Nerve only a linter?
+
+No. One compile creates drawings, a BOM, a cut list, labels, and a bill of process.
+It also creates continuity tests, assembly instructions, and a PDF build book.
+
+### How can a team examine the checks?
+
+Read [rule coverage](./docs/content/docs/reference/rule-coverage.mdx) to see what the rule set includes.
+Run `nerve provenance` to find the part data that supports a clean report.
+
+### Does Nerve send designs to a remote service?
+
+No. The CLI runs locally. The browser workspace compiles the harness in the browser.
+The project uses the Apache-2.0 license.
 
 ## Packages
 
 | Package | Purpose |
 | --- | --- |
-| [`@grayhaven/nerve`](./packages/nerve) | Domain model, authoring API, product-family configuration, supply snapshots, versioned HIR, diagnostics, rules API, and deterministic `compileDesign` |
+| [`@grayhaven/nerve`](./packages/nerve) | Domain model, authoring API, product configuration, supply snapshots, versioned HIR, diagnostics, rules API, and deterministic `compileDesign` |
 | [`@grayhaven/nerve-compiler`](./packages/nerve-compiler) | Trusted local `.harness.ts` loading, configuration, plugins, and fail-closed validation |
-| [`@grayhaven/nerve-rules`](./packages/nerve-rules) | 53 generic built-in rules with stable diagnostic codes |
-| [`@grayhaven/nerve-importers`](./packages/nerve-importers) | Deterministic CSV and Excel wire-list migration with source-row accounting |
-| [`@grayhaven/nerve-eval`](./packages/nerve-eval) | Provenance-aware evaluation and stable review-report primitives |
-| [`@grayhaven/nerve-exporters`](./packages/nerve-exporters) | Review, drawing, manufacturing, release, contract, approved test-specification, generic tester, and build-record artifacts |
+| [`@grayhaven/nerve-rules`](./packages/nerve-rules) | 53 built-in rules with stable diagnostic codes |
+| [`@grayhaven/nerve-importers`](./packages/nerve-importers) | Deterministic CSV and Excel migration with source-row accounting |
+| [`@grayhaven/nerve-eval`](./packages/nerve-eval) | Provenance-aware evaluation and stable review reports |
+| [`@grayhaven/nerve-exporters`](./packages/nerve-exporters) | Review, drawing, manufacturing, release, contract, tester, and build-record artifacts |
 | [`@grayhaven/nerve-wireviz`](./packages/nerve-wireviz) | WireViz YAML import and export |
-| [`@grayhaven/nerve-connectors`](./packages/nerve-connectors) | 21 connector housings and 9 crimp terminals with provenance fields, plus a bundled provider |
-| [`@grayhaven/nerve-platform`](./packages/nerve-platform) | Review and release governance plus headless, event-sourced work orders and serialized unit-build evidence |
-| [`@grayhaven/nerve-interop`](./packages/nerve-interop) | Exact-authority standards profiles, normalized VEC 2.2 subset exchange, transport-neutral OPC UA 40570 mappings, and automation/high-voltage fact checks |
-| [`@grayhaven/nerve-cli`](./packages/nerve-cli) | Local and CI workflows for import, review, evaluation, validation, export, and approved-specification tester evidence |
+| [`@grayhaven/nerve-connectors`](./packages/nerve-connectors) | 21 connector housings and 9 crimp terminals with provenance data |
+| [`@grayhaven/nerve-platform`](./packages/nerve-platform) | Review governance, release governance, work orders, and unit-build evidence |
+| [`@grayhaven/nerve-interop`](./packages/nerve-interop) | Standards profiles, VEC 2.2 exchange, OPC UA 40570 mappings, and automation checks |
+| [`@grayhaven/nerve-cli`](./packages/nerve-cli) | Local and CI workflows for import, review, evaluation, validation, export, and tester evidence |
 | [`@grayhaven/nerve-web`](./packages/nerve-web) | Browser workspace, examples, and documentation |
 | [`@grayhaven/nerve-react`](./packages/nerve-react) | Experimental JSX authoring runtime |
 
-## Verification
+## Repository checks
+
+Install the dependencies:
 
 ```bash
 bun install
+```
+
+Run the repository checks:
+
+```bash
 bun run test
 bun run typecheck
 bun run build
 ```
 
-The repository also contains property, visual regression, mutation, browser, and accessibility tests. See [the historical delivery record](./GOAL.md) and [the changelog](./CHANGELOG.md) for implementation history.
-
-Licensed under Apache-2.0.
+The repository includes property, visual regression, mutation, browser, and accessibility tests.
+Read the [delivery record](./GOAL.md) and [changelog](./CHANGELOG.md) for the implementation history.
