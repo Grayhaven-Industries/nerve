@@ -189,52 +189,11 @@ jobs:
       - name: E2E + a11y (Playwright + axe)
         run: cd packages/nerve-web && bun run e2e
 
-  # Deploys to Vercel on main. Green-skips while VERCEL_TOKEN is unset:
-  # the guard step flips `skip` and every later step no-ops.
-  deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [ci, docs, tarball-smoke, node-floor-smoke, e2e]
-    runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: team_12KWBEUhkMyQ7SoMeW388x0l
-      VERCEL_PROJECT_ID: prj_XApqLq8ttK6hV92HqqedWP0ndmK4
-    steps:
-      - name: Check for Vercel token
-        id: guard
-        run: |
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "VERCEL_TOKEN secret not set — skipping deploy"
-          fi
-
-      - uses: actions/checkout@v5
-        if: steps.guard.outputs.skip != 'true'
-
-      - uses: oven-sh/setup-bun@v2
-        if: steps.guard.outputs.skip != 'true'
-
-      - uses: actions/setup-node@v5
-        if: steps.guard.outputs.skip != 'true'
-        with:
-          node-version: 24
-
-      - name: Install
-        if: steps.guard.outputs.skip != 'true'
-        run: bun install --frozen-lockfile
-
-      - name: Build web app
-        if: steps.guard.outputs.skip != 'true'
-        run: cd packages/nerve-web && bun run build
-
-      - name: Bundle check
-        if: steps.guard.outputs.skip != 'true'
-        run: bun scripts/check-web-bundle.ts
-
-      - name: Deploy to Vercel
-        if: steps.guard.outputs.skip != 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          bunx vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          bunx vercel build --prod --token=$VERCEL_TOKEN
-          bunx vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+  # Deployment is not here on purpose. Both Vercel projects (nerve-demo at the
+  # repository root, nerve-docs at docs/) are connected to this repository and
+  # deploy themselves on a push to main.
+  #
+  # The job that used to live here guarded on a VERCEL_TOKEN secret that was
+  # never set, so every step no-opped and the job still reported success. Six
+  # merges shipped nothing while the badge stayed green. A deploy step that
+  # cannot deploy must not be able to pass, so it is gone rather than fixed.
