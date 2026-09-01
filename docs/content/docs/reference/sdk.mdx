@@ -24,8 +24,19 @@ step.
 | `@grayhaven/nerve-platform` | Headless shop-floor work orders and unit events |
 | `@grayhaven/nerve-react` | JSX authoring runtime |
 
-Node 20.6 or newer, or Bun. Every package is ESM-only, so `import` them rather
-than `require` them. Everything below works in any bundler.
+Node 20.6 or newer, or Bun. Every library package ships both ESM and
+CommonJS, so `import` and `require` both work:
+
+```js
+import { compileDesign } from '@grayhaven/nerve'
+const { compileDesign } = require('@grayhaven/nerve')
+```
+
+`@grayhaven/nerve-cli` and `@grayhaven/nerve-compiler` are ESM-only. They read
+`import.meta`, which has no correct CommonJS equivalent, and neither is a
+module you would reach for from CommonJS anyway.
+
+Everything below works in any bundler.
 
 ## Compile and validate
 
