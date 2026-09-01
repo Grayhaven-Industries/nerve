@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { docsUrl } from "../lib/site.js"
 
 const PAGES = [
   { label: "Home", to: "/" },
@@ -26,18 +27,19 @@ const WORKSPACES = [
   { label: "Robot platform", projectId: "robot-platform" }
 ] as const
 
-// Mirrors the GROUPS nav in routes/docs.tsx.
+// The docs are a separate deployment, so these leave the app. Paths mirror
+// the sidebar in docs/content/docs.
 const DOCS = [
-  { label: "Quickstart", to: "/docs" },
-  { label: "DSL", to: "/docs/dsl" },
-  { label: "TypeScript SDK", to: "/docs/sdk" },
-  { label: "Validation Rules", to: "/docs/rules" },
-  { label: "HIR Schema", to: "/docs/hir" },
-  { label: "Part Library", to: "/docs/library" },
-  { label: "CLI", to: "/docs/cli" },
-  { label: "Artifacts", to: "/docs/artifacts" },
-  { label: "AI Copilot", to: "/docs/ai" },
-  { label: "Production Lifecycle", to: "/docs/lifecycle" }
+  { label: "Quickstart", path: "/docs/quickstart" },
+  { label: "DSL", path: "/docs/reference/dsl" },
+  { label: "TypeScript SDK", path: "/docs/reference/sdk" },
+  { label: "Validation rules", path: "/docs/reference/rules" },
+  { label: "HIR schema", path: "/docs/reference/hir" },
+  { label: "Part library", path: "/docs/reference/parts" },
+  { label: "CLI", path: "/docs/reference/cli" },
+  { label: "Artifacts", path: "/docs/reference/artifacts" },
+  { label: "Production lifecycle", path: "/docs/concepts/production-lifecycle" },
+  { label: "Troubleshooting", path: "/docs/troubleshooting" }
 ] as const
 
 export function CommandPalette() {
@@ -100,10 +102,10 @@ export function CommandPalette() {
           ))}
           {DOCS.map((d) => (
             <CommandItem
-              key={d.to}
+              key={d.path}
               value={d.label}
               onSelect={() => {
-                void navigate({ to: d.to })
+                window.open(docsUrl(d.path), "_blank", "noopener,noreferrer")
                 close()
               }}
             >

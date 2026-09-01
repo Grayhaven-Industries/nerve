@@ -1,0 +1,78 @@
+---
+title: What Nerve does not check
+description: Read this before a clean report becomes an argument in a design review.
+---
+
+A clean Nerve report is evidence that a specific list of deterministic checks
+passed over the facts the design supplied. Stating what that excludes is part
+of the product, not a disclaimer bolted onto it.
+
+## A report is not a certification
+
+Nerve does not certify a harness. It does not claim compliance with an
+industry standard or with a customer standard, and it does not replace
+qualified engineering review. A generic rule must not claim standards
+compliance, and a policy rule must not guess facts the HIR cannot represent.
+
+Every report carries its own limitations section for this reason. Read it
+alongside the findings, not after the argument has already been made.
+
+## A check can only use facts that are present
+
+Rules judge supplied facts. They do not infer missing ones, and an unknown
+fact never becomes implicit evidence that a design is safe.
+
+This has a direct consequence: **the rule count is not the coverage.** Fifty
+three rules can all pass on a design that declares almost nothing, because
+most of them had nothing to judge. Two tools tell you where you actually
+stand:
+
+- `nerve parts <spec>` reports which checks a part's data enables and which
+  are inactive for want of a field.
+- `nerve provenance` reports which parts supply a limit a rule judges against
+  without being verified.
+
+```text
+  inspired-by  connector  PHR-2  (wireGaugeRange, currentLimitA, voltageLimitV, cavityLayout, compatibleTerminals)
+1 part(s): 1 inspired-by
+1 part(s) supply a limit a rule judges against without being verified. A clean report is only as good as these.
+```
+
+[Rule coverage](/docs/reference/rule-coverage) breaks this down by failure
+mode, including the failure modes no design representation can catch.
+
+## Software records are not physical proof
+
+Several parts of Nerve describe records and mappings rather than events in the
+world:
+
+- The standards and factory interoperability layer provides profiles and
+  mappings. It does not certify standards conformance, operate or authenticate
+  tester hardware, or prove that a physical process occurred.
+- The shop-floor layer is a headless reducer over unit events. It is not a
+  user interface, an MES service, or a device gateway.
+- The VEC adapter is a loss-aware normalized subset, not a full XML parser or
+  validator, and the OPC UA mapping does not include a transport client.
+- The Cirris Easy-Wire style exporter is an explicit experimental
+  compatibility export and is excluded from built-in production adapter
+  discovery.
+
+## Measurements need an approved specification
+
+A caller-authored, plan-matched `TestSpecification` must be approved before a
+generic tester program carries acceptance limits, or before an ingested
+measurement receives a pass or fail verdict. Without that approval, Nerve
+records measurements without judging them.
+
+## Continuity coverage has a precise meaning
+
+Generated tests prove the physical net through accessible connector pins. For
+a net with `N` accessible pins, the closed-circuit tests must form a connected
+graph over all `N` points. Emitting one test named after the net is not
+coverage. Nets with fewer than two accessible points cannot be tested point to
+point and block release.
+
+## The honest summary
+
+Nerve narrows the set of ways a harness can be wrong before anyone cuts wire.
+It does not tell you the design is right.

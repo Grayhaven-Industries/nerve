@@ -1,0 +1,34 @@
+---
+title: HIR schema
+description: The compiled harness contract. Generated from the live Effect schema in @grayhaven/nerve.
+---
+
+HIR is the harness intermediate representation: what `compileDesign` produces
+and what every rule, exporter, and renderer reads. Nothing downstream sees
+your TypeScript, your YAML, or your spreadsheet.
+
+`harness.json` in every exported packet validates against this schema. The
+tables below are generated from the live Effect schema (`hirJsonSchema()`), so
+they cannot drift from the code.
+
+Two properties are load-bearing:
+
+- **Canonical form.** Collections are canonically sorted and optional fields
+  are omitted when absent, never set to `null`. That is what makes output
+  byte-deterministic and diffs readable.
+- **Content addressing.** The fingerprint printed by `nerve review` and
+  `nerve release` hashes this representation, not the source text.
+
+## Decode and encode
+
+```ts
+import { decodeHir, encodeHir, HIR_SCHEMA_VERSION } from '@grayhaven/nerve'
+
+const hir = decodeHir(JSON.parse(fileContents)) // throws on schema mismatch
+const canonical = encodeHir(hir) // stable field order, diffs cleanly
+```
+
+Types for every node (`HirWire`, `HirConnector`, `HirEndpoint`, and the rest)
+ship with the package, so downstream tools are typed end to end.
+
+<include>../../generated/hir-schema.md</include>

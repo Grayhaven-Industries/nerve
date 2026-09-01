@@ -1,0 +1,145 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/solar.css';
+@import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-twoslash/twoslash.css';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  @keyframes stroke {
+    from {
+      stroke-dasharray: 1000;
+    }
+
+    to {
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 2000;
+    }
+  }
+
+  --spacing-page: 1436px;
+  --animate-stroke: stroke 5s linear infinite;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-chakra-petch);
+
+  --color-gradient-radial: radial-gradient(circle, var(--tw-gradient-stops));
+  --color-repeat-gradient-to-r: repeating-linear-gradient(
+    to right,
+    var(--tw-gradient-stops)
+  );
+  --color-repeat-gradient-to-br: repeating-linear-gradient(
+    to bottom right,
+    var(--tw-gradient-stops)
+  );
+}
+
+@theme {
+  --color-background: var(--color-fd-background);
+  --color-foreground: var(--color-fd-foreground);
+
+  --color-card: var(--color-fd-card);
+  --color-card-foreground: var(--color-fd-card-foreground);
+
+  --color-popover: var(--color-fd-popover);
+  --color-popover-foreground: var(--color-fd-popover-foreground);
+
+  --color-primary: var(--color-fd-primary);
+  --color-primary-foreground: var(--color-fd-primary-foreground);
+
+  --color-secondary: var(--color-fd-secondary);
+  --color-secondary-foreground: var(--color-fd-secondary-foreground);
+
+  --color-muted: var(--color-fd-muted);
+  --color-muted-foreground: var(--color-fd-muted-foreground);
+
+  --color-accent: var(--color-fd-accent);
+  --color-accent-foreground: var(--color-fd-accent-foreground);
+
+  --color-destructive: var(--color-fd-destructive);
+  --color-destructive-foreground: var(--color-fd-destructive-foreground);
+
+  --color-border: var(--color-fd-border);
+  --color-input: var(--color-fd-border);
+  --color-ring: var(--color-fd-ring);
+}
+
+/* One accent per navbar tab, matching the Grayhaven sunset ring. The tab
+   colour is the only licensed accent in chrome; orange otherwise belongs to
+   the diagrams. */
+@layer base {
+  :root {
+    --index-color: oklch(0.62 0.16 45);
+    --reference-color: oklch(0.55 0.09 230);
+    --changelog-color: var(--color-fd-foreground);
+  }
+
+  .dark {
+    --index-color: oklch(0.78 0.14 55);
+    --reference-color: oklch(0.78 0.09 230);
+    --changelog-color: var(--color-fd-foreground);
+  }
+}
+
+@layer base {
+  body {
+    overscroll-behavior-y: none;
+    background-color: var(--color-fd-background);
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-foreground);
+  }
+
+  .dark ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-foreground);
+  }
+
+  .\(index\) {
+    --color-fd-primary: var(--index-color) !important;
+  }
+
+  .reference {
+    --color-fd-primary: var(--reference-color) !important;
+  }
+
+  .changelog {
+    --color-fd-primary: var(--changelog-color) !important;
+  }
+}
+
+.dark [data-hide-on-theme='dark'],
+.light [data-hide-on-theme='light'] {
+  display: none;
+}
+
+
+#nd-sidebar {
+  @apply border-e;
+  background-color: var(--color-background);
+}
+
+header &[data-search-full] {
+  @apply rounded-xl;
+}
+
+[data-header-tabs],
+[data-header-body] {
+  @apply border-none;
+}
+
+#nd-page {
+  @apply @container;
+}
+/* Headings carry the wordmark face; body and code do not. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  #nd-nav .font-heading {
+    font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  }
+}

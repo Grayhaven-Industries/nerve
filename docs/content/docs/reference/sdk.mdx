@@ -1,0 +1,153 @@
+---
+title: TypeScript SDK
+description: Everything the CLI does, as library calls you can embed in your own tools.
+---
+
+Every CLI command is a library call. Use the packages directly to embed
+harness compilation in CI checks, generators, PLM integrations, or a build
+step.
+
+## Packages
+
+| Package | Contains |
+| --- | --- |
+| `@grayhaven/nerve` | DSL, HIR schema, `compileDesign`, `diffHir`, the rule API, part resolution |
+| `@grayhaven/nerve-rules` | The built-in `HK-*` rule set |
+| `@grayhaven/nerve-compiler` | `.harness.ts` loading, fail-closed gate |
+| `@grayhaven/nerve-exporters` | SVG, PDF, CSV, test plan, and packet generation |
+| `@grayhaven/nerve-connectors` | The bundled connector library and `part()` |
+| `@grayhaven/nerve-importers` | CSV and Excel wire-list import |
+| `@grayhaven/nerve-wireviz` | WireViz YAML import and export |
+| `@grayhaven/nerve-cli` | The `nerve` command |
+| `@grayhaven/nerve-eval` | Provenance-aware rule evaluation |
+| `@grayhaven/nerve-interop` | Standards profiles, VEC subset, OPC UA 40570 mappings |
+| `@grayhaven/nerve-platform` | Headless shop-floor work orders and unit events |
+| `@grayhaven/nerve-react` | JSX authoring runtime |
+
+Node 20.6 or newer, or Bun. Every library package ships both ESM and
+CommonJS, so `import` and `require` both work:
+
+```js
+import { compileDesign } from '@grayhaven/nerve'
+const { compileDesign } = require('@grayhaven/nerve')
+```
+
+`@grayhaven/nerve-cli` and `@grayhaven/nerve-compiler` are ESM-only. They read
+`import.meta`, which has no correct CommonJS equivalent, and neither is a
+module you would reach for from CommonJS anyway.
+
+## Compile and validate
+
+`compileDesign` is pure and deterministic: same design in, same HIR out. Run
+the rule set against the result and gate on errors exactly as `nerve validate`
+does.
+
+```ts
+import { compileDesign, hasErrors, runRules } from '@grayhaven/nerve'
+import { builtinRules } from '@grayhaven/nerve-rules'
+import design from './src/main.harness.js'
+
+const { hir } = compileDesign(design)
+const diagnostics = runRules(hir, builtinRules)
+
+if (hasErrors(diagnostics)) {
+  for (const d of diagnostics) {
+    console.error(`${d.code} ${d.severity}: ${d.message}`)
+  }
+  process.exit(1)
+}
+```
+
+Severities are tunable per rule without forking it:
+
+```ts
+runRules(hir, builtinRules, {
+  missingWireColor: 'error',
+  spliceMissingNotes: 'off',
+})
+```
+
+## Generate artifacts
+
+Every exporter is a function from HIR to bytes or strings. Take what you need:
+
+```ts
+import {
+  assemblyInstructions,
+  bomCsv,
+  boardSvg,
+  buildPacket,
+  cutListCsv,
+  generateTestPlan,
+  labelScheduleCsv,
+  manufacturingPacketPdf,
+  schematicSvg,
+  testPlanCsv,
+} from '@grayhaven/nerve-exporters'
+
+const bom = bomCsv(hir) // string
+const schematic = schematicSvg(hir) // string (SVG)
+const tests = testPlanCsv(generateTestPlan(hir))
+const pdf = await manufacturingPacketPdf(hir) // Uint8Array, byte-deterministic
+const packet = await buildPacket(hir) // the whole dist/ set plus the zip
+```
+
+## Diff two revisions
+
+```ts
+import { diffHir, formatDiff, isEmptyDiff } from '@grayhaven/nerve'
+
+const diff = diffHir(previousHir, currentHir)
+if (!isEmptyDiff(diff)) {
+  console.log(formatDiff(diff))
+}
+// → "wire W1: gauge 20AWG -> 16AWG", down to a single pin swap
+```
+
+## Resolve parts through providers
+
+Part data is pluggable: the bundled library, your PLM, a distributor API,
+anything that answers an MPN. Providers are consulted in priority order, and
+disagreement on a load-bearing field is a diagnostic, never a silent
+overwrite.
+
+```ts
+import { resolvePart, staticProvider } from '@grayhaven/nerve'
+import { nerveConnectorsProvider } from '@grayhaven/nerve-connectors'
+
+const plm = staticProvider('acme-plm', loadFromPlm())
+const { part, provider, diagnostics } = resolvePart(
+  [plm, nerveConnectorsProvider],
+  'PHR-4'
+)
+// diagnostics: HK-LIB-001 warnings when providers disagree on pinCount,
+// gender, or limits
+```
+
+## Load .harness.ts files
+
+The CLI loads design files through `@grayhaven/nerve-compiler`, which uses
+jiti under the hood, so there is no build step. Use it when your tool takes a
+file path rather than an imported module.
+
+## Custom rules
+
+See [write a custom rule](/docs/guides/write-a-custom-rule).
+
+## JSX authoring (experimental)
+
+`@grayhaven/nerve-react` is a small custom JSX runtime, not React. Elements are
+plain functions over the same DSL, so the JSX form compiles to byte-identical
+HIR. It is purely a style choice.
+
+```tsx
+/** @jsxImportSource @grayhaven/nerve-react */
+import { Connector, Harness, Wire } from '@grayhaven/nerve-react'
+
+export default (
+  <Harness id='drop' revision='A' units='mm'>
+    <Connector ref='J1' part={part('ph-4')} pins={{ 1: 'V5', 2: 'GND' }} />
+    <Wire id='W1' from='J1.1' to='M1.1' gauge='24AWG' color='red' length={120} />
+  </Harness>
+)
+```

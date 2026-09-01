@@ -1,0 +1,105 @@
+---
+title: Artifacts
+description: What nerve export writes, file by file, and why every byte is reproducible.
+---
+
+`nerve export` emits the complete set in one compile. Determinism is
+load-bearing: the same source produces byte-identical bytes, including the PDF
+and the zip, so artifacts diff cleanly in review and hash-verify in CI.
+
+```bash
+npx nerve export --out dist
+```
+
+The manufacturing-packet target is fail-closed. Validation errors block the
+export, and so do nets without adequate continuity coverage.
+
+## The packet
+
+| File | Contents |
+| --- | --- |
+| `COVER.txt` | Packet cover sheet: harness, revision, units, HIR schema, and the file manifest. |
+| `manufacturing-packet.pdf` | The build book. Every drawing and table in one reviewed, printable document. |
+| `manufacturing-packet.zip` | Everything above, zipped byte-identically with fixed timestamps for release archival. |
+
+## Source of truth
+
+| File | Contents |
+| --- | --- |
+| `harness.json` | Canonical [HIR](/docs/reference/hir). The versioned schema every other artifact derives from. |
+| `graph.json` | Connectivity graph: nodes, edges, and computed nets, for external tooling. |
+| `render-layout.json` | The exact drawing IR each renderer consumed, so geometry is diffable and re-renderable outside Nerve. |
+| `diagnostics.json` | Every finding with its code, severity, target, and data. |
+
+## Drawings
+
+| File | Contents |
+| --- | --- |
+| `schematic.svg` | Connection diagram: connectors, pins, and wires with gauge and colour annotations. |
+| `schematic.html` | Self-contained interactive viewer. Hover a net to trace it, zoom, pan. Opens anywhere, no app needed. |
+| `board.svg` | Harness-board (nailboard) view at real lengths, for the build fixture. |
+| `connector-faces.svg` | Cavity layouts per connector: front (mating side, mirrored) and rear views, population state, wire colours, orientation markers. |
+| `pinout.svg` | Per-connector pinout tables. Each cavity's pin, signal, wire, gauge, terminal, and seal, with crossing-free leaders to the cavity grid. |
+
+Render one view on its own, including PNG previews:
+
+```bash
+npx nerve render --view board --format png --out dist
+```
+
+Views: `schematic`, `board`, `faces`, `pinout`, `formboard`.
+
+## Tables
+
+Each table ships as CSV for people and JSON for machines, keyed by column.
+
+| File | Contents |
+| --- | --- |
+| `bom.csv` / `bom.json` | Rolled-up bill of materials with MPNs, quantities, and the design objects that use each line. |
+| `cut-list.csv` / `cut-list.json` | Per-wire cut lengths, gauges, colours, and strip specs. |
+| `labels.csv` / `label-schedule.json` | Label schedule: text, quantity, material, printer profile, target object, placement offset, and orientation. |
+| `bop.csv` / `bop.json` | Bill of process: sequenced operations with workstation, description, target objects, tools, and estimated seconds. |
+| `tests.csv` / `test-plan.json` | Continuity, splice-verification, and no-short tests derived from the net list. |
+
+```text title="bop.csv"
+Seq,Operation,Workstation,Description,Targets,Tools,Est. sec
+10,cut-strip,wire-prep,"Cut and strip W1 (26AWG red, 150 mm).",wire:W1,wire cutter; wire stripper,25
+```
+
+```text title="tests.csv"
+Test ID,Type,From connector,From pin,To connector,To pin,Expected,Net,Wire
+T-001,continuity,J1,1,J2,1,closed,PWR_12V,W1
+```
+
+## Instructions
+
+| File | Contents |
+| --- | --- |
+| `assembly-instructions.txt` | Ordered build instructions generated from the design graph. Every step references design object ids. |
+
+```text
+ASSEMBLY INSTRUCTIONS — my-first-harness rev A
+Units: mm. Generated from HIR 0.1.0; every step references design object IDs.
+
+Materials
+---------
+ 1. Gather 2x PHR-2 (JST PH housing, 2 circuits) — used by connector:J1, connector:J2.
+```
+
+## Other targets
+
+```bash
+npx nerve export --target wireviz --out dist   # wireviz.yml
+npx nerve machine <adapter-id> ./src/main.harness.ts --out dist
+```
+
+`nerve machine` writes machine-readable exports for cutting, marking, and test
+equipment. The Cirris Easy-Wire style exporter is an explicit experimental
+compatibility export and is excluded from built-in production adapter
+discovery.
+
+## The renderer never owns truth
+
+Every line in every artifact traces back to a design object in the HIR. If a
+drawing and a table disagree, that is a bug, not a judgement call: both derive
+from the same compiled representation.

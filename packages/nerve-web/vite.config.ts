@@ -9,12 +9,12 @@ import { SITE } from "./scripts/site.js"
 // shadcn generates "@/..." imports; mirror the tsconfig path alias here.
 const srcDir = fileURLToPath(new URL("./src", import.meta.url))
 
-const genScript = fileURLToPath(new URL("./scripts/gen-llms.ts", import.meta.url))
+const genScript = fileURLToPath(new URL("./scripts/gen-meta.ts", import.meta.url))
 
 // Agent-readable docs variants regenerate on every build AND dev-server
 // start (they previously existed only after a build, so dev served stale
 // mirrors). Spawned under Bun: the script uses Bun-native TS imports.
-const genLlms = (): void => {
+const genMeta = (): void => {
   execFileSync("bun", [genScript], { stdio: "inherit" })
 }
 
@@ -118,12 +118,12 @@ export default defineConfig({
   preview: { headers: axHeaders },
   plugins: [
     {
-      name: "gen-llms",
-      buildStart: () => genLlms(),
-      configureServer: () => genLlms()
+      name: "gen-meta",
+      buildStart: () => genMeta(),
+      configureServer: () => genMeta()
     },
     {
-      // One source for the canonical URL: scripts/site.ts feeds gen-llms
+      // One source for the canonical URL: scripts/site.ts feeds gen-meta
       // and replaces %SITE% in index.html OG tags.
       name: "inject-site",
       transformIndexHtml: (html: string) => html.replaceAll("%SITE%", SITE)

@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "author-a-harness",
+    "validate-in-ci",
+    "import-a-wire-list",
+    "migrate-from-wireviz",
+    "check-a-connector-against-a-board",
+    "write-a-custom-rule",
+    "release-and-record-builds"
+  ]
+}

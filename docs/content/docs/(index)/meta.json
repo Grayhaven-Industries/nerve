@@ -1,0 +1,18 @@
+{
+  "title": "Documentation",
+  "description": "Review a harness, understand what the checks rest on, and ship the packet",
+  "icon": "Book",
+  "root": true,
+  "pages": [
+    "---Get started---",
+    "index",
+    "quickstart",
+    "---Concepts---",
+    "...concepts",
+    "---Guides---",
+    "...guides",
+    "---Help---",
+    "troubleshooting",
+    "..."
+  ]
+}

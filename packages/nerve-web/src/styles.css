@@ -163,11 +163,9 @@ textarea:focus-visible, select:focus-visible {
 }
 /* Reaching the end of one pane shouldn't start scrolling the pane behind it. */
 .render-pane,
-.docs-body,
 .diagnostics-panel,
 .ai-thread,
-.showcase,
-.docs-nav {
+.showcase {
   overscroll-behavior: contain;
 }
 
@@ -234,239 +232,31 @@ textarea:focus-visible, select:focus-visible {
 
 .app-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* Docs section: calm sidebar + measured prose column. */
-.docs {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
-/* The docs nav is the shadcn Sidebar, embedded in the docs split. The
-   provider wants to be a viewport-tall app frame; here it is a column. */
-.docs-sidebar-provider {
-  min-height: 0;
-  height: 100%;
-  width: auto;
-  flex: 0 0 auto;
-}
-.docs-nav {
-  width: 220px;
-  border-right: 1px solid var(--border);
-  padding-top: 12px;
-  overflow-y: auto;
-}
-.docs-body {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-  /* Right padding balances the 200px left nav (+ the 40px left pad) so the
-     measure column centers on the VIEWPORT, not just the post-nav body. */
-  padding: 40px 240px 40px 40px;
-}
-/* Centered measure column inside the scroll area. */
-.docs-content { max-width: 760px; margin: 0 auto; }
-.docs-body h1 {
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-  margin: 16px 0 0;
-}
-.docs-body h2 {
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  margin: 36px 0 0;
-}
-.docs-body p { font-size: 14px; line-height: 1.7; color: var(--fg-muted); margin: 16px 0 0; max-width: 620px; text-wrap: pretty; }
-.docs-body p code, .docs-body td code {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--text);
-  background: var(--muted-bg);
-  padding: 1px 5px;
-}
-.docs-body table.data { margin-top: 20px; }
-.docs-body table.data td.cell-text { white-space: normal; color: var(--fg-muted); }
-.docs-llms {
-  margin-top: auto;
-  padding: 12px 24px 0;
-  /* Filename — mono is for code and IDs. */
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-.docs-llms:hover { color: var(--fg-muted); }
-.docs-md-actions {
-  float: right;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.docs-md-actions .sep { font-size: 11px; color: color-mix(in srgb, var(--fg-muted) 50%, transparent); }
-.docs-action { height: auto; padding: 0 0 1px; font-size: 11px; border-bottom: 1px solid var(--border); }
-.docs-action:hover { border-color: var(--fg-muted); }
-.docs-md-link {
-  font-size: 11px;
-  color: var(--fg-muted);
-  border-bottom: 1px solid var(--border);
-  transition: color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
-}
-.docs-md-link:hover { color: var(--text); border-color: var(--fg-muted); }
-/* marked output: bare pre/table/inline-code get the doc voices. */
-.docs-body pre {
-  background: var(--panel);
-  border-radius: 0;
-  padding: 16px 18px;
-  margin: 16px 0 0;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.7;
-  overflow-x: auto;
-  color: var(--text);
-}
-.docs-body pre code { background: none; padding: 0; font-size: inherit; }
-/* lezer classHighlighter tokens, grayscale doctrine (mirrors cm-theme). */
-/* Same four hues as the editor theme (lib/cm-theme.ts): keywords in the
-   signal orange, strings in sand, types cool, comments receding. */
-.docs-body .tok-keyword, .docs-body .tok-moduleKeyword, .docs-body .tok-controlKeyword { color: #e8823f; }
-.docs-body .tok-string, .docs-body .tok-string2 { color: #d9c49a; }
-.docs-body .tok-comment, .docs-body .tok-lineComment { color: var(--fg-muted); font-style: italic; }
-.docs-body .tok-number, .docs-body .tok-bool { color: #c8b9a0; }
-.docs-body .tok-typeName, .docs-body .tok-className { color: #9fb4c7; }
-.docs-body .tok-propertyName, .docs-body .tok-variableName { color: var(--text); }
-.docs-body .tok-function { color: var(--text); font-weight: 500; }
-.docs-body .tok-punctuation, .docs-body .tok-operator { color: var(--fg-muted); }
-.docs-body table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin-top: 20px;
-}
-.docs-body table th {
-  padding: 8px 16px 8px 0;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-size: 12px;
-  color: var(--fg-muted);
-  font-weight: 500;
-}
-.docs-body table td {
-  padding: 10px 16px 10px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  color: var(--fg-muted);
-  vertical-align: top;
-}
-.docs-body table td:first-child { font-family: var(--mono); font-size: 12px; color: var(--text); white-space: nowrap; }
-.docs-body a { color: var(--text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-.docs-body a:hover { color: var(--accent-hover); }
-
-/* Per-code-block copy (Fumadocs CodeBlock pattern, doctrine voice). */
-.docs-body pre { position: relative; }
-/* Supplements buttonVariants(ghost/xs): only what the system doesn't
-   provide — overlay position, solid bg (button sits ON code text),
-   compact sizing, and the opacity reveal. */
-.pre-copy {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  height: auto;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  font-size: 10px;
-  padding: 3px 8px;
-  opacity: 0;
-  transition: opacity 200ms var(--ease-default), color 200ms var(--ease-default), border-color 200ms var(--ease-default);
-}
-.docs-body pre:hover .pre-copy, .pre-copy:focus-visible { opacity: 1; }
-.pre-copy:hover { border-color: var(--fg-muted); }
-
-/* Prev/next pager (Fumadocs page footer pattern). */
-.docs-pager {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 56px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-.pager-link {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  transition: color 200ms var(--ease-default);
-}
-.pager-link:hover { color: var(--accent-hover); }
-.pager-link.next { text-align: right; align-items: flex-end; }
-.pager-dir {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--fg-muted);
-}
-
-.doc-code {
-  background: var(--panel);
-  border-radius: 0;
-  padding: 16px 18px;
-  margin: 16px 0 0;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.7;
-  overflow-x: auto;
-  color: var(--text);
-}
-.doc-entry { margin-top: 28px; }
-.doc-entry p { margin-top: 10px; }
-@media (max-width: 760px) {
-  .docs { flex-direction: column; }
-  /* One scrolling strip, not a wrapped block: wrapping put a ~350px wall of
-     links above every page, so the doc started below the fold. */
-  .docs-nav {
-    width: 100%;
-    flex: 0 0 auto;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 2px;
-    padding: 8px 12px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .docs-nav::-webkit-scrollbar { display: none; }
-    /* Group names are a sidebar affordance; in a strip they'd out-number the
-     links. The active colour carries the position instead. */
-    .docs-nav a { border-left: none; padding: 6px 10px; white-space: nowrap; }
-  .docs-llms { margin-top: 0; padding: 0 10px; white-space: nowrap; }
-  /* Nav stacks on top here — drop the sidebar-balancing right pad. */
-  .docs-body { padding: 32px 20px; }
-  /* Floated right, this row was wider than the viewport and hung off both
-     edges. Let it sit above the heading and wrap. */
-  .docs-md-actions {
-    float: none;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    margin-bottom: 20px;
-  }
-}
-
-/* Landing: the product thesis, and nothing competing with it. */
+/* Landing: long-form. The hero holds its own viewport; everything after it
+   is a reading column at prose measure. Hairlines divide sections, nothing
+   frames them, and the only mono is a real diagnostic or a real command. */
 .landing {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Inline padding only: the shorthand would out-specify the block padding
+   each section sets for itself. */
+.landing > section {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  padding-inline: 32px;
+}
+.landing-hero {
+  min-height: min(74vh, 620px);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  max-width: 760px;
-  margin: 0 auto;
-  width: 100%;
-  padding: clamp(56px, 8vw, 104px) 32px;
+  padding-top: clamp(48px, 7vw, 96px);
+  padding-bottom: clamp(40px, 6vw, 80px);
 }
-.landing-copy { min-width: 0; }
 .landing h1 {
   font-size: clamp(32px, 4.5vw, 52px);
   font-weight: 500;
@@ -518,6 +308,117 @@ textarea:focus-visible, select:focus-visible {
   background: color-mix(in oklch, var(--primary), black 12%);
 }
 .landing-links .sep { color: color-mix(in srgb, var(--fg-muted) 50%, transparent); }
+
+.landing-lede {
+  font-size: 15px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+  max-width: 560px;
+  margin: 14px 0 0;
+  text-wrap: pretty;
+}
+
+/* Three figures, no cards: the numbers carry the weight themselves. */
+.landing-proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  padding-top: 40px;
+  padding-bottom: 40px;
+  border-top: 1px solid var(--border);
+}
+.proof-item p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  margin: 8px 0 0;
+  text-wrap: pretty;
+}
+.proof-figure {
+  font-family: var(--mono);
+  font-size: 32px;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-section {
+  padding-top: 56px;
+  padding-bottom: 56px;
+  border-top: 1px solid var(--border);
+}
+.landing-section h2 {
+  font-family: var(--heading);
+  font-size: clamp(21px, 2.4vw, 27px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.landing-section h3 {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 32px 0 0;
+}
+.landing-section p {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--fg-muted);
+  margin: 16px 0 0;
+  text-wrap: pretty;
+}
+.landing-section ul {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.landing-section li {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--fg-muted);
+  margin-top: 8px;
+  text-wrap: pretty;
+}
+.landing-section code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+.landing-section a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.landing-section a:hover { color: var(--accent-hover); }
+/* The one line per section that should land in full contrast. */
+.landing-emphasis { color: var(--text) !important; }
+
+/* Real terminal output, quoted verbatim. */
+.landing-diagnostic {
+  margin: 20px 0 0;
+  padding: 14px 16px;
+  background: var(--muted-bg);
+  overflow-x: auto;
+}
+.landing-diagnostic code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+}
+
+.landing-close { padding-bottom: clamp(72px, 10vw, 128px); }
+.landing-close .landing-links { margin-top: 28px; }
+
+@media (max-width: 720px) {
+  .landing-proof { grid-template-columns: 1fr; gap: 24px; }
+  .landing > section { padding-inline: 20px; }
+}
+
 
 @keyframes spec-rise {
   from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
@@ -988,7 +889,6 @@ textarea:focus-visible, select:focus-visible {
 /* Drawings render as light "drawing sheets" on the dark workspace. */
 .sheet-wrap { display: flex; flex-direction: column; gap: 8px; }
 .sheet-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.sheet-actions .docs-action { border-bottom: none; }
 .sheet-hint {
   margin-left: auto;
   font-size: 11px;
@@ -1323,9 +1223,7 @@ table.data th.sortable:hover { color: var(--text); }
   .search-results,
   .inspector,
   .table-empty,
-  .diagram-pane,
-  .docs-body pre,
-  .doc-code {
+  .diagram-pane {
     border: 1px solid var(--border);
   }
 }

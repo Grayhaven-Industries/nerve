@@ -119,7 +119,7 @@ plugin SDK (§40) — have all since shipped.
 ## Where the roadmap lives now
 
 This file is a delivery record and stops here. What to build next is no longer a
-list of features; it is [docs/rule-coverage.md](./docs/rule-coverage.md), which
+list of features; it is [the rule coverage page](./docs/content/docs/reference/rule-coverage.mdx), which
 states every failure mode as a row, the information needed to decide it as a
 column, and what Nerve does and does not check in each cell. That turns the
 question into arithmetic instead of preference, and its most useful column is

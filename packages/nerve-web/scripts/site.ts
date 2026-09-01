@@ -1,2 +1,2 @@
-/** Canonical deploy URL: one definition for gen-llms, OG tags, and config. */
-export const SITE = "https://nerve.grayhavenindustries.com"
+/** Re-exported so build scripts and the app share one definition. */
+export { DOCS_SITE, SITE, docsUrl } from "../src/lib/site.js"

@@ -1,0 +1,147 @@
+---
+title: Quickstart
+description: Scaffold a project, review a harness, and write a manufacturing packet in about five minutes.
+icon: Rocket
+---
+
+By the end of this page you will have compiled a harness to HIR, watched a
+rule catch an error your drawing could not, and written a full manufacturing
+packet. About five minutes, and nothing installs globally.
+
+## Before you start
+
+- Node.js 20.6 or newer, or Bun. The CLI loads `.harness.ts` files directly,
+  so there is no build step to configure.
+- A terminal. Nothing is installed globally.
+
+## 1. Scaffold a project
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve init my-harness
+cd my-harness
+npm install
+```
+
+`nerve init` writes a project that can resolve its own imports:
+
+```text
+Initialized Nerve project in /path/to/my-harness
+  nerve.config.ts
+  src/main.harness.ts
+  package.json
+  tsconfig.json
+  .gitignore
+Next: npm install && nerve compile
+```
+
+<Callout title="Existing files are never overwritten">
+  `nerve init` skips any file that already exists and says so. You can run it
+  inside a repository that already has a `package.json`.
+</Callout>
+
+Because `nerve.config.ts` sets `entry`, every command below can omit the file
+argument. Pass a path explicitly when you have more than one harness.
+
+## 2. Compile to HIR
+
+```bash
+npx nerve compile
+```
+
+```text
+wrote /path/to/my-harness/dist/harness.json
+wrote /path/to/my-harness/dist/diagnostics.json
+my-first-harness rev A — 2 connectors, 2 wires — 0 error(s), 0 warning(s)
+```
+
+`harness.json` is the [HIR](/docs/reference/hir): the versioned, canonically
+sorted representation that every rule and every exporter reads. Nothing
+downstream reads your TypeScript.
+
+## 3. Break something on purpose
+
+Open `src/main.harness.ts` and change both wires from `26AWG` to `10AWG`, then
+validate:
+
+```bash
+npx nerve validate --codes
+```
+
+```text
+error  connector:J1.pin:1  HK-MFG-004
+  Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+error  connector:J1.pin:2  HK-MFG-004
+  Wire W2 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+error  connector:J2.pin:1  HK-MFG-004
+  Wire W1 uses 10AWG but connector J2 accepts 24AWG to 32AWG.
+error  connector:J2.pin:2  HK-MFG-004
+  Wire W2 uses 10AWG but connector J2 accepts 24AWG to 32AWG.
+my-first-harness rev A — 2 connectors, 2 wires — 4 error(s), 0 warning(s)
+```
+
+The command exits `1`.
+
+That gauge range is not a guess and it is not something the design asserted
+about itself. It came from the JST PH part the connector was declared with. A
+PDF of this harness would have rendered the 10AWG wire correctly, and said
+nothing.
+
+`--codes` prints the stable `HK-*` code beside each finding, which is what you
+cite in a waiver or a CI allowlist.
+
+Change the gauge back to `26AWG` before continuing.
+
+## 4. Review, with margins
+
+```bash
+npx nerve review
+```
+
+```text
+wrote /path/to/my-harness/dist/review-report.json
+2 measurement(s), 0 over budget. Tightest headroom:
+    12.0%  contact voltage — connector:J1.pin:1 (12/100V)
+    12.0%  contact voltage — connector:J2.pin:1 (12/100V)
+my-first-harness rev A: 0 finding(s), fingerprint 602020e15da5c711
+```
+
+`review-report.json` carries the harness revision, the HIR schema version, the
+content fingerprint, the tool and rule versions, the findings, and the
+limitations. The margin lines are the part people miss: a passing check still
+reports how much headroom was left.
+
+The fingerprint is a content hash of the HIR. Two people who compile the same
+source get the same fingerprint, which is what makes a packet verifiable
+against a release.
+
+## 5. Write the manufacturing packet
+
+```bash
+npx nerve export
+```
+
+This writes the full set into `dist/`: the PDF build book, the schematic,
+board, connector-face and pinout drawings, the interactive HTML viewer, the
+BOM, cut list, labels and bill of process with their JSON twins, the
+continuity tests, the assembly instructions, and a zip of all of it. See
+[artifacts](/docs/reference/artifacts) for what each file contains.
+
+Run it twice. The bytes are identical, including the PDF and the zip, so a
+packet diff shows design changes and nothing else.
+
+## What to read next
+
+<Cards>
+  <Card href="/docs/guides/author-a-harness" title="Author a harness">
+    Connectors, wires, splices, branches, and the facts that unlock checks.
+  </Card>
+  <Card href="/docs/guides/validate-in-ci" title="Validate in CI">
+    Gate a pull request on errors and on byte reproducibility.
+  </Card>
+  <Card href="/docs/guides/import-a-wire-list" title="Import a wire list">
+    Start from the CSV, Excel, or WireViz data you already have.
+  </Card>
+  <Card href="/docs/concepts/limits" title="What Nerve does not check">
+    Read this before a clean report becomes an argument.
+  </Card>
+</Cards>

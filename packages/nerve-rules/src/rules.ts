@@ -52,7 +52,7 @@ const { Error: Err, Warning: Warn, Info } = DiagnosticSeverity
  * off this baseline when its logic changes such that the same HIR can get a
  * different verdict.
  *
- * @see docs/rule-coverage.md
+ * @see docs/content/docs/reference/rule-coverage.mdx
  */
 const RULE_VERSION = "1.0.0"
 

@@ -1,0 +1,21 @@
+{
+  "title": "Reference",
+  "description": "Commands, types, schemas, rules, and parts, generated from source where possible",
+  "icon": "Wrench",
+  "root": true,
+  "pages": [
+    "index",
+    "---Interfaces---",
+    "cli",
+    "dsl",
+    "sdk",
+    "---Data---",
+    "hir",
+    "artifacts",
+    "parts",
+    "---Checks---",
+    "rules",
+    "rule-coverage",
+    "..."
+  ]
+}

@@ -10,19 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DocsRouteImport } from './routes/docs'
 import { Route as SharedRouteImport } from './routes/shared'
 import { Route as ShowcaseRouteImport } from './routes/showcase'
-import { Route as DocsIndexRouteImport } from './routes/docs.index'
-import { Route as DocsAiRouteImport } from './routes/docs.ai'
-import { Route as DocsArtifactsRouteImport } from './routes/docs.artifacts'
-import { Route as DocsCliRouteImport } from './routes/docs.cli'
-import { Route as DocsDslRouteImport } from './routes/docs.dsl'
-import { Route as DocsHirRouteImport } from './routes/docs.hir'
-import { Route as DocsLibraryRouteImport } from './routes/docs.library'
-import { Route as DocsLifecycleRouteImport } from './routes/docs.lifecycle'
-import { Route as DocsRulesRouteImport } from './routes/docs.rules'
-import { Route as DocsSdkRouteImport } from './routes/docs.sdk'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
@@ -41,11 +30,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsRoute = DocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SharedRoute = SharedRouteImport.update({
   id: '/shared',
   path: '/shared',
@@ -55,56 +39,6 @@ const ShowcaseRoute = ShowcaseRouteImport.update({
   id: '/showcase',
   path: '/showcase',
   getParentRoute: () => rootRouteImport,
-} as any)
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsAiRoute = DocsAiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsArtifactsRoute = DocsArtifactsRouteImport.update({
-  id: '/artifacts',
-  path: '/artifacts',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsCliRoute = DocsCliRouteImport.update({
-  id: '/cli',
-  path: '/cli',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsDslRoute = DocsDslRouteImport.update({
-  id: '/dsl',
-  path: '/dsl',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsHirRoute = DocsHirRouteImport.update({
-  id: '/hir',
-  path: '/hir',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsLibraryRoute = DocsLibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsLifecycleRoute = DocsLifecycleRouteImport.update({
-  id: '/lifecycle',
-  path: '/lifecycle',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsRulesRoute = DocsRulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
-  getParentRoute: () => DocsRoute,
-} as any)
-const DocsSdkRoute = DocsSdkRouteImport.update({
-  id: '/sdk',
-  path: '/sdk',
-  getParentRoute: () => DocsRoute,
 } as any)
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
   id: '/projects/',
@@ -174,20 +108,9 @@ const ProjectsProjectIdTestsRoute = ProjectsProjectIdTestsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/docs': typeof DocsRouteWithChildren
   '/shared': typeof SharedRoute
   '/showcase': typeof ShowcaseRoute
-  '/docs/ai': typeof DocsAiRoute
-  '/docs/artifacts': typeof DocsArtifactsRoute
-  '/docs/cli': typeof DocsCliRoute
-  '/docs/dsl': typeof DocsDslRoute
-  '/docs/hir': typeof DocsHirRoute
-  '/docs/library': typeof DocsLibraryRoute
-  '/docs/lifecycle': typeof DocsLifecycleRoute
-  '/docs/rules': typeof DocsRulesRoute
-  '/docs/sdk': typeof DocsSdkRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
-  '/docs/': typeof DocsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$projectId/board': typeof ProjectsProjectIdBoardRoute
   '/projects/$projectId/bom': typeof ProjectsProjectIdBomRoute
@@ -204,16 +127,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/shared': typeof SharedRoute
   '/showcase': typeof ShowcaseRoute
-  '/docs/ai': typeof DocsAiRoute
-  '/docs/artifacts': typeof DocsArtifactsRoute
-  '/docs/cli': typeof DocsCliRoute
-  '/docs/dsl': typeof DocsDslRoute
-  '/docs/hir': typeof DocsHirRoute
-  '/docs/library': typeof DocsLibraryRoute
-  '/docs/lifecycle': typeof DocsLifecycleRoute
-  '/docs/rules': typeof DocsRulesRoute
-  '/docs/sdk': typeof DocsSdkRoute
-  '/docs': typeof DocsIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/projects/$projectId/board': typeof ProjectsProjectIdBoardRoute
   '/projects/$projectId/bom': typeof ProjectsProjectIdBomRoute
@@ -229,20 +142,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/docs': typeof DocsRouteWithChildren
   '/shared': typeof SharedRoute
   '/showcase': typeof ShowcaseRoute
-  '/docs/ai': typeof DocsAiRoute
-  '/docs/artifacts': typeof DocsArtifactsRoute
-  '/docs/cli': typeof DocsCliRoute
-  '/docs/dsl': typeof DocsDslRoute
-  '/docs/hir': typeof DocsHirRoute
-  '/docs/library': typeof DocsLibraryRoute
-  '/docs/lifecycle': typeof DocsLifecycleRoute
-  '/docs/rules': typeof DocsRulesRoute
-  '/docs/sdk': typeof DocsSdkRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
-  '/docs/': typeof DocsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$projectId/board': typeof ProjectsProjectIdBoardRoute
   '/projects/$projectId/bom': typeof ProjectsProjectIdBomRoute
@@ -259,20 +161,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/docs'
     | '/shared'
     | '/showcase'
-    | '/docs/ai'
-    | '/docs/artifacts'
-    | '/docs/cli'
-    | '/docs/dsl'
-    | '/docs/hir'
-    | '/docs/library'
-    | '/docs/lifecycle'
-    | '/docs/rules'
-    | '/docs/sdk'
     | '/projects/$projectId'
-    | '/docs/'
     | '/projects/'
     | '/projects/$projectId/board'
     | '/projects/$projectId/bom'
@@ -289,16 +180,6 @@ export interface FileRouteTypes {
     | '/'
     | '/shared'
     | '/showcase'
-    | '/docs/ai'
-    | '/docs/artifacts'
-    | '/docs/cli'
-    | '/docs/dsl'
-    | '/docs/hir'
-    | '/docs/library'
-    | '/docs/lifecycle'
-    | '/docs/rules'
-    | '/docs/sdk'
-    | '/docs'
     | '/projects'
     | '/projects/$projectId/board'
     | '/projects/$projectId/bom'
@@ -313,20 +194,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/docs'
     | '/shared'
     | '/showcase'
-    | '/docs/ai'
-    | '/docs/artifacts'
-    | '/docs/cli'
-    | '/docs/dsl'
-    | '/docs/hir'
-    | '/docs/library'
-    | '/docs/lifecycle'
-    | '/docs/rules'
-    | '/docs/sdk'
     | '/projects/$projectId'
-    | '/docs/'
     | '/projects/'
     | '/projects/$projectId/board'
     | '/projects/$projectId/bom'
@@ -342,7 +212,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DocsRoute: typeof DocsRouteWithChildren
   SharedRoute: typeof SharedRoute
   ShowcaseRoute: typeof ShowcaseRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
@@ -358,13 +227,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/shared': {
       id: '/shared'
       path: '/shared'
@@ -378,76 +240,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/showcase'
       preLoaderRoute: typeof ShowcaseRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/docs/': {
-      id: '/docs/'
-      path: '/'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/ai': {
-      id: '/docs/ai'
-      path: '/ai'
-      fullPath: '/docs/ai'
-      preLoaderRoute: typeof DocsAiRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/artifacts': {
-      id: '/docs/artifacts'
-      path: '/artifacts'
-      fullPath: '/docs/artifacts'
-      preLoaderRoute: typeof DocsArtifactsRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/cli': {
-      id: '/docs/cli'
-      path: '/cli'
-      fullPath: '/docs/cli'
-      preLoaderRoute: typeof DocsCliRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/dsl': {
-      id: '/docs/dsl'
-      path: '/dsl'
-      fullPath: '/docs/dsl'
-      preLoaderRoute: typeof DocsDslRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/hir': {
-      id: '/docs/hir'
-      path: '/hir'
-      fullPath: '/docs/hir'
-      preLoaderRoute: typeof DocsHirRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/library': {
-      id: '/docs/library'
-      path: '/library'
-      fullPath: '/docs/library'
-      preLoaderRoute: typeof DocsLibraryRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/lifecycle': {
-      id: '/docs/lifecycle'
-      path: '/lifecycle'
-      fullPath: '/docs/lifecycle'
-      preLoaderRoute: typeof DocsLifecycleRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/rules': {
-      id: '/docs/rules'
-      path: '/rules'
-      fullPath: '/docs/rules'
-      preLoaderRoute: typeof DocsRulesRouteImport
-      parentRoute: typeof DocsRoute
-    }
-    '/docs/sdk': {
-      id: '/docs/sdk'
-      path: '/sdk'
-      fullPath: '/docs/sdk'
-      preLoaderRoute: typeof DocsSdkRouteImport
-      parentRoute: typeof DocsRoute
     }
     '/projects/': {
       id: '/projects/'
@@ -536,34 +328,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface DocsRouteChildren {
-  DocsAiRoute: typeof DocsAiRoute
-  DocsArtifactsRoute: typeof DocsArtifactsRoute
-  DocsCliRoute: typeof DocsCliRoute
-  DocsDslRoute: typeof DocsDslRoute
-  DocsHirRoute: typeof DocsHirRoute
-  DocsLibraryRoute: typeof DocsLibraryRoute
-  DocsLifecycleRoute: typeof DocsLifecycleRoute
-  DocsRulesRoute: typeof DocsRulesRoute
-  DocsSdkRoute: typeof DocsSdkRoute
-  DocsIndexRoute: typeof DocsIndexRoute
-}
-
-const DocsRouteChildren: DocsRouteChildren = {
-  DocsAiRoute: DocsAiRoute,
-  DocsArtifactsRoute: DocsArtifactsRoute,
-  DocsCliRoute: DocsCliRoute,
-  DocsDslRoute: DocsDslRoute,
-  DocsHirRoute: DocsHirRoute,
-  DocsLibraryRoute: DocsLibraryRoute,
-  DocsLifecycleRoute: DocsLifecycleRoute,
-  DocsRulesRoute: DocsRulesRoute,
-  DocsSdkRoute: DocsSdkRoute,
-  DocsIndexRoute: DocsIndexRoute,
-}
-
-const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
-
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdBoardRoute: typeof ProjectsProjectIdBoardRoute
   ProjectsProjectIdBomRoute: typeof ProjectsProjectIdBomRoute
@@ -595,7 +359,6 @@ const ProjectsProjectIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DocsRoute: DocsRouteWithChildren,
   SharedRoute: SharedRoute,
   ShowcaseRoute: ShowcaseRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,

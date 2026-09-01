@@ -1,0 +1,131 @@
+---
+title: Validate in CI
+description: Gate a pull request on HK-* errors, on drawing changes, and on byte reproducibility.
+---
+
+Nerve is built to be a gate. Every command exits nonzero on validation errors,
+and every artifact is byte-identical for the same input, so a continuous
+integration job can check both correctness and reproducibility.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success. Warnings and info findings do not fail a command. |
+| `1` | Validation or test failure. At least one `HK-*` error, or a failing measurement. |
+| `2` | Usage error, compile failure, or incomplete evidence. |
+
+Distinguish `1` from `2` in a pipeline. A `2` usually means the job is
+misconfigured, not that the harness is wrong.
+
+## Generate the workflows
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve setup
+```
+
+`nerve setup` writes three GitHub Actions workflows and never overwrites a
+file that already exists:
+
+- **validate** runs `nerve validate` and fails on any error.
+- **snapshot** runs `nerve snapshot --ci` and uploads pixel diffs on failure.
+- **reproduce** rebuilds `dist/harness.json` from source and fails if it
+  differs from the committed baseline.
+
+## The minimum gate
+
+If you would rather write it yourself:
+
+```yaml title=".github/workflows/nerve.yml"
+name: Nerve validate
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm ci fails loudly on lockfile drift; an "|| npm install" fallback
+      # would swallow that and float dependencies inside the gate.
+      - run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      # Exit 1 on any HK-* error.
+      - run: npx nerve validate --codes
+```
+
+Add `--codes` in CI. The stable code is what a reviewer searches for and what
+a waiver cites; the message alone is not a durable reference.
+
+## Gate on drawings
+
+`nerve snapshot` compares committed visual snapshots byte for byte.
+
+```bash
+npx nerve snapshot --ci      # fail on any difference
+npx nerve snapshot --update  # deliberately accept new snapshots
+```
+
+This catches renderer changes and geometry changes that a findings-only gate
+would miss. Because output is byte-stable, a diff here is always a real
+change.
+
+## Gate on reproducibility
+
+Commit `dist/harness.json` as a baseline. The `.gitignore` that `nerve init`
+writes already does this: it ignores the contents of `dist/` but re-includes
+the HIR.
+
+```text
+node_modules/
+dist/*
+!dist/harness.json
+```
+
+Then have CI recompile and diff:
+
+```bash
+npx nerve compile --out dist-check
+npx nerve diff dist/harness.json dist-check/harness.json
+```
+
+`nerve diff` exits `1` on any semantic difference. A failure means the
+committed HIR does not match what the source produces today.
+
+## Tune severities instead of ignoring findings
+
+Rules are tunable per rule, by name, in `nerve.config.ts`. This is better than
+filtering output, because the decision stays in the repository and shows up in
+review.
+
+```ts title="nerve.config.ts"
+import { defineConfig } from '@grayhaven/nerve'
+
+export default defineConfig({
+  entry: './src/main.harness.ts',
+  rules: {
+    missingWireColor: 'error',
+    missingWireLength: 'warning',
+    spliceMissingNotes: 'off',
+  },
+})
+```
+
+<Callout type="warn" title="Tuning reaches the release gate too">
+  Severities are applied when the design compiles, so a rule downgraded to
+  `warning` here no longer blocks `nerve release` or `nerve export`. Downgrade
+  deliberately, in a commit someone can review.
+</Callout>
+
+## Publish the report as a build artifact
+
+```bash
+npx nerve review --out dist/review
+```
+
+`review-report.json` carries the harness revision, the HIR schema version, the
+content fingerprint, the tool and rule versions, the findings, and the
+limitations. Uploading it makes a build self-describing months later, when the
+job logs are gone.

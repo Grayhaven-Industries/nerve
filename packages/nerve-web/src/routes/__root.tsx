@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router"
 import type { QueryClient } from "@tanstack/react-query"
 import { warmCompiler } from "../lib/compile-client.js"
+import { docsUrl } from "../lib/site.js"
 import { Button } from "@/components/ui/button"
 import { CommandPalette } from "../components/CommandPalette.js"
 import { LiveRegion } from "../lib/announce.js"
@@ -91,9 +92,10 @@ function RootLayout() {
             <Link to="/projects" activeProps={{ className: "active" }}>
               Projects
             </Link>
-            <Link to="/docs" activeProps={{ className: "active" }}>
+            {/* Docs are a separate deployment; this leaves the app. */}
+            <a href={docsUrl("/docs")} target="_blank" rel="noreferrer">
               Docs
-            </Link>
+            </a>
             {/* The one icon-only control in the chrome. aria-label already
                 named it for assistive tech; the tooltip is what tells a
                 sighted user what the glyph does. */}

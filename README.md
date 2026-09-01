@@ -6,7 +6,14 @@
 [![npm](https://img.shields.io/npm/v/%40grayhaven%2Fnerve)](https://www.npmjs.com/package/@grayhaven/nerve)
 [![license](https://img.shields.io/badge/license-Apache--2.0-white)](./LICENSE)
 
-Nerve turns structured harness data into deterministic review evidence:
+A harness review is a schematic PDF, a wire list in a spreadsheet, and a
+connector datasheet in somebody's downloads folder.
+
+The wire list says J1 pin 3 is CAN_H. The datasheet says pin 3 is CAN_L. Both
+documents are internally consistent. Both have been signed. Nothing in that
+process is capable of noticing.
+
+Nerve compiles the harness instead:
 
 ```text
 existing data or Nerve source
@@ -14,6 +21,15 @@ existing data or Nerve source
   → stable HK-* findings
   → review report, diffs, drawings, test plans, and manufacturing artifacts
 ```
+
+```text
+error  connector:J1.pin:1  HK-MFG-004
+  Wire W1 uses 10AWG but connector J1 accepts 24AWG to 32AWG.
+```
+
+That range came from the connector's data, not from the design's claims about
+itself. A wire is judged against the contact that crimps it. A pin is judged
+against the pinout its part fixes.
 
 ![Nerve reviews a 22-connector harness: no errors, a sleeve at 95% fill, and a pinout swap caught against the part](./docs/assets/nerve-demo.gif)
 
@@ -32,24 +48,52 @@ imports WireViz, mapped CSV wire lists, and mapped Excel wire lists. It also
 imports connector contracts from KiCad boards, pinout CSV, tscircuit, and its
 own JSON format.
 
+[Harness modeling principles](./docs/content/docs/(index)/concepts/harness-modeling.mdx)
+explains the domain boundaries and the owner of each check, and
+[rule coverage](./docs/content/docs/reference/rule-coverage.mdx) says what the
+rule set is as a fraction of the problem.
+
+Full documentation: [docs.grayhavenindustries.com](https://docs.grayhavenindustries.com).
+The site is the `docs/` directory in this repository.
+
+## What it checks
+
+53 built-in consistency, electrical, component, and manufacturing checks, each
+with a stable `HK-*` code you can gate a pull request on or cite in a waiver.
+Four properties matter more than the count:
+
+- **Margins, not just verdicts.** A wire at 99% of its derated ampacity and a
+  wire at 40% both pass. They are not the same design, so a report says how
+  close each passing check came to its limit.
+- **Measured, not asserted.** The length of a routed branch is computed from
+  its centerline rather than read from a number somebody typed.
+- **Accounted for.** Every mapped CSV or Excel row comes back as accepted or
+  rejected, with row and column diagnostics. Nothing is silently dropped.
+- **Reproducible.** The same source produces byte-identical drawings, tables,
+  PDF and zip, so a revision reads as a diff instead of a re-read.
+
+## What it will not claim
+
 Nerve does not certify a harness. It does not claim compliance with an industry
-standard or a customer standard. A Nerve report records the checks that ran
-against the facts the design supplied.
+standard or with a customer standard. A report records the checks that ran
+against the facts the design supplied, and says so inside the report.
 
-[Harness modeling principles](./docs/modeling-principles.md) explains the domain
-boundaries and the owner of each check.
+Two commands exist only to tell you where you actually stand:
 
-## What it does
+```bash
+nerve parts ph-2     # which checks this part's data enables, and which stay inactive
+nerve provenance     # which limits a clean report rests on that nobody has verified
+```
 
-- Runs 53 built-in consistency, electrical, component, and manufacturing checks with stable `HK-*` diagnostic codes.
-- Reports how close a passing design came to each limit, not only that it passed. A wire at 99% of its derated ampacity and a wire at 40% both pass. They are not the same design.
-- Judges a wire against the contact that crimps it, not against the housing. Judges a pin against the pinout its part fixes, not against what the design says about itself.
-- Measures the length of a routed branch from its centerline, rather than from a number somebody typed.
-- Writes a versioned machine-readable review report with the HIR fingerprint, the rule coverage, the findings, and the limitations.
-- Accounts for every mapped CSV or Excel row as accepted or rejected. Then writes editable Nerve source and HIR.
-- Compares harness connector assignments against the pad nets of a KiCad 6+ board footprint, or against another interface contract.
-- Writes reproducible HIR, drawings, BOM, cut list, labels, continuity tests, assembly instructions, PDF packet, and release records.
-- Evaluates rules against a provenance-aware public corpus. It does not present synthetic regressions as field evidence.
+```text
+1 part(s) supply a limit a rule judges against without being verified.
+A clean report is only as good as these.
+```
+
+[Rule coverage](./docs/content/docs/reference/rule-coverage.mdx) counts the rule
+set as a fraction of the problem, by failure mode, including the failure modes
+that no design representation can catch. Read it before a clean compile becomes
+an argument.
 
 ## Product and factory foundations
 
@@ -156,6 +200,34 @@ const j1 = connector("J1", MolexMicroFit["43025-0800"], {
 
 // See examples/motor-controller for a complete design.
 ```
+
+## Questions you probably have
+
+**"We already use WireViz."** Good. Point Nerve at the YAML, including a project
+that keeps reusable anchors in a separate prepend file. Anything that cannot be
+represented without loss becomes an `HK-WV-001` diagnostic instead of quietly
+disappearing, and `nerve export --target wireviz` translates back.
+
+**"Our harnesses aren't complicated enough for this."** The errors that cost
+money usually are not complicated. A swapped pair. A gauge at the edge of a
+contact's range. A wire that arrives 30mm short of its bracket.
+
+**"I'm not rewriting our wire lists in TypeScript."** Don't. `nerve import`
+takes CSV and Excel through a column map you write, and emits a complete
+editable project. The TypeScript API is one input format, not an adoption
+requirement.
+
+**"This is just a linter."** It is also the packet. One compile writes the
+drawings, BOM, cut list, labels, bill of process, continuity tests, assembly
+instructions and PDF build book, byte-identically.
+
+**"How do I know the checks are any good?"** You do not have to take it on
+faith. [Rule coverage](./docs/content/docs/reference/rule-coverage.mdx) counts
+what the rule set is and is not, and `nerve provenance` names the part data a
+clean report currently depends on.
+
+**"Would our designs leave our machines?"** No. The CLI runs locally and the
+browser workspace compiles in the browser. Apache-2.0.
 
 ## Packages
 

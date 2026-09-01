@@ -12,7 +12,20 @@
       "has": [{ "type": "host", "value": "nerve-demo-grayhaven.vercel.app" }],
       "destination": "https://nerve.grayhavenindustries.com/$1",
       "permanent": true
-    }
+    },
+    { "source": "/llms.txt", "destination": "https://docs.grayhavenindustries.com/llms.txt", "permanent": true },
+    { "source": "/llms-full.txt", "destination": "https://docs.grayhavenindustries.com/llms-full.txt", "permanent": true },
+    { "source": "/docs", "destination": "https://docs.grayhavenindustries.com/docs", "permanent": true },
+    { "source": "/docs/dsl", "destination": "https://docs.grayhavenindustries.com/docs/reference/dsl", "permanent": true },
+    { "source": "/docs/sdk", "destination": "https://docs.grayhavenindustries.com/docs/reference/sdk", "permanent": true },
+    { "source": "/docs/cli", "destination": "https://docs.grayhavenindustries.com/docs/reference/cli", "permanent": true },
+    { "source": "/docs/hir", "destination": "https://docs.grayhavenindustries.com/docs/reference/hir", "permanent": true },
+    { "source": "/docs/rules", "destination": "https://docs.grayhavenindustries.com/docs/reference/rules", "permanent": true },
+    { "source": "/docs/library", "destination": "https://docs.grayhavenindustries.com/docs/reference/parts", "permanent": true },
+    { "source": "/docs/artifacts", "destination": "https://docs.grayhavenindustries.com/docs/reference/artifacts", "permanent": true },
+    { "source": "/docs/lifecycle", "destination": "https://docs.grayhavenindustries.com/docs/concepts/production-lifecycle", "permanent": true },
+    { "source": "/docs/ai", "destination": "https://docs.grayhavenindustries.com/docs/concepts/browser-workspace", "permanent": true },
+    { "source": "/docs/:slug*", "destination": "https://docs.grayhavenindustries.com/docs", "permanent": false }
   ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

@@ -1,12 +1,16 @@
 /**
- * Generated-docs drift guard: dsl-meta.json, the dsl.md reference block,
- * and the completion source must match a fresh extraction from
+ * Generated-docs drift guard: dsl-meta.json, the docs site's generated DSL
+ * reference, and the completion source must match a fresh extraction from
  * @grayhaven/nerve source. If this fails, someone changed the DSL without
- * regenerating: cd packages/nerve-web && bun scripts/gen-llms.ts
+ * regenerating.
  *
- * (The committed dsl.md once documented three props that never existed —
- * `current`, `branch({from,to,length})`, `label({text,position})`. This
- * test makes that class of drift impossible.)
+ * Regenerate both consumers with `bun run build`, or individually:
+ *   cd packages/nerve-web && bun scripts/gen-meta.ts   (editor metadata)
+ *   bun run docs:reference                             (docs site fragments)
+ *
+ * (The committed DSL reference once documented three props that never
+ * existed — `current`, `branch({from,to,length})`, `label({text,position})`.
+ * This test makes that class of drift impossible.)
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -16,7 +20,8 @@ import { builtinRules } from "../packages/nerve-rules/src/index.js"
 import { RULE_SUMMARIES } from "../packages/nerve-web/src/docs/rule-summaries.js"
 
 const WEB = join(import.meta.dirname, "..", "packages", "nerve-web")
-const REGEN = "Regenerate: cd packages/nerve-web && bun scripts/gen-llms.ts"
+const DOCS = join(import.meta.dirname, "..", "docs")
+const REGEN = "Regenerate: bun run build (or bun run docs:reference)"
 
 describe("generated DSL reference", () => {
   const fresh = extractDslMeta()
@@ -26,12 +31,9 @@ describe("generated DSL reference", () => {
     expect(committed, REGEN).toEqual(JSON.parse(JSON.stringify(fresh)))
   })
 
-  it("dsl.md generated block is current", () => {
-    const md = readFileSync(join(WEB, "docs-content", "dsl.md"), "utf8")
-    const START = "<!-- generated:dsl-reference:start -->"
-    const END = "<!-- generated:dsl-reference:end -->"
-    const block = md.slice(md.indexOf(START) + START.length, md.indexOf(END))
-    expect(block.trim(), REGEN).toBe(dslReferenceMd(fresh).trim())
+  it("the docs site's generated DSL reference is current", () => {
+    const md = readFileSync(join(DOCS, "content", "generated", "dsl-reference.md"), "utf8")
+    expect(md.trim(), REGEN).toBe(dslReferenceMd(fresh).trim())
   })
 
   it("every builder has an editor completion entry", () => {

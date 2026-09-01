@@ -1,0 +1,209 @@
+---
+title: Author a harness
+description: Build up a design from connectors and wires, then add the facts that unlock the checks you want.
+---
+
+This guide starts from the two-connector harness `nerve init` writes and grows
+it into something a shop can build. Each step adds facts, and each fact turns
+on checks that were previously inactive.
+
+Everything imports from `@grayhaven/nerve`. Parts come from
+`@grayhaven/nerve-connectors` or from your own provider.
+
+## Start with connectors and wires
+
+```ts
+import { connector, harness, wire } from '@grayhaven/nerve'
+import { part } from '@grayhaven/nerve-connectors'
+
+const j1 = connector('J1', part('ph-2'), {
+  pins: { 1: 'PWR_12V', 2: 'GND' },
+  terminals: 'SPH-004T-P0.5S',
+})
+
+const j2 = connector('J2', part('ph-2'), {
+  pins: { 1: 'PWR_12V', 2: 'GND' },
+  terminals: 'SPH-004T-P0.5S',
+})
+
+export default harness('my-first-harness', {
+  revision: 'A',
+  units: 'mm',
+  connectors: [j1, j2],
+  wires: [
+    wire('W1', j1.pin(1), j2.pin(1), {
+      signal: 'PWR_12V',
+      color: 'red',
+      gauge: '26AWG',
+      length: 150,
+    }),
+    wire('W2', j1.pin(2), j2.pin(2), {
+      signal: 'GND',
+      color: 'black',
+      gauge: '26AWG',
+      length: 150,
+    }),
+  ],
+})
+```
+
+`revision` and `units` are required. Releases fail closed without them.
+
+Reach parts by compact spec rather than by memorizing MPNs. `part('ph-2')`
+resolves to `PHR-2`; raw MPNs work too, case-insensitively, and common vendor
+spellings normalize. The [part library](/docs/reference/parts) lists every
+spec.
+
+<Callout title="Gauge spelling does not matter">
+  `'20AWG'`, `'20 AWG'`, `'awg 20'`, and `'20'` all canonicalize to `20AWG` in
+  HIR. The rules compare canonical values, so a design is never wrong because
+  of formatting.
+</Callout>
+
+## Declare what the wire actually carries
+
+Adding `currentEstimate` turns on the thermal checks: ampacity with bundle
+derating, contact rating, and source capacity.
+
+```ts
+wire('W1', j1.pin(1), j2.pin(1), {
+  signal: 'PWR_12V',
+  gauge: '26AWG',
+  length: 150,
+  currentEstimate: 1.5,
+})
+```
+
+`currentEstimate` means **continuous** current. Not peak, not inrush, not
+stall. Every rule that reads it is thermal, and conductor heating is I²R
+integrated over time, so a brief peak neither sizes a wire nor should fail
+one. Handle inrush separately.
+
+Cut length is assembled from separate facts, and they are not
+interchangeable:
+
+- `length` is the finished, installed length between endpoints.
+- `serviceLoop` is extra length so the wire can be dressed or serviced, and it
+  is added to the cut.
+- `terminationAllowance` is length consumed inside each termination, and it is
+  added to the cut.
+- `stripLength` is a machine parameter and is **not** added to the cut.
+
+## Add pin electrical semantics
+
+Port semantics are optional constraints over the graph. They are never
+inferred from signal names.
+
+```ts
+// microfit-2x4 is an eight-cavity housing. Cavities you never assign stay
+// unpopulated and are not flagged; a cavity you assign but never wire is.
+const controller = connector('J1', part('microfit-2x4'), {
+  pins: { 1: 'VBAT_24V', 2: 'GND', 3: 'CAN_H', 4: 'CAN_L' },
+  electrical: {
+    1: { role: 'source', voltage: { minV: 22, maxV: 26 }, currentA: 5 },
+    2: { role: 'ground', voltage: { minV: 0, maxV: 0 } },
+    3: {
+      role: 'bidirectional',
+      protocol: 'CAN',
+      differential: { pair: 'CAN', polarity: 'positive' },
+      terminationOhms: 120,
+      bitRateKbps: 500,
+    },
+    4: {
+      role: 'bidirectional',
+      protocol: 'CAN',
+      differential: { pair: 'CAN', polarity: 'negative' },
+    },
+  },
+})
+```
+
+Nerve propagates only declared facts and reports contradictions: incompatible
+voltage domains, multiple sources, undriven loads, protocol disagreement,
+differential conflicts, and demand above source capacity. An undriven-load
+conclusion requires every wired role on the net to be known; one unknown peer
+suppresses it.
+
+`terminationOhms` and `bitRateKbps` are what make the bus checks real. A
+high-speed CAN trunk carries exactly two ~120Ω terminations, one at each end,
+and the stub and total-length budgets shrink as the bit time shrinks.
+
+## Route the bundle
+
+A branch is physical routing, not electrical connectivity.
+
+```ts
+import { branch } from '@grayhaven/nerve'
+
+branch('SPINE', {
+  path: [controller, motor],
+  nominalLength: 900,
+  sleeve: 'braided-pet-12',
+  minBendRadius: 25,
+  ambientTemperatureC: 85,
+})
+```
+
+- `sleeve` names ending in a capacity, like `braided-pet-12`, are checked
+  against the estimated bundle diameter.
+- `minBendRadius` fails breakouts that are tighter than the bundle tolerates.
+- `ambientTemperatureC` requires member wires to carry a temperature rating at
+  or above it.
+- `waypoints` route a centerline through space. When present, lengths and
+  curvature are **computed** from the centerline rather than asserted by a
+  number somebody typed.
+
+Wire membership in a bundle is otherwise inferred from whether both endpoints
+appear in the branch `path`, which depends on an authoring accident. Anything
+that counts conductors, such as derating and sleeve fill, is only as good as
+that count, so set `branch` on the wire explicitly when it matters.
+
+## Splices, cables, labels, and protection
+
+```ts
+import { cable, label, protection, splice } from '@grayhaven/nerve'
+
+splice('SP1', { type: 'crimp', branch: 'SPINE', location: 300 })
+
+cable('CBL1', { type: '2x24AWG twisted shielded', conductors: 2, shield: 'foil' })
+
+label('L1', { text: 'SPINE-A', attachTo: 'J1', distance: 50 })
+
+protection('F1', { kind: 'fuse', ratingA: 7.5, protects: ['W1'] })
+```
+
+Wires join a cable by setting `cable` and `conductor` on themselves. Shield
+drains must land on a pin or the rules flag it. `protects` is explicit by
+design: Nerve does not infer current flow, and a device rating must not exceed
+the ampacity of any wire it guards.
+
+## Check your work
+
+```bash
+npx nerve validate --codes
+npx nerve parts ph-2
+```
+
+`nerve parts` is the fastest way to see what a part's data currently enables:
+
+```text
+gauge      24AWG to 32AWG
+current    2A
+voltage    100V
+verified   inspired-by
+checks     6 active, 3 inactive
+  inactive HK-CONN-013 — needs sealed
+  inactive HK-CONN-014 — needs compatibleSeals
+  inactive HK-CONN-015 — needs reservedPins
+```
+
+## Next
+
+<Cards>
+  <Card href="/docs/reference/dsl" title="DSL reference">
+    Every builder and every prop, extracted from source.
+  </Card>
+  <Card href="/docs/guides/write-a-custom-rule" title="Write a custom rule">
+    Ship your shop's policy as a package with its own codes.
+  </Card>
+</Cards>

@@ -1,0 +1,126 @@
+---
+title: Release and record builds
+description: Freeze a revision, hand a packet to the floor, and tie every serial number back to what it was built from.
+---
+
+A release is the point where a design stops being editable and starts being
+something a shop builds. Nerve makes that boundary a fingerprint rather than a
+convention.
+
+## 1. Cut the release
+
+```bash
+npx nerve release ./src/main.harness.ts \
+  --eco ECO-001 \
+  --reason "initial production release" \
+  --author tyler \
+  --date 2026-06-07 \
+  --out dist/releases/A
+```
+
+```text
+wrote dist/releases/A/harness.json
+wrote dist/releases/A/release-A.json
+Release my-first-harness@A (ECO-001) — fingerprint 602020e15da5c711
+```
+
+`--eco`, `--reason`, and `--date` are required, and so is the harness file:
+`nerve release` does not fall back to `entry`.
+
+The release is fail-closed. It blocks on any diagnostic at error severity, and
+also on any net without adequate continuity coverage beyond what `HK-ELEC-011`
+already reported. `nerve export --target manufacturing-packet` applies the same
+gate.
+
+When you release a successor, pass the previous release so the impact analysis
+is computed from the semantic diff rather than from the reason field:
+
+```bash
+npx nerve release ./src/main.harness.ts --eco ECO-002 \
+  --reason "RL-001: lengthen W_BUMP_L_RTN per chassis rev3" \
+  --author tyler --date 2026-06-08 \
+  --against dist/releases/A/release-A.json \
+  --out dist/releases/B
+```
+
+## 2. Export the packet
+
+```bash
+npx nerve export ./src/main.harness.ts --out dist/packet-A
+```
+
+Hand `manufacturing-packet.zip` to the floor. Because the zip uses fixed
+timestamps, its hash is stable, so a packet can be verified against the
+release fingerprint it claims to come from.
+
+## 3. Record each unit
+
+```bash
+npx nerve record ./src/main.harness.ts \
+  --release dist/releases/A/release-A.json \
+  --serial SN-0001 --operator "j.alvarez" --date 2026-06-07 \
+  --lot LOT-26W23 --results dist/results-SN-0001.json --out dist/builds
+```
+
+```text
+SN-0001: 362 pass / 0 fail / 0 not run → PASS
+```
+
+A failing measurement exits nonzero and names the wire, its endpoints, and the
+expected state. The build record retains the approved specification, the
+measurements, raw-result references and hashes, tester and calibration
+identity, as-built lengths, and crimp-process evidence.
+
+Pass `--lengths lengths.json` with `--length-tolerance` to record as-built
+lengths against the design, and `--test-spec` to bind the record to an
+approved test specification.
+
+<Callout type="warn" title="Limits need approval">
+  A caller-authored, plan-matched `TestSpecification` must be approved before a
+  measurement receives a pass or fail verdict. Without it, Nerve records
+  measurements without judging them.
+</Callout>
+
+## 4. Turn floor feedback into redlines
+
+```bash
+npx nerve redline add ./src/main.harness.ts \
+  --target wire:W_BUMP_L_RTN --type length \
+  --description "arrives 30mm short of the bumper bracket" \
+  --value 550 --serial SN-0001 --by "j.alvarez" --file dist/redlines.json
+```
+
+The target is validated against the design, so a redline against a wire that
+does not exist is rejected rather than filed.
+
+To sweep an entire build record at once:
+
+```bash
+npx nerve redline from-record ./src/main.harness.ts \
+  --record dist/builds/SN-0001.json --file dist/redlines.json --by "j.alvarez"
+```
+
+Resolve each one explicitly. Rejections are retained with their reason, which
+is the part a paper process loses:
+
+```bash
+npx nerve redline resolve dist/redlines.json --id RL-001 \
+  --accept true --reason "confirmed against chassis rev3 mounting" \
+  --by tyler --date 2026-06-08
+```
+
+Then merge everything accepted into one patch:
+
+```bash
+npx nerve redline patch dist/redlines.json --out dist/patch
+```
+
+## 5. Review the change
+
+```bash
+npx nerve diff dist/releases/A dist/releases/B
+```
+
+Each argument can be a `harness.json`, a `.harness.ts`, or a revision
+directory. Add `--json` for a machine-readable diff. The command exits `1` on
+any semantic difference, which makes it usable as a gate as well as a report.

@@ -1,0 +1,323 @@
+---
+title: CLI
+description: Deterministic harness review from the command line, with stable exit codes.
+---
+
+Run the CLI without installing it globally:
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve <command>
+```
+
+Inside a project created by `nerve init`, `npx nerve <command>` is enough.
+
+Every command exits nonzero on validation errors, and every artifact is
+byte-identical for the same input. With `entry` set in `nerve.config.ts`, the
+file argument is optional for most commands.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | Validation or test failure |
+| `2` | Usage error, compile failure, or incomplete evidence |
+
+## Global behaviour
+
+- `--codes` prints the stable `HK-*` code beside each finding. Every JSON
+  artifact carries the codes either way.
+- `--out <dir>` is resolved relative to the current directory. A
+  `outputDir` in `nerve.config.ts` is resolved relative to the config, so
+  running from a subdirectory does not scatter `dist/`.
+- `--version` prints the CLI version.
+
+## Set up a project
+
+### `nerve init`
+
+```bash
+nerve init [dir]
+```
+
+Scaffold a complete project: `nerve.config.ts`, `src/main.harness.ts`,
+`package.json`, `tsconfig.json`, and a `.gitignore` that commits
+`dist/harness.json` as a reproducibility baseline. Existing files are skipped
+with a notice, never overwritten.
+
+### `nerve setup`
+
+```bash
+nerve setup [dir]
+```
+
+Write CI workflows: validate, snapshot, and byte-reproducibility. Also
+refuses to overwrite.
+
+## Compile and check
+
+### `nerve compile`
+
+```bash
+nerve compile <file.harness.ts> [--out dir]
+```
+
+Compile to HIR and write `harness.json` and `diagnostics.json`. Prints
+diagnostics and a summary line. Exits `1` if the design has errors.
+
+### `nerve validate`
+
+```bash
+nerve validate <file.harness.ts>
+```
+
+Compile and run rules only, writing nothing. This is the CI gate. The exit
+code mirrors the highest severity present.
+
+### `nerve dev`
+
+```bash
+nerve dev [file.harness.ts] [--port 4477]
+```
+
+Watch, recompile, and serve a live browser preview of the schematic, board,
+faces, and pinout views.
+
+### `nerve snapshot`
+
+```bash
+nerve snapshot [files...] [--update] [--ci]
+```
+
+Byte-exact committed visual snapshots. `--ci` fails on any difference,
+`--update` accepts new output deliberately.
+
+## Report
+
+### `nerve review`
+
+```bash
+nerve review <file.harness.ts> [--out dir]
+```
+
+Write `review-report.json`: harness revision, HIR schema version, content
+fingerprint, tool and rule versions, findings, and limitations. Prints margin
+lines for passing checks, showing how much headroom was left.
+
+```text
+2 measurement(s), 0 over budget. Tightest headroom:
+    12.0%  contact voltage — connector:J1.pin:1 (12/100V)
+my-first-harness rev A: 0 finding(s), fingerprint 602020e15da5c711
+```
+
+### `nerve provenance`
+
+```bash
+nerve provenance <file.harness.ts> [--out dir]
+```
+
+Report what the checks rest on: which parts supply a limit a rule judges
+against without themselves being verified. Read this before treating a clean
+report as evidence.
+
+### `nerve eval`
+
+```bash
+nerve eval [manifest.json] [--out dir]
+```
+
+Evaluate rules against a provenance-labelled corpus and write a scorecard.
+Synthetic regressions are not presented as field evidence.
+
+### `nerve inspect`
+
+```bash
+nerve inspect <harness.json>
+```
+
+Query a compiled HIR from the terminal.
+
+```text
+schema   0.1.0
+harness  my-first-harness
+revision A
+units    mm
+connectors 2
+wires      2
+bom items  2
+diagnostics 0 (0 errors)
+```
+
+### `nerve diff`
+
+```bash
+nerve diff <revA> <revB> [--json]
+```
+
+Semantic diff between two revisions, down to a single pin swap. Each argument
+may be a `harness.json`, a `.harness.ts`, or a revision directory. Exits `1`
+on any difference.
+
+## Draw and export
+
+### `nerve render`
+
+```bash
+nerve render <file.harness.ts> [--format svg] [--view <view>] [--paper letter|a4] [--out dir]
+```
+
+Render one view. Views: `schematic`, `board`, `faces`, `pinout`, `formboard`.
+`--format png` renders a raster preview.
+
+### `nerve export`
+
+```bash
+nerve export <file.harness.ts> [--target manufacturing-packet|wireviz] [--out dir]
+```
+
+Write the complete artifact set, or a WireViz YAML translation. The
+manufacturing-packet target is fail-closed: validation errors block it. See
+[artifacts](/docs/reference/artifacts).
+
+### `nerve machine`
+
+```bash
+nerve machine <adapter-id> <file.harness.ts> [--test-spec file.json] [--out dir]
+```
+
+Machine-readable exports for cutting, marking, and test equipment.
+
+## Import and compare
+
+### `nerve import` (WireViz)
+
+```bash
+nerve import <file.yml> [--prepend-file base.yml] [--id harness-id] [--out dir]
+```
+
+Import WireViz YAML, including projects that keep reusable anchors in a
+separate prepend file.
+
+### `nerve import` (CSV or Excel)
+
+```bash
+nerve import <file.csv|xlsx> --map columns.json [--sheet name] [--id harness-id] [--out dir]
+```
+
+Import a mapped CSV or Excel wire list. `--map` is required: Nerve does not
+guess at column meanings. Writes a complete editable project plus an import
+report accounting for every source row. See
+[import a wire list](/docs/guides/import-a-wire-list).
+
+### `nerve contract`
+
+```bash
+nerve contract <file.harness.ts> --connector <ref> [--against <file>] [--component <ref>] [--out dir]
+```
+
+Compare a harness connector with an outside authority: a KiCad 6+ board, a
+tscircuit design, a pinout CSV, or another contract JSON. `--component` names
+the footprint reference on the board. See
+[check a connector against a board](/docs/guides/check-a-connector-against-a-board).
+
+## Analyse and cost
+
+### `nerve analyze`
+
+```bash
+nerve analyze <file.harness.ts> [--out dir]
+```
+
+Electrical analysis: resistance, voltage drop, current per wire, bundle and
+weight roll-ups.
+
+### `nerve quote`
+
+```bash
+nerve quote <file.harness.ts> [--out dir]
+```
+
+Cost roll-up from the BOM. Requires `costing` in `nerve.config.ts`.
+
+### `nerve parts`
+
+```bash
+nerve parts [spec-or-mpn] [--json]
+```
+
+Browse the bundled connector library, and see which checks a part's data
+enables.
+
+```text
+mpn        PHR-2
+specs      ph-2
+gauge      24AWG to 32AWG
+current    2A
+voltage    100V
+verified   inspired-by
+checks     6 active, 3 inactive
+  inactive HK-CONN-013 — needs sealed
+```
+
+### `nerve parts scaffold`
+
+```bash
+nerve parts scaffold <mpn> --pins <n> [--out dir]
+```
+
+Stub a new part with every rule-relevant field present, so nothing important
+is forgotten by omission.
+
+## Release and build
+
+### `nerve release`
+
+```bash
+nerve release <file.harness.ts> --eco <id> --reason <text> --date <iso> [--against release.json] [--out dir]
+```
+
+Freeze a revision with fail-closed validation. `--against` a previous release
+adds impact analysis computed from the semantic diff. The harness file is
+required here; `entry` is not used.
+
+### `nerve record`
+
+```bash
+nerve record <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--test-spec file.json] [--lengths lengths.json] [--length-tolerance mm] [--out dir]
+```
+
+Write a build record for a completed unit. A failing measurement exits
+nonzero and names the wire, its endpoints, and the expected state.
+
+### `nerve redline add`
+
+```bash
+nerve redline add <file.harness.ts> --target <hir-ref> --type <type> --description <text> [--value v] [--release id] [--serial sn]
+```
+
+Record an as-built deviation against a design object. The target is validated
+against the design.
+
+### `nerve redline from-record`
+
+```bash
+nerve redline from-record <file.harness.ts> --record <build-record.json> [--file redlines.json] [--prefix RL] [--by name]
+```
+
+Derive redlines from a build record.
+
+### `nerve redline resolve`
+
+```bash
+nerve redline resolve <redlines.json> --id <id> --accept|--reject --reason <text> --date <iso>
+```
+
+Accept or reject a redline. Rejections are retained with their reason.
+
+### `nerve redline patch`
+
+```bash
+nerve redline patch <redlines.json> [--out dir]
+```
+
+Merge every accepted redline into one `variant()` patch.

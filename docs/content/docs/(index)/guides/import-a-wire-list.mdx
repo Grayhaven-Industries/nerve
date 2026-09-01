@@ -1,0 +1,105 @@
+---
+title: Import a wire list
+description: Turn a CSV or Excel wire list into a reviewable Nerve project, with every source row accounted for.
+---
+
+Most harnesses already exist as a spreadsheet. `nerve import` turns one into a
+complete, editable Nerve project without guessing at your columns.
+
+## Before you start
+
+- The wire list, as `.csv` or `.xlsx`.
+- A column map. Nerve does not sniff header names, because a wrong guess about
+  which column is the source pin is worse than an error message.
+
+## 1. Write the column map
+
+Map Nerve's fields to your headers, exactly as they appear in the sheet:
+
+```json title="columns.json"
+{
+  "wireId": "Wire",
+  "fromConnector": "From",
+  "fromPin": "From Pin",
+  "toConnector": "To",
+  "toPin": "To Pin",
+  "signal": "Signal",
+  "gauge": "Gauge",
+  "color": "Color",
+  "length": "Length",
+  "lengthUnit": "Unit"
+}
+```
+
+## 2. Run the import
+
+```bash
+npx --package=@grayhaven/nerve-cli nerve import ./wire-list.xlsx \
+  --sheet "Wire List" \
+  --map ./columns.json \
+  --id my-harness \
+  --out ./migration
+```
+
+Omit `--sheet` for CSV. The output is a project that can resolve its own
+imports, not two loose files:
+
+```text
+migration/
+  src/main.harness.ts    editable Nerve source
+  nerve.config.ts
+  package.json
+  tsconfig.json
+  .gitignore
+  column-map.json        the normalized map, reusable for the next import
+  import-report.json     every accepted and rejected row
+```
+
+Then install and compile the emitted project:
+
+```bash
+cd migration
+npm install
+npx nerve validate --codes
+```
+
+## 3. Read the import report
+
+This is the step people skip, and it is the one that matters. Every source row
+is accounted for as accepted or rejected, with row and column diagnostics.
+Nerve does not quietly drop what it could not parse.
+
+Three behaviours are deliberate:
+
+- **Unknown connector parts are marked `unverified`.** Nerve will not invent a
+  housing to make the import look complete. An unverified part supplies no
+  limits, so the checks that would judge against those limits stay inactive.
+  Run `nerve provenance` to see exactly which ones.
+- **Missing signals stay missing.** A blank cell does not become an inferred
+  name.
+- **Rejected rows stay visible.** They appear in the report rather than
+  vanishing from the count.
+
+## 4. Fill in what the checks need
+
+A fresh import usually validates clean, and that is not the same as good. The
+design has few declared facts, so few rules have anything to judge. Work
+through them in this order:
+
+1. Replace `unverified` parts with real ones, by spec or MPN. See the
+   [part library](/docs/reference/parts).
+2. Add `currentEstimate` to power conductors, which turns on the thermal
+   checks.
+3. Add `terminals` and `seals` per pin, which turns on the compatibility
+   checks.
+4. Add branches with `nominalLength`, `sleeve`, and `ambientTemperatureC`,
+   which turns on the manufacturing checks.
+
+`nerve parts <spec>` reports which checks each part's data enables and which
+remain inactive.
+
+## Reuse the map
+
+`column-map.json` is the normalized form of your input map. Commit it and pass
+it to the next import from the same source system, so a second harness does
+not become a second guess.
