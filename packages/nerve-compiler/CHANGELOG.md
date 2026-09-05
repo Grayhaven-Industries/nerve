@@ -1,5 +1,14 @@
 # @grayhaven/nerve-compiler
 
+## 8.1.0
+
+### Patch Changes
+
+- Updated dependencies [ec7b19c]
+- Updated dependencies [b7291e3]
+  - @grayhaven/nerve@8.1.0
+  - @grayhaven/nerve-rules@8.1.0
+
 ## 8.0.0
 
 ### Patch Changes

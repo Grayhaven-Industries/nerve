@@ -1,5 +1,30 @@
 # @grayhaven/nerve-cli
 
+## 8.1.0
+
+### Minor Changes
+
+- b7291e3: Add project interface manifests, explicit pad-to-cavity mapping, structured check reports, and KiCad schematic netlist import. Direct schematic checks invoke KiCad's CLI; incomplete evidence blocks the command. Support KiCad 10 board nets and preserve intentional no-connect metadata.
+
+  Carry revision-pinned KiCad symbol, footprint, and STEP references in connector metadata, with initial links for JST PH/XH. Add a KiCad IPC plugin that runs project checks and selects affected board pads.
+
+  Include visible plugin toolbar icons, support Tcl/Tk resources in KiCad's bundled macOS Python, and initialize keyboard navigation through findings. Show contract command help without touching project files and report manifest validation errors with concise field paths.
+
+### Patch Changes
+
+- 4c85512: Fix published CSV migration compilation under ESM package exports, declare the Node 20.6+ runtime floor required by that resolution path, add conventional version output, keep invalid-HIR inspection errors concise, mark interrupted manufacturing exports as incomplete, and reject dev-server listen failures promptly.
+- Updated dependencies [ec7b19c]
+- Updated dependencies [4c85512]
+- Updated dependencies [b7291e3]
+  - @grayhaven/nerve@8.1.0
+  - @grayhaven/nerve-connectors@8.1.0
+  - @grayhaven/nerve-eval@8.1.0
+  - @grayhaven/nerve-exporters@8.1.0
+  - @grayhaven/nerve-importers@8.1.0
+  - @grayhaven/nerve-rules@8.1.0
+  - @grayhaven/nerve-wireviz@8.1.0
+  - @grayhaven/nerve-compiler@8.1.0
+
 ## 8.0.0
 
 ### Major Changes

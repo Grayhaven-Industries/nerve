@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-connectors",
-  "version": "8.0.0",
+  "version": "8.1.0",
   "type": "module",
   "description": "Verified connector library for Grayhaven Nerve.",
   "exports": {

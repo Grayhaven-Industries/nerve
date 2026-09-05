@@ -69,7 +69,7 @@
     },
     "packages/nerve": {
       "name": "@grayhaven/nerve",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "effect": "^3.16.0",
       },
@@ -81,7 +81,7 @@
     },
     "packages/nerve-cli": {
       "name": "@grayhaven/nerve-cli",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "bin": {
         "nerve": "./bin/nerve.js",
       },
@@ -109,7 +109,7 @@
     },
     "packages/nerve-compiler": {
       "name": "@grayhaven/nerve-compiler",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
         "@grayhaven/nerve-rules": "workspace:*",
@@ -125,7 +125,7 @@
     },
     "packages/nerve-connectors": {
       "name": "@grayhaven/nerve-connectors",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
       },
@@ -136,7 +136,7 @@
     },
     "packages/nerve-eval": {
       "name": "@grayhaven/nerve-eval",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
       },
@@ -147,7 +147,7 @@
     },
     "packages/nerve-exporters": {
       "name": "@grayhaven/nerve-exporters",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
         "effect": "^3.16.0",
@@ -166,7 +166,7 @@
     },
     "packages/nerve-importers": {
       "name": "@grayhaven/nerve-importers",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@e965/xlsx": "^0.20.3",
         "@grayhaven/nerve": "workspace:*",
@@ -178,7 +178,7 @@
     },
     "packages/nerve-interop": {
       "name": "@grayhaven/nerve-interop",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
       },
@@ -189,7 +189,7 @@
     },
     "packages/nerve-platform": {
       "name": "@grayhaven/nerve-platform",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
         "@grayhaven/nerve-importers": "workspace:*",
@@ -203,7 +203,7 @@
     },
     "packages/nerve-react": {
       "name": "@grayhaven/nerve-react",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
       },
@@ -215,7 +215,7 @@
     },
     "packages/nerve-rules": {
       "name": "@grayhaven/nerve-rules",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
       },
@@ -290,7 +290,7 @@
     },
     "packages/nerve-wireviz": {
       "name": "@grayhaven/nerve-wireviz",
-      "version": "8.0.0",
+      "version": "8.1.0",
       "dependencies": {
         "@grayhaven/nerve": "workspace:*",
         "yaml": "^2.7.0",

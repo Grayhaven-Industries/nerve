@@ -1,6 +1,6 @@
 {
   "name": "@grayhaven/nerve-react",
-  "version": "8.0.0",
+  "version": "8.1.0",
   "description": "JSX authoring for Grayhaven Nerve harnesses (experimental). No React runtime — a 2KB custom JSX factory over the same typed DSL.",
   "type": "module",
   "exports": {

@@ -1,5 +1,19 @@
 # @grayhaven/nerve
 
+## 8.1.0
+
+### Minor Changes
+
+- b7291e3: Add project interface manifests, explicit pad-to-cavity mapping, structured check reports, and KiCad schematic netlist import. Direct schematic checks invoke KiCad's CLI; incomplete evidence blocks the command. Support KiCad 10 board nets and preserve intentional no-connect metadata.
+
+  Carry revision-pinned KiCad symbol, footprint, and STEP references in connector metadata, with initial links for JST PH/XH. Add a KiCad IPC plugin that runs project checks and selects affected board pads.
+
+  Include visible plugin toolbar icons, support Tcl/Tk resources in KiCad's bundled macOS Python, and initialize keyboard navigation through findings. Show contract command help without touching project files and report manifest validation errors with concise field paths.
+
+### Patch Changes
+
+- ec7b19c: Ship a CommonJS build alongside the ESM one and declare a `require` export condition. Through 8.0.0 none of these packages could be loaded from CommonJS, in one of two ways. Nine of them published an `import`-only exports map, so `require("@grayhaven/nerve")` failed with a misleading `No "exports" main defined`. `@grayhaven/nerve-react` published a `default` map with no root `main` or `types`, so the condition matched but resolved to an ESM file: `ERR_REQUIRE_ESM` on Node below 22.12, and a silent require(esm) on newer runtimes. Types now resolve per condition (`index.d.ts` for `import`, `index.d.cts` for `require`), and the pack-and-install smoke test exercises both entry paths. `@grayhaven/nerve-cli` and `@grayhaven/nerve-compiler` stay ESM-only: they read `import.meta`, which has no correct CommonJS equivalent.
+
 ## 8.0.0
 
 ### Major Changes
