@@ -60,6 +60,23 @@ export const HirProvenance = Schema.Struct({
   lastVerified: Schema.optional(Schema.String)
 })
 
+export const HirKiCadAsset = Schema.Struct({
+  kind: Schema.Literal("symbol", "footprint", "model3d"),
+  identifier: Schema.String,
+  relationship: Schema.Literal("part", "mate", "generic"),
+  mpn: Schema.optional(Schema.String),
+  sourceUrl: Schema.String,
+  libraryRevision: Schema.optional(Schema.String),
+  lastVerified: Schema.optional(Schema.String),
+  license: Schema.Struct({
+    spdxId: Schema.String,
+    exception: Schema.optional(Schema.String),
+    url: Schema.String,
+    attribution: Schema.String
+  }),
+  notes: Schema.optional(Schema.String)
+})
+
 /** The contact that crimps the wire (PRD §30, §4). Present only when the
  * design supplied a record rather than a bare MPN. */
 export const HirTerminalPart = Schema.Struct({
@@ -134,6 +151,7 @@ export const HirConnector = Schema.Struct({
   voltageLimitV: Schema.optional(Schema.Number),
   crimpTool: Schema.optional(Schema.String),
   provenance: Schema.optional(HirProvenance),
+  kicadAssets: Schema.optional(Schema.Array(HirKiCadAsset)),
   pins: Schema.Array(HirPin)
 })
 
@@ -330,6 +348,7 @@ export const Hir = Schema.Struct({
 
 export type Hir = Schema.Schema.Type<typeof Hir>
 export type HirConnector = Schema.Schema.Type<typeof HirConnector>
+export type HirKiCadAsset = Schema.Schema.Type<typeof HirKiCadAsset>
 export type HirWire = Schema.Schema.Type<typeof HirWire>
 export type HirWirePart = Schema.Schema.Type<typeof HirWirePart>
 export type HirWireEndAllowance = Schema.Schema.Type<typeof HirWireEndAllowance>
@@ -370,4 +389,3 @@ export const hirJsonSchema = (): HirJsonSchema => {
   // is `undefined`, all of which JsonSchema7Root declares optional.
   return JSON.parse(JSON.stringify(schema)) as HirJsonSchema
 }
-

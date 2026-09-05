@@ -30,7 +30,7 @@ export interface ContractSource {
 export interface ContractPin {
   readonly pin: string
   readonly signal?: string
-  /** Explicit ECAD no-connect state. Omitted means the source did not say. */
+  /** Known net assignment; unconnected does not by itself prove an NC flag. */
   readonly connection?: "net" | "unconnected"
   /** Pin/pad identifier in the source system when it differs from `pin`. */
   readonly sourcePin?: string
@@ -149,7 +149,7 @@ export const validateContract = (
       diagnostics.push({
         code: "HK-IFC-006",
         severity: DiagnosticSeverity.Error,
-        message: `Nerve ${c.ref}.${pin} carries ${actual}, but ${sourceLabel} pad ${sourcePin} is explicitly unconnected.`,
+        message: `Nerve ${c.ref}.${pin} carries ${actual}, but ${sourceLabel} pad ${sourcePin} has no assigned connection in the source.`,
         target: refs.pin(c.ref, pin)
       })
     }
@@ -193,9 +193,10 @@ export const importPinoutCsv = (
 }
 
 type SExpression = string | ReadonlyArray<SExpression>
+type SExpressionToken = "(" | ")" | { readonly atom: string }
 
-const tokenizeSExpression = (text: string): Array<string> => {
-  const tokens: Array<string> = []
+const tokenizeSExpression = (text: string): Array<SExpressionToken> => {
+  const tokens: Array<SExpressionToken> = []
   let i = 0
   while (i < text.length) {
     const ch = text[i]!
@@ -214,23 +215,26 @@ const tokenizeSExpression = (text: string): Array<string> => {
     }
     if (ch === '"') {
       let value = ""
+      let closed = false
       i += 1
       while (i < text.length) {
         const current = text[i]!
         if (current === '"') {
           i += 1
+          closed = true
           break
         }
         if (current === "\\" && i + 1 < text.length) {
           const escaped = text[i + 1]!
-          value += escaped === "n" ? "\n" : escaped === "t" ? "\t" : escaped
+          value += escaped === "n" ? "\n" : escaped === "t" ? "\t" : escaped === "r" ? "\r" : escaped
           i += 2
           continue
         }
         value += current
         i += 1
       }
-      tokens.push(value)
+      if (!closed) throw new Error("Unterminated quoted string in KiCad file.")
+      tokens.push({ atom: value })
       continue
     }
     let value = ""
@@ -238,33 +242,29 @@ const tokenizeSExpression = (text: string): Array<string> => {
       value += text[i]!
       i += 1
     }
-    if (value !== "") tokens.push(value)
+    if (value !== "") tokens.push({ atom: value })
   }
   return tokens
 }
 
 const parseSExpression = (text: string): SExpression => {
-  const tokens = tokenizeSExpression(text)
-  let cursor = 0
-  const parseOne = (): SExpression => {
-    const token = tokens[cursor++]
-    if (token === undefined) throw new Error("Unexpected end of KiCad file.")
-    if (token !== "(") {
-      if (token === ")") throw new Error("Unexpected closing parenthesis in KiCad file.")
-      return token
+  const stack: Array<Array<SExpression>> = []
+  let root: SExpression | undefined
+  for (const token of tokenizeSExpression(text)) {
+    if (token === ")") {
+      if (stack.length === 0) throw new Error("Unexpected closing parenthesis in KiCad file.")
+      stack.pop()
+      continue
     }
-    const values: Array<SExpression> = []
-    while (tokens[cursor] !== ")") {
-      if (tokens[cursor] === undefined) {
-        throw new Error("Unclosed expression in KiCad file.")
-      }
-      values.push(parseOne())
-    }
-    cursor += 1
-    return values
+    const value: SExpression = token === "(" ? [] : token.atom
+    const parent = stack.at(-1)
+    if (parent !== undefined) parent.push(value)
+    else if (root === undefined) root = value
+    else throw new Error("Unexpected content after KiCad root expression.")
+    if (Array.isArray(value)) stack.push(value)
   }
-  const root = parseOne()
-  if (cursor !== tokens.length) throw new Error("Unexpected content after KiCad root expression.")
+  if (stack.length > 0) throw new Error("Unclosed expression in KiCad file.")
+  if (root === undefined) throw new Error("Unexpected end of KiCad file.")
   return root
 }
 
@@ -283,6 +283,23 @@ const childrenNamed = (
     (value): value is ReadonlyArray<SExpression> =>
       isList(value) && value[0] === name
   )
+
+const scalarChild = (list: ReadonlyArray<SExpression>, name: string): string | undefined => {
+  const value = childrenNamed(list, name)[0]?.[1]
+  return isAtom(value) ? value : undefined
+}
+
+const requiredScalar = (list: ReadonlyArray<SExpression>, name: string, context: string): string => {
+  const values = childrenNamed(list, name)
+  const value = values[0]?.[1]
+  if (values.length !== 1 || !isAtom(value) || value === "") {
+    throw new Error(`Expected one non-empty ${name} in ${context}.`)
+  }
+  return value
+}
+
+const sortedPins = (pins: Iterable<ContractPin>): Array<ContractPin> =>
+  [...pins].sort((a, b) => a.pin.localeCompare(b.pin, "en", { numeric: true }))
 
 const propertyValue = (
   footprint: ReadonlyArray<SExpression>,
@@ -316,9 +333,11 @@ export const importKiCadPcbPinout = (
     throw new Error("Expected a KiCad 6+ .kicad_pcb file.")
   }
   const wanted = meta.component ?? meta.connector
-  const footprint = childrenNamed(root, "footprint").find(
+  const footprints = childrenNamed(root, "footprint").filter(
     (entry) => propertyValue(entry, "Reference") === wanted
   )
+  if (footprints.length > 1) throw new Error(`Duplicate KiCad footprint reference ${wanted}.`)
+  const footprint = footprints[0]
   if (footprint === undefined) return undefined
 
   const customProperties = new Map(
@@ -336,10 +355,6 @@ export const importKiCadPcbPinout = (
     customProperties.get("manufacturerpartnumber") ??
     "unknown"
 
-  const scalarChild = (list: ReadonlyArray<SExpression>, name: string): string | undefined => {
-    const value = childrenNamed(list, name)[0]?.[1]
-    return isAtom(value) ? value : undefined
-  }
   const titleBlock = childrenNamed(root, "title_block")[0]
   const designRevision = titleBlock === undefined ? undefined : scalarChild(titleBlock, "rev")
   const formatVersion = scalarChild(root, "version")
@@ -352,21 +367,29 @@ export const importKiCadPcbPinout = (
         ? generatorName
         : `${generatorName} ${generatorVersion}`
 
-  const pinout = childrenNamed(footprint, "pad")
-    .flatMap((pad) => {
-      const pin = pad[1]
-      if (!isAtom(pin) || pin === "") return []
-      const netName = childrenNamed(pad, "net")[0]?.[2]
-      const signal = isAtom(netName) && netName !== "" ? netName : undefined
-      return [{
-        pin,
-        sourcePin: pin,
-        ...(signal !== undefined
-          ? { signal, connection: "net" as const }
-          : { connection: "unconnected" as const })
-      }]
-    })
-    .sort((a, b) => a.pin.localeCompare(b.pin, undefined, { numeric: true }))
+  const pads = new Map<string, ContractPin>()
+  for (const pad of childrenNamed(footprint, "pad")) {
+    const pin = pad[1]
+    if (!isAtom(pin) || pin === "") continue
+    const net = childrenNamed(pad, "net")[0]
+    // KiCad 10 stores just the net name; older boards also include a numeric code.
+    const netName = net?.length === 2 ? net[1] : net?.[2]
+    const noConnect = scalarChild(pad, "pintype")?.split("+").includes("no_connect") ?? false
+    const signal = !noConnect && isAtom(netName) && netName !== "" ? netName : undefined
+    const entry: ContractPin = {
+      pin,
+      sourcePin: pin,
+      ...(signal !== undefined
+        ? { signal, connection: "net" as const }
+        : { connection: "unconnected" as const })
+    }
+    const existing = pads.get(pin)
+    if (existing !== undefined && existing.signal !== entry.signal) {
+      throw new Error(`KiCad component ${wanted} has conflicting net assignments on duplicate pad ${pin}.`)
+    }
+    pads.set(pin, entry)
+  }
+  const pinout = sortedPins(pads.values())
 
   // Hash the normalized connector facts, not KiCad object order or file
   // whitespace. This keeps the committed contract stable when pcbnew merely
@@ -402,6 +425,146 @@ export const importKiCadPcbPinout = (
   }
 }
 
+/**
+ * Import KiCad's resolved `kicad-cli sch export netlist --format kicadsexpr`
+ * output. Library pin inventory includes pins omitted from the nets section;
+ * omission alone supplies no no-connect intent. KiCad exports actual NC flags
+ * as a `+no_connect` suffix on node pintype, independently of the net name.
+ */
+export const importKiCadNetlistPinout = (
+  netlist: string,
+  meta: ConnectorContractImportMeta
+): ConnectorContract | undefined => {
+  const root = parseSExpression(netlist)
+  if (!isList(root) || root[0] !== "export") {
+    throw new Error("Expected a KiCad S-expression .net file; export with kicad-cli sch export netlist --format kicadsexpr.")
+  }
+  const components = childrenNamed(root, "components")[0]
+  const libparts = childrenNamed(root, "libparts")[0]
+  const nets = childrenNamed(root, "nets")[0]
+  if (components === undefined || libparts === undefined || nets === undefined) {
+    throw new Error("KiCad netlist requires components, libparts, and nets sections; re-export with --format kicadsexpr.")
+  }
+  const wanted = meta.component ?? meta.connector
+  const matches = childrenNamed(components, "comp").filter((entry) => scalarChild(entry, "ref") === wanted)
+  if (matches.length > 1) throw new Error(`Duplicate KiCad component reference ${wanted}.`)
+  const component = matches[0]
+  if (component === undefined) return undefined
+
+  const libsource = childrenNamed(component, "libsource")[0]
+  if (libsource === undefined) throw new Error(`KiCad component ${wanted} has no library source for its pin inventory.`)
+  const library = requiredScalar(libsource, "lib", `KiCad component ${wanted} library source`)
+  const part = requiredScalar(libsource, "part", `KiCad component ${wanted} library source`)
+  const matchingParts = childrenNamed(libparts, "libpart").filter(
+    (entry) => scalarChild(entry, "lib") === library && scalarChild(entry, "part") === part
+  )
+  if (matchingParts.length !== 1) {
+    throw new Error(`KiCad component ${wanted} requires one library pin inventory for ${library}:${part}; found ${matchingParts.length}.`)
+  }
+  const inventory = childrenNamed(matchingParts[0]!, "pins")[0]
+  if (inventory === undefined || childrenNamed(inventory, "pin").length === 0) {
+    throw new Error(`KiCad component ${wanted} has no library pin inventory; re-export with --format kicadsexpr.`)
+  }
+  const pins = new Map<string, ContractPin>()
+  const libraryNoConnects = new Set<string>()
+  for (const pinEntry of childrenNamed(inventory, "pin")) {
+    const pin = requiredScalar(pinEntry, "num", `KiCad component ${wanted} library pin`)
+    const noConnect = scalarChild(pinEntry, "type") === "no_connect"
+    if (pins.has(pin) && libraryNoConnects.has(pin) !== noConnect) {
+      throw new Error(`KiCad component ${wanted} has conflicting no-connect declarations for library pin ${pin}.`)
+    }
+    if (noConnect) libraryNoConnects.add(pin)
+    const entry = draft<ContractPin>({ pin, sourcePin: pin })
+    if (noConnect) entry.connection = "unconnected"
+    pins.set(pin, entry)
+  }
+
+  const assignments = new Map<string, { readonly code: string; readonly name: string; readonly noConnect: boolean }>()
+  const netNames = new Map<string, string>()
+  for (const net of childrenNamed(nets, "net")) {
+    const code = requiredScalar(net, "code", "KiCad net")
+    const name = requiredScalar(net, "name", `KiCad net ${code}`)
+    const previousName = netNames.get(code)
+    if (previousName !== undefined && previousName !== name) {
+      throw new Error(`KiCad net code ${code} has conflicting names ${previousName} and ${name}.`)
+    }
+    netNames.set(code, name)
+    for (const node of childrenNamed(net, "node")) {
+      const ref = requiredScalar(node, "ref", `KiCad net ${name} node`)
+      const pin = requiredScalar(node, "pin", `KiCad net ${name} node ${ref}`)
+      if (ref !== wanted) continue
+      if (!pins.has(pin)) {
+        throw new Error(`KiCad component ${wanted} node pin ${pin} is absent from its library pin inventory.`)
+      }
+      const pinType = scalarChild(node, "pintype")
+      const noConnect = pinType?.split("+").includes("no_connect") ?? libraryNoConnects.has(pin)
+      const previous = assignments.get(pin)
+      if (previous !== undefined && (previous.code !== code || previous.name !== name || previous.noConnect !== noConnect)) {
+        throw new Error(`KiCad component ${wanted} pin ${pin} has conflicting net or no-connect assignments (${previous.name}, ${name}).`)
+      }
+      if (libraryNoConnects.has(pin) && !noConnect) {
+        throw new Error(`KiCad component ${wanted} library no-connect pin ${pin} is assigned to net ${name}.`)
+      }
+      assignments.set(pin, { code, name, noConnect })
+      pins.set(pin, {
+        pin,
+        sourcePin: pin,
+        ...(noConnect ? { connection: "unconnected" as const } : { signal: name, connection: "net" as const })
+      })
+    }
+  }
+
+  const properties = new Map<string, string>()
+  const fields = childrenNamed(component, "fields")[0]
+  for (const field of fields === undefined ? [] : childrenNamed(fields, "field")) {
+    const key = scalarChild(field, "name")
+    const value = field[2]
+    if (key !== undefined && isAtom(value) && value !== "") {
+      properties.set(key.toLowerCase().replace(/[^a-z0-9]/g, ""), value)
+    }
+  }
+  for (const property of childrenNamed(component, "property")) {
+    const key = scalarChild(property, "name")
+    const value = scalarChild(property, "value")
+    if (key !== undefined && value !== undefined && value !== "") {
+      properties.set(key.toLowerCase().replace(/[^a-z0-9]/g, ""), value)
+    }
+  }
+  const mpn = meta.mpn ?? properties.get("mpn") ?? properties.get("manufacturerpartnumber") ?? "unknown"
+  const design = childrenNamed(root, "design")[0]
+  const sheets = design === undefined ? [] : childrenNamed(design, "sheet")
+  const rootSheet = sheets.find((sheet) => scalarChild(sheet, "name") === "/") ?? sheets[0]
+  const titleBlock = rootSheet === undefined ? undefined : childrenNamed(rootSheet, "title_block")[0]
+  const designRevision = titleBlock === undefined ? undefined : scalarChild(titleBlock, "rev")
+  const formatVersion = scalarChild(root, "version")
+  const generator = design === undefined ? undefined : scalarChild(design, "tool")
+  const pinout = sortedPins(pins.values())
+  const source = draft<ContractSource>({ format: "kicad-netlist" })
+  if (meta.sourceName !== undefined) source.name = meta.sourceName
+  source.component = wanted
+  if (designRevision !== undefined) source.designRevision = designRevision
+  if (formatVersion !== undefined) source.formatVersion = formatVersion
+  if (generator !== undefined) source.generator = generator
+  source.contentFingerprint = `fnv1a64:${fnv1a64(JSON.stringify({
+    format: source.format,
+    component: wanted,
+    mpn,
+    designRevision: designRevision ?? null,
+    formatVersion: formatVersion ?? null,
+    generator: generator ?? null,
+    pinout
+  }))}`
+  return {
+    contractVersion: "0.1.0",
+    harness: { id: "kicad-netlist", revision: designRevision ?? "-" },
+    hirSchema: HIR_SCHEMA_VERSION,
+    connector: meta.connector,
+    mpn,
+    source,
+    pinout
+  }
+}
+
 const fnv1a64 = (text: string): string => {
   let hash = 0xcbf29ce484222325n
   for (const byte of new TextEncoder().encode(text)) {
@@ -417,8 +580,15 @@ export const kicadPcbContractImporter: ConnectorContractImporter = {
   import: importKiCadPcbPinout
 }
 
+export const kicadNetlistContractImporter: ConnectorContractImporter = {
+  id: "kicad-netlist",
+  extensions: [".net"],
+  import: importKiCadNetlistPinout
+}
+
 export const builtinContractImporters: ReadonlyArray<ConnectorContractImporter> = [
-  kicadPcbContractImporter
+  kicadPcbContractImporter,
+  kicadNetlistContractImporter
 ]
 
 export const findContractImporter = (

@@ -36,6 +36,29 @@ export interface PartProvenance {
   readonly lastVerified?: string
 }
 
+/** A library reference for discovery and geometry, independent of part ratings. */
+export interface KiCadAsset {
+  readonly kind: "symbol" | "footprint" | "model3d"
+  /** KiCad library:name for symbols/footprints; library-relative path for models. */
+  readonly identifier: string
+  /** A mate's footprint is not the wire-side housing's cavity layout. */
+  readonly relationship: "part" | "mate" | "generic"
+  /** The represented part, where this is a part-specific reference. */
+  readonly mpn?: string
+  readonly sourceUrl: string
+  /** Upstream tag or commit, rather than an assumed installed KiCad version. */
+  readonly libraryRevision?: string
+  /** ISO date on which the upstream asset reference was checked. */
+  readonly lastVerified?: string
+  readonly license: {
+    readonly spdxId: string
+    readonly exception?: string
+    readonly url: string
+    readonly attribution: string
+  }
+  readonly notes?: string
+}
+
 /**
  * Component master data for a connector housing (PRD §9.2, §30).
  * Instances reference a part; parts live in libraries such as
@@ -81,6 +104,8 @@ export interface ConnectorPart {
   readonly insertionTool?: string
   readonly extractionTool?: string
   readonly provenance?: PartProvenance
+  /** Optional KiCad references; they do not establish pin mapping or electrical limits. */
+  readonly kicadAssets?: ReadonlyArray<KiCadAsset>
 }
 
 /**

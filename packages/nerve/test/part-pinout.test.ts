@@ -312,7 +312,11 @@ describe("determinism", () => {
 
   for (const { name, design, digest, bytes } of bundled) {
     it(`compiles examples/${name} to its pinned output`, () => {
-      const json = JSON.stringify(compileDesign(design).hir)
+      // Keep the historical pinout regression check after catalog assets were
+      // added. Their complete HIR contract is covered in kicad-assets.test.ts.
+      const json = JSON.stringify(compileDesign(design).hir, (key, value) =>
+        key === "kicadAssets" ? undefined : value
+      )
 
       expect(createHash("sha256").update(json).digest("hex")).toBe(digest)
       expect(Buffer.byteLength(json)).toBe(bytes)

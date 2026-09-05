@@ -15,6 +15,7 @@ import type {
   DifferentialPolarity,
   ElectricalRole,
   HarnessDesign,
+  KiCadAsset,
   PartProvenance,
   PinElectrical,
   SealPart,
@@ -34,6 +35,7 @@ import {
   type HirConnector,
   type HirEndpoint,
   type HirLabel,
+  type HirKiCadAsset,
   type HirProtection,
   type HirSealPart,
   type HirSplice,
@@ -171,6 +173,29 @@ const toHirProvenance = (
     verification: p.verification,
     lastVerified: p.lastVerified
   })
+
+/** Library references are a set; authored ordering must not change HIR bytes. */
+const toHirKiCadAssets = (
+  assets: ReadonlyArray<KiCadAsset> | undefined
+): ReadonlyArray<HirKiCadAsset> | undefined => {
+  if (assets === undefined || assets.length === 0) return undefined
+  return assets.map((asset) => compact({
+    kind: asset.kind,
+    identifier: asset.identifier,
+    relationship: asset.relationship,
+    mpn: asset.mpn,
+    sourceUrl: asset.sourceUrl,
+    libraryRevision: asset.libraryRevision,
+    lastVerified: asset.lastVerified,
+    license: compact({
+      spdxId: asset.license.spdxId,
+      exception: asset.license.exception,
+      url: asset.license.url,
+      attribution: asset.license.attribution
+    }),
+    notes: asset.notes
+  })).sort((a, b) => compareStrings(JSON.stringify(a), JSON.stringify(b)))
+}
 
 /**
  * Normalize a terminal record into HIR.
@@ -610,6 +635,7 @@ export const compileDesign =(design: HarnessDesign): CompileResult => {
           : undefined,
         crimpTool: c.part.crimpTool,
         provenance: c.part.provenance ? { ...c.part.provenance } : undefined,
+        kicadAssets: toHirKiCadAssets(c.part.kicadAssets),
         pins: Object.entries(c.pins)
           .sort(([a], [b]) => comparePins(a, b))
           .map(([pin, signal]) => {

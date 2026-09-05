@@ -350,7 +350,11 @@ describe("determinism", () => {
   // bottoms out at 16AWG and the driver end tops out at 20AWG, so no gauge
   // crimped into both.
   it("compiles examples/robot-platform to its pinned output", () => {
-    const json = JSON.stringify(compileDesign(robotPlatform).hir)
+    // Preserve the historical terminal regression check independently of the
+    // catalog's new library links, covered by kicad-assets.test.ts.
+    const json = JSON.stringify(compileDesign(robotPlatform).hir, (key, value) =>
+      key === "kicadAssets" ? undefined : value
+    )
 
     expect(createHash("sha256").update(json).digest("hex")).toBe(
       "be5fdc5a430920aa266e606a22a3726b12ecf134fbe44475f5585664ab528205"

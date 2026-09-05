@@ -1,0 +1,19 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.grayhaven.nerve",
+  "name": "Nerve harness interfaces",
+  "description": "Check a Nerve project's connector interfaces and select affected PCB pads.",
+  "runtime": { "type": "python", "min_version": "3.9" },
+  "actions": [
+    {
+      "identifier": "check-harness",
+      "name": "Check Nerve harness",
+      "description": "Save this board and check all interfaces in nerve-interfaces.json.",
+      "entrypoint": "plugin.py",
+      "scopes": ["pcb"],
+      "icons-light": ["icons/nerve-24.png", "icons/nerve-48.png"],
+      "icons-dark": ["icons/nerve-24.png", "icons/nerve-48.png"],
+      "show-button": true
+    }
+  ]
+}

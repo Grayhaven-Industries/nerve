@@ -218,7 +218,9 @@ report accounting for every source row. See
 nerve contract <file.harness.ts> --connector <ref> [--against <file>] [--component <ref>] [--out dir]
 ```
 
-Compare a harness connector with an outside authority: a KiCad 6+ board, a
+Run `nerve contract --help` for the full options, manifest syntax, and exit codes.
+
+Compare a harness connector with an outside authority: a KiCad 6+ board, a schematic or native `.net` export, a
 tscircuit design, a pinout CSV, or another contract JSON. `--component` names
 the footprint reference on the board. See
 [check a connector against a board](/docs/guides/check-a-connector-against-a-board).
@@ -335,3 +337,20 @@ nerve redline patch <redlines.json> [--out dir]
 ```
 
 Merge every accepted redline into one `variant()` patch.
+
+## Project interface checks
+
+```bash
+nerve contract --manifest nerve-interfaces.json [--json] [--out dir]
+nerve contract main.harness.ts --connector J1 --against board.kicad_sch --component J7
+```
+
+A manifest checks multiple board or schematic interfaces and supports explicit
+source-pad-to-harness-cavity mappings. Direct schematic input invokes `kicad-cli`;
+use `--kicad-cli /path/to/kicad-cli` to choose the executable. `.net` inputs use
+KiCad's native S-expression netlist format and need no installed KiCad.
+
+The JSON report includes every interface, source provenance, harness findings,
+and unmapped connectors. Exit codes are 0 for no errors, 1 for completed checks
+with errors, and 2 for invalid or incomplete checks. See
+[Check a connector against a board](/docs/guides/check-a-connector-against-a-board).

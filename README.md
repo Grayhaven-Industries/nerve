@@ -75,7 +75,7 @@ Nerve imports these formats:
 - WireViz projects
 - Mapped CSV wire lists
 - Mapped Excel wire lists
-- Connector contracts from KiCad boards
+- Connector contracts from KiCad boards, schematic netlists, and schematics via `kicad-cli`
 - Pinout CSV
 - tscircuit
 - Nerve JSON
@@ -191,11 +191,29 @@ npx --package=@grayhaven/nerve-cli nerve contract ./src/main.harness.ts \
   --out ./dist/contracts
 ```
 
-The adapter reads footprint references, pad-to-net assignments, and explicit no-connect pads from a KiCad 6+ board file.
+The adapter reads footprint references, pad-to-net assignments, and unassigned pads from a KiCad 6+ board file, including KiCad 10 net syntax.
 It writes `contract-J1.normalized.json` for review or source control.
 
 The file contains the board revision, ECAD component, generator version, and content fingerprint.
-The adapter does not infer graphical connectivity from a schematic.
+For a `.kicad_sch`, Nerve asks `kicad-cli` to export a resolved netlist. Exported
+`.net` files can also be checked directly. Nerve does not infer graphical connectivity.
+
+Check every mapped connector in one project:
+
+```bash
+nerve contract --manifest nerve-interfaces.json --json
+```
+
+The manifest maps harness connectors to board footprints or schematic components,
+with optional explicit pad-to-cavity mappings. Each run writes normalized contracts
+and `interface-report.json`; errors return 1 and incomplete checks return 2.
+`nerve setup` includes the manifest check in newly generated validation workflows.
+The [connector-check guide](./docs/content/docs/(index)/guides/check-a-connector-against-a-board.mdx)
+contains the manifest format, CI commands, and a runnable fixture example.
+
+The [KiCad IPC plugin](./integrations/kicad/README.md) runs these same checks from
+the PCB Editor and selects affected pads. The JST PH/XH catalog also links to
+revision-pinned KiCad symbols, mating footprints, and STEP models.
 
 ## Author a harness
 

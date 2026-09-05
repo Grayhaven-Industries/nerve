@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1.0",
+  "harness": "./src/main.harness.ts",
+  "interfaces": [
+    {
+      "id": "controller-board",
+      "connector": "J1",
+      "against": "../../packages/nerve-exporters/test/fixtures/controller.kicad_pcb",
+      "component": "BOARD_J7"
+    },
+    {
+      "id": "controller-schematic",
+      "connector": "J1",
+      "against": "../../packages/nerve-exporters/test/fixtures/controller.net",
+      "component": "BOARD_J7"
+    }
+  ]
+}

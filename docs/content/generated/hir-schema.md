@@ -40,6 +40,7 @@ Array of:
 | `voltageLimitV` | `number` | no |  |
 | `crimpTool` | `string` | no |  |
 | `provenance` | `{ source, datasheet, verification, lastVerified }` | no |  |
+| `kicadAssets` | `Array<{ kind, identifier, relationship, mpn, sourceUrl, libraryRevision, lastVerified, license, notes }>` | no |  |
 | `pins` | `Array<{ pin, signal, terminal, seal, terminalPart, sealPart, electrical }>` | yes |  |
 
 ## wires

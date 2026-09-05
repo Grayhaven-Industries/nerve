@@ -24,14 +24,135 @@ npx --package=@grayhaven/nerve-cli nerve contract ./src/main.harness.ts \
 - `--component` is the footprint reference on the board.
 
 The adapter reads footprint reference properties, pad-to-net assignments, and
-explicit no-connect pads from a KiCad 6 or newer board file. It writes `contract-J1.normalized.json`. That file carries the board revision,
+unassigned pads from a KiCad 6 or newer board file, including KiCad 10's net syntax. It writes `contract-J1.normalized.json`. That file carries the board revision,
 the ECAD component, the generator and version, and a content fingerprint. You
 can therefore review and commit the normalized input.
 
-<Callout type="warn" title="Board file, not schematic">
-  The adapter does not infer graphical connectivity from a schematic. Point it
-  at the `.kicad_pcb`.
-</Callout>
+An unassigned board pad establishes that the board has no net assignment. It does
+not by itself prove a schematic no-connect marker. Explicit KiCad no-connect
+metadata is retained when present.
+
+## Check a project
+
+Save `nerve-interfaces.json` beside the harness project:
+
+```json
+{
+  "schemaVersion": "0.1.0",
+  "harness": "./src/main.harness.ts",
+  "interfaces": [
+    {
+      "id": "controller",
+      "connector": "J1",
+      "against": "./boards/controller.kicad_pcb",
+      "component": "J7"
+    },
+    {
+      "id": "sensor",
+      "connector": "J2",
+      "against": "./boards/sensor.kicad_sch",
+      "component": "J3"
+    }
+  ]
+}
+```
+
+Run every mapping:
+
+```bash
+nerve contract --manifest nerve-interfaces.json --json
+```
+
+Paths are relative to the manifest, regardless of the current working directory.
+Each `id` must be unique and contain only letters, numbers, dots, underscores,
+or hyphens, starting with a letter or number. `component` defaults to the harness
+connector reference. An optional `mpn` explicitly supplies or overrides the source
+part number. Unknown fields and duplicate mappings are rejected.
+
+When board pads and harness cavities use different identifiers, supply a `pins`
+object on the interface, for example `"pins": { "A1": "1", "A2": "2" }`. Keys are
+**source pads**, values are **harness cavities**. The map must cover every numbered
+source pad exactly once, with a distinct destination for each pad. Omit `pins`
+for matching identifiers. Generic footprint geometry does not establish this map.
+
+The default output directory is `dist/interfaces` beside the manifest. `--out`
+is relative to the current directory. A run writes:
+
+- `interface-report.json`, with the harness fingerprint, each interface's
+  source, normalized contract, findings, status, and unmapped harness connectors.
+- `contract-<id>.normalized.json` for each successfully imported interface.
+
+`--json` prints just the report to stdout. A complete check with no errors returns
+0, a completed check with errors returns 1, and an incomplete check returns 2.
+Missing files, components that cannot be imported, invalid pin maps, and unknown
+source connectivity cannot produce a passing interface. `HK-IFC-007` identifies
+load/mapping failures; `HK-IFC-008` identifies unknown connectivity. Other
+interfaces are still checked when one fails to load. Harness rule findings also
+appear in the report and errors block the command.
+
+A report covers only the declared mappings. `summary.uncheckedConnectors` lists
+harness connectors without an outside interface check. Imported data and successful
+checks do not establish manufacturer ratings or physical assembly correctness.
+Generated contracts removed from a manifest are cleaned up on the next valid run;
+the report and exit code describe the current run.
+
+From the Nerve repository root, try the included example:
+
+```bash
+node packages/nerve-cli/bin/nerve.js contract \
+  --manifest examples/motor-controller/nerve-interfaces.json
+```
+
+This example checks the motor-controller harness against the repository's small,
+hand-authored PCB and netlist fixtures. They exercise contract import and are not
+a fabricated or measured hardware design. The motor connector remains unmapped.
+
+## Check a schematic before PCB layout
+
+Point the same command or manifest at the root `.kicad_sch`:
+
+```bash
+nerve contract ./src/main.harness.ts --connector J1 \
+  --against ./controller.kicad_sch --component J7
+```
+
+Nerve runs `kicad-cli sch export netlist --format kicadsexpr` into a temporary
+directory, reads KiCad's resolved connectivity, and removes the temporary export.
+Install KiCad on the machine running the check. On macOS Nerve recognizes the
+standard application path; otherwise it uses `kicad-cli` on `PATH`. Pass
+`--kicad-cli /absolute/path/to/kicad-cli` to select another executable.
+
+For an exported netlist, KiCad does not need to be installed:
+
+```bash
+kicad-cli sch export netlist --format kicadsexpr \
+  --output controller.net controller.kicad_sch
+nerve contract ./src/main.harness.ts --connector J1 \
+  --against controller.net --component J7
+```
+
+The native `.net` importer uses the component's library pin inventory and resolved
+net nodes. An omitted node remains unknown; a KiCad `+no_connect` pin annotation
+is an intentional no-connect. A signal name resembling an unconnected pin is not
+proof of that intent. The importer records tool, revision, and content provenance;
+it does not infer voltage, current, or protocol semantics from net names.
+Regenerate exported netlists when the schematic changes, or use `.kicad_sch`
+directly so each check starts from the current saved schematic.
+
+## Check from KiCad
+
+The [Nerve IPC plugin](https://github.com/Grayhaven-Industries/nerve/tree/main/integrations/kicad)
+adds a **Save board and check harness** action to the PCB Editor. It reads the same
+manifest, shows findings from every interface, and selects the corresponding pad
+or footprint in the open board. It saves the current board before checking;
+other designs are read from their saved files. Installation requires KiCad 9/10,
+Python with Tk, and a Nerve CLI with manifest support. The plugin README contains
+installation and executable configuration instructions.
+
+The part inspector also exposes available KiCad asset links. The bundled JST
+PH/XH entries distinguish generic symbols from mating PCB header footprints and
+STEP models. Their pinned source revisions and license details travel with the
+part metadata.
 
 ## Against tscircuit
 
@@ -69,5 +190,21 @@ contradict. `matingMpn` does not help here. It is a part number with nothing beh
 
 ## Put it in the gate
 
-`nerve contract` exits nonzero on a mismatch, so it belongs in CI next to
-`nerve validate` for any harness that mates with a board you also control.
+`nerve setup` includes a manifest check in newly generated validation workflows
+when a root `nerve-interfaces.json` exists. Existing workflows are not overwritten;
+add `nerve contract --manifest nerve-interfaces.json` to their validation job.
+A runner checking `.kicad_sch` inputs must also have KiCad installed.
+
+Where the project includes the board and schematic, run KiCad's own checks before
+Nerve. These commands use the saved source and fail on error-level findings:
+
+```bash
+kicad-cli sch erc --severity-error --exit-code-violations controller.kicad_sch
+kicad-cli pcb drc --severity-error --schematic-parity --exit-code-violations controller.kicad_pcb
+nerve contract --manifest nerve-interfaces.json
+```
+
+KiCad checks the circuit and board; Nerve checks their mapped harness interfaces.
+Pin the KiCad version in your build environment. See the
+[official CLI manual](https://docs.kicad.org/10.0/en/cli/cli.html) for installation
+paths and command options.

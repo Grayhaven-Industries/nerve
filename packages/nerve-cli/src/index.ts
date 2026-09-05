@@ -52,6 +52,7 @@ import {
 } from "@grayhaven/nerve-eval"
 import { builtinRulesWith } from "@grayhaven/nerve-rules"
 import { startDev } from "./dev.js"
+import { runContractCommand } from "./contract-project.js"
 import { runSnapshot } from "./snapshot.js"
 import { cliVersion, initFiles, setupFiles, writeScaffold } from "./scaffold.js"
 import {
@@ -62,7 +63,6 @@ import {
   analyzeHarness,
   builtinAdapters,
   buildRecordJson,
-  contractJson,
   createBuildRecord,
   createRedline,
   createRelease,
@@ -76,24 +76,16 @@ import {
   testSpecificationMatchesPlan,
   validateRedlineTarget,
   validateTestSpecification,
-  exportConnectorContract,
   findAdapter,
-  findContractImporter,
   generateTestPlan,
   generateQuote,
-  importPinoutCsv,
-  exportTscircuitCircuitJson,
-  importTscircuitPinout,
   quoteCsv,
   quoteJson,
-  validateContract,
   buildPacket,
   canRelease,
   hirFingerprint,
   pinoutSvg,
   schematicSvg,
-  parseTscircuitCircuitJson,
-  type ConnectorContract,
   type Redline,
   type RedlineType,
   type TestSpecification
@@ -418,7 +410,8 @@ Usage:
   nerve quote    <file.harness.ts> [--out dir]   (requires costing in nerve.config.ts)
   nerve analyze  <file.harness.ts> [--out dir]   (resistance, drop, bundle, weight §34)
   nerve machine  <adapter-id> <file.harness.ts> [--test-spec <file.json>] [--out dir]   (shop-floor exports §31)
-  nerve contract <file.harness.ts> --connector <ref> [--against contract.json|pinout.csv|board.kicad_pcb] [--component ref] [--out dir]
+  nerve contract <file.harness.ts> --connector <ref> [--against contract.json|pinout.csv|board.kicad_pcb|schematic.net|schematic.kicad_sch] [--component ref] [--json] [--out dir]
+  nerve contract --manifest nerve-interfaces.json [--kicad-cli executable] [--json] [--out dir]
   nerve release  <file.harness.ts> --eco <id> --reason <text> --date <iso> [--against release.json] [--out dir]
   nerve record   <file.harness.ts> --release <release.json> --serial <sn> --operator <name> --date <iso> --results <measurements.json> [--test-spec <file.json>] [--lengths lengths.json] [--length-tolerance mm] [--out dir]
   nerve redline  add <file.harness.ts> --target <hir-ref> --type <type> --description <text> [--value v] [--release id] [--serial sn]
@@ -429,6 +422,34 @@ Usage:
   nerve inspect  <harness.json>
   nerve parts    [spec-or-mpn] [--json]   (bundled connector library + which checks the data enables)
   nerve parts    scaffold <mpn> --pins <n> [--out dir]   (stub a new part with every rule-relevant field)`
+
+const CONTRACT_USAGE = `nerve contract — export connector contracts or check project interfaces
+
+Usage:
+  nerve contract <file.harness.ts> --connector <ref> [--against <file>] [options]
+  nerve contract --manifest <file.json> [options]
+
+Options:
+  --connector <ref>       Harness connector to export or check.
+  --against <file>        Compare with a contract JSON, pinout CSV, KiCad PCB,
+                          KiCad .net or .kicad_sch, or tscircuit .circuit.json.
+  --component <ref>       Source component reference (defaults to --connector).
+  --manifest <file.json>  Check all interfaces and pin maps declared in this file.
+                          Use instead of the harness and single-connector options.
+  --kicad-cli <path>      KiCad executable for .kicad_sch inputs (auto-detected).
+  --format circuit-json  Export a tscircuit design instead of contract JSON.
+                          Applies when exporting without --against or --manifest.
+  --out <dir>            Output directory. Manifest checks default to
+                          <manifest directory>/dist/interfaces; other modes use
+                          the harness configuration's outputDir or ./dist.
+  --json                 Print the exported contract or check report as JSON.
+  --codes                Include diagnostic codes in human-readable findings.
+  -h, --help             Show this help without reading inputs or writing files.
+
+Paths inside a manifest are relative to that manifest. Pin maps assign source
+pads to harness cavities. Native .kicad_sch inputs require KiCad; .net inputs do not.
+
+Exit codes: 0 success; 1 completed check with errors; 2 invalid or incomplete check.`
 
 /** Resolve a diff argument to HIR: a harness.json, a .harness.ts, or a directory. */
 const loadHirForDiff = async (path: string, io: Io): Promise<Hir | CommandExit> => {
@@ -920,90 +941,14 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
     }
 
     case "contract": {
-      const file = positional[0]
-      const connectorRef = flags["connector"]
-      if (file === undefined || connectorRef === undefined) return usage(io)
-      const result = await compileOrExit(file, io)
-      if (result instanceof CommandExit) return result.code
-      const against = flags["against"]
-      if (against !== undefined) {
-        let contract: ConnectorContract | undefined
-        try {
-          const raw = readFileSync(resolve(against), "utf8")
-          if (against.endsWith(".csv")) {
-            contract = importPinoutCsv(raw, { connector: connectorRef })
-          } else if (findContractImporter(against) !== undefined) {
-            const component = flags["component"]
-            const named =
-              component === undefined
-                ? { connector: connectorRef }
-                : { connector: connectorRef, component }
-            contract = findContractImporter(against)!.import(raw, {
-              ...named,
-              sourceName: basename(against)
-            })
-            if (contract === undefined) {
-              io.err(`Component ${flags["component"] ?? connectorRef} not found in ${against}.`)
-              return 2
-            }
-          } else if (against.endsWith(".circuit.json")) {
-            // PRD §37: validate the harness against a tscircuit board.
-            const component = flags["component"]
-            contract = importTscircuitPinout(
-              parseTscircuitCircuitJson(raw),
-              component === undefined
-                ? { connector: connectorRef }
-                : { connector: connectorRef, component }
-            )
-            if (contract === undefined) {
-              io.err(`Component ${flags["component"] ?? connectorRef} not found in ${against}.`)
-              return 2
-            }
-          } else {
-            contract = JSON.parse(raw)
-          }
-        } catch (cause) {
-          io.err(`Failed to load contract ${against}: ${cause instanceof Error ? cause.message : String(cause)}`)
-          return 2
-        }
-        if (contract === undefined) {
-          io.err(`Contract importer did not produce a contract for ${against}.`)
-          return 2
-        }
-        const diagnostics = validateContract(result.hir, contract)
-        const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
-        writeOut(
-          outDir,
-          `contract-${connectorRef}.normalized.json`,
-          contractJson(contract),
-          io
-        )
-        printDiagnostics(diagnostics, io, flags["codes"] !== undefined)
-        io.out(
-          diagnostics.length === 0
-            ? `Connector ${connectorRef} conforms to ${against}.`
-            : `${diagnostics.length} contract issue(s) for ${connectorRef}.`
-        )
-        return hasErrors(diagnostics) ? 1 : 0
-      }
-      const contract = exportConnectorContract(result.hir, connectorRef)
-      if (contract === undefined) {
-        io.err(`Connector ${connectorRef} not found in ${result.hir.harness.id}.`)
-        return 2
-      }
-      const outDir = resolve(flags["out"] ?? result.config.outputDir ?? "dist")
-      if (flags["format"] === "circuit-json") {
-        // PRD §37 reverse direction: hand tscircuit the harness side.
-        writeOut(
-          outDir,
-          `${connectorRef}.circuit.json`,
-          JSON.stringify(exportTscircuitCircuitJson(result.hir, connectorRef), null, 2) + "\n",
-          io
-        )
+      if (flags["help"] !== undefined || argv.includes("-h")) {
+        io.out(CONTRACT_USAGE)
         return 0
       }
-      writeOut(outDir, `contract-${connectorRef}.json`, contractJson(contract), io)
-      return 0
+      return runContractCommand(positional, flags, io, async (file) => {
+        const result = await compileOrExit(file, io, { fresh: true })
+        return result instanceof CommandExit ? undefined : result
+      })
     }
 
     case "release": {
@@ -1457,7 +1402,7 @@ export const run = async (argv: ReadonlyArray<string>, io: Io = realIo): Promise
     case undefined:
     case "help":
     case "--help":
-      io.out(USAGE)
+      io.out(positional[0] === "contract" ? CONTRACT_USAGE : USAGE)
       return command === undefined ? 2 : 0
 
     default:

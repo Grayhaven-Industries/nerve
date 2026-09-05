@@ -8,6 +8,7 @@
  * Provenance: JST catalog data, inspired-by tier.
  */
 import type { ConnectorPart } from "@grayhaven/nerve"
+import { jstKiCadAssets } from "./kicad-assets.js"
 
 const provenance = {
   source: "JST catalog",
@@ -29,6 +30,7 @@ const housing = (circuits: number): ConnectorPart => ({
   wireGaugeRange: { min: "32AWG", max: "24AWG" },
   currentLimitA: 2,
   voltageLimitV: 100,
+  kicadAssets: jstKiCadAssets("PH", circuits, `B${circuits}B-PH-K-S`),
   provenance
 })
 

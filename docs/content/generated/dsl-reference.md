@@ -57,6 +57,7 @@ defineConfig(config: NerveConfig)
 | `insertionTool` | `string` | no |  |
 | `extractionTool` | `string` | no |  |
 | `provenance` | `PartProvenance` | no |  |
+| `kicadAssets` | `ReadonlyArray<KiCadAsset>` | no | Optional KiCad references; they do not establish pin mapping or electrical limits. |
 
 ### ConnectorProps
 

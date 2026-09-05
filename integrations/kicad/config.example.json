@@ -1,0 +1,4 @@
+{
+  "command": ["nerve"],
+  "timeoutSeconds": 120
+}

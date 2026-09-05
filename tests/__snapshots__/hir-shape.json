@@ -193,6 +193,79 @@
               },
               "additionalProperties": false
             },
+            "kicadAssets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "identifier",
+                  "relationship",
+                  "sourceUrl",
+                  "license"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "symbol",
+                      "footprint",
+                      "model3d"
+                    ]
+                  },
+                  "identifier": {
+                    "type": "string"
+                  },
+                  "relationship": {
+                    "type": "string",
+                    "enum": [
+                      "part",
+                      "mate",
+                      "generic"
+                    ]
+                  },
+                  "mpn": {
+                    "type": "string"
+                  },
+                  "sourceUrl": {
+                    "type": "string"
+                  },
+                  "libraryRevision": {
+                    "type": "string"
+                  },
+                  "lastVerified": {
+                    "type": "string"
+                  },
+                  "license": {
+                    "type": "object",
+                    "required": [
+                      "spdxId",
+                      "url",
+                      "attribution"
+                    ],
+                    "properties": {
+                      "spdxId": {
+                        "type": "string"
+                      },
+                      "exception": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "attribution": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
             "pins": {
               "type": "array",
               "items": {

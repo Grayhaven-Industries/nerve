@@ -256,6 +256,12 @@
           "type": "PartProvenance",
           "optional": true,
           "doc": ""
+        },
+        {
+          "name": "kicadAssets",
+          "type": "ReadonlyArray<KiCadAsset>",
+          "optional": true,
+          "doc": "Optional KiCad references; they do not establish pin mapping or electrical limits."
         }
       ]
     },

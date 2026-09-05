@@ -3,7 +3,7 @@
  * whatever is selected in any sheet, with a jump to its source definition.
  */
 import { useCallback, useEffect, useRef, type RefObject } from "react"
-import type { Hir } from "@grayhaven/nerve"
+import type { Hir, HirKiCadAsset } from "@grayhaven/nerve"
 import { Button } from "@/components/ui/button"
 // shadcn/ui 4.13.1, "radix-nova" style: Card owns the surface, radius, and
 // padding; CardHeader switches to a [1fr_auto] grid when a CardAction is
@@ -58,6 +58,44 @@ const rows = (hir: Hir, sel: Selection): Array<readonly [string, string]> => {
   ]
 }
 
+const webUrl = (value: string): string | undefined => {
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function KiCadAssets({ assets }: { assets: ReadonlyArray<HirKiCadAsset> }) {
+  if (assets.length === 0) return null
+  return (
+    <details className="mb-2">
+      <summary className="cursor-pointer">KiCad library assets ({assets.length})</summary>
+      <ul className="mt-2 max-h-64 space-y-3 overflow-y-auto" aria-label="KiCad library assets">
+        {assets.map((asset, index) => (
+          <li key={`${asset.kind}:${asset.identifier}:${index}`} className="break-words">
+            <p>
+              {asset.kind === "model3d" ? "3D model" : asset.kind}
+              {asset.relationship === "mate" ? ` · mate ${asset.mpn ?? ""}` : asset.relationship === "generic" ? " · generic" : " · this part"}
+            </p>
+            <a href={webUrl(asset.sourceUrl)} target="_blank" rel="noreferrer" className="underline">
+              {asset.identifier}
+            </a>
+            {asset.notes && <p className="text-muted-foreground">{asset.notes}</p>}
+            <p className="text-muted-foreground">
+              {asset.license.attribution}{" · "}
+              <a href={webUrl(asset.license.url)} target="_blank" rel="noreferrer" className="underline">
+                {asset.license.spdxId}{asset.license.exception ? ` (${asset.license.exception})` : ""}
+              </a>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 export function Inspector({
   hir,
   focusOnClose
@@ -107,6 +145,9 @@ export function Inspector({
   if (sel === undefined) return null
   const data = rows(hir, sel)
   if (data.length === 0) return null
+  const assets = sel.kind === "connector" || sel.kind === "pin"
+    ? hir.connectors.find((connector) => connector.ref === sel.ref)?.kicadAssets
+    : undefined
   const sourceId = sel.kind === "pin" ? sel.ref : sel.ref
   return (
     // size="sm" keeps --card-spacing at 3 (12px) so the overlay stays compact.
@@ -142,6 +183,7 @@ export function Inspector({
             </div>
           ))}
         </dl>
+        {assets && <KiCadAssets assets={assets} />}
         <Button variant="ghost" size="xs" onClick={() => jumpToSource(sourceId)}>
           View source ↗
         </Button>
